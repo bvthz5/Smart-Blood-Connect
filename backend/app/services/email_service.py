@@ -18,7 +18,7 @@ class EmailService:
     def send_password_reset_email(self, recipient_email, reset_link, user_name="User"):
         """Send password reset email with provided reset link"""
         try:
-            subject = "SmartBlood - Password Reset"
+            subject = EmailConfig.RESET_SUBJECT if hasattr(EmailConfig, 'RESET_SUBJECT') else "SmartBlood - Password Reset"
             html_content = self._create_password_reset_html(user_name, reset_link)
             text_content = self._create_password_reset_text(user_name, reset_link)
             
@@ -51,6 +51,8 @@ class EmailService:
 
     def _create_password_reset_html(self, user_name, reset_link):
         """Professional short HTML email for password reset"""
+        expiry = int(current_app.config.get("RESET_EXPIRES_MINUTES", 15))
+        preheader = "Reset your SmartBlood password"
         return f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -106,9 +108,11 @@ class EmailService:
                     font-size: 12px; margin: 10px 0;
                 }}
                 .footer {{ margin-top: 16px; font-size: 12px; color: #666; }}
+                .preheader {{ display:none; visibility:hidden; opacity:0; height:0; width:0; mso-hide:all; }}
             </style>
         </head>
         <body>
+            <span class="preheader">{preheader}</span>
             <div class="container">
                 <div class="header">
                     <div class="logo">🩸 SmartBlood</div>
@@ -125,7 +129,7 @@ class EmailService:
                     
                     <p>If the button doesn't work, copy and paste this link in your browser:</p>
                     <div class="reset-link">{reset_link}</div>
-                    <p style="color:#666; font-size:12px;">This link expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
+                    <p style="color:#666; font-size:12px;">This link expires in {expiry} minutes. If you didn't request this, you can ignore this email.</p>
                 </div>
                 
                 <div class="footer"> 2025 SmartBlood</div>
@@ -136,6 +140,7 @@ class EmailService:
 
     def _create_password_reset_text(self, user_name, reset_link):
         """Short plain text for password reset"""
+        expiry = int(current_app.config.get("RESET_EXPIRES_MINUTES", 15))
         return f"""
 SmartBlood - Password Reset
 
