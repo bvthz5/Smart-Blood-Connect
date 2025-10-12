@@ -71,8 +71,8 @@ def verify_otp_route():
     db.session.commit()
 
     # create tokens
-    access = create_access_token(identity=user.id, expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
-    refresh = create_refresh_token(identity=user.id, expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
+    access = create_access_token(identity=str(user.id), expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
+    refresh = create_refresh_token(identity=str(user.id), expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
     # TODO: Implement refresh token storage with new schema
     return jsonify({"access_token": access, "refresh_token": refresh, "user": {"id": user.id, "name": user.first_name}})
 
@@ -173,7 +173,7 @@ def forgot_password():
         if "@" in ident:
             try:
                 from app.services.email_service import email_service
-                reset_token = create_access_token(identity=user.id, additional_claims={"pr": "reset"}, expires_delta=timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15)))
+                reset_token = create_access_token(identity=str(user.id), additional_claims={"pr": "reset"}, expires_delta=timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15)))
                 reset_link = f"{current_app.config.get('FRONTEND_URL', 'http://localhost:3000')}/seeker/reset-password?token={reset_token}"
                 email_sent = email_service.send_password_reset_email(ident, reset_link, user.first_name or "User")
                 if email_sent:
@@ -207,6 +207,10 @@ def reset_password():
     if claims.get("pr") != "reset":
         return jsonify({"error": "invalid reset token"}), 400
     user_id = decoded.get("sub")
+    try:
+        user_id = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid user id in token"}), 400
     user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "user not found"}), 404
@@ -234,6 +238,10 @@ def change_password():
     except Exception:
         return jsonify({"error":"invalid token"}), 401
     user_id = decoded.get("sub")
+    try:
+        user_id = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        return jsonify({"error":"invalid token"}), 401
     user = User.query.get(user_id)
     data = request.get_json() or {}
     old = data.get("old_password")

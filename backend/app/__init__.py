@@ -8,6 +8,7 @@ from .config import config
 from .extensions import db, migrate, jwt
 from .services.database import check_database_connection
 from .services.auth import seed_admin_user
+from app.config.email_config import EmailConfig
 
 def configure_cors(app):
     """Configure CORS for cross-origin requests"""
@@ -166,6 +167,12 @@ def create_app(config_name='default'):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+
+    # Validate email (SMTP) configuration early and warn if missing
+    try:
+        EmailConfig.validate_config()
+    except Exception as e:
+        print(f"[EmailConfig] Warning: {e}. Forgot password emails will fail until SMTP credentials are set.")
 
     # Configure CORS
     configure_cors(app)

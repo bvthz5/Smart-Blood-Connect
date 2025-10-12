@@ -21,6 +21,9 @@ class Config:
     ACCESS_EXPIRES_MINUTES = int(os.environ.get("ACCESS_EXPIRES_MINUTES", 60))  # 1 hour
     REFRESH_EXPIRES_DAYS = int(os.environ.get("REFRESH_EXPIRES_DAYS", 7))  # 7 days
     
+    # Frontend URL for building password reset links
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    
     # Admin seeding configuration
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "smartblooda@gmail.com")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@123")

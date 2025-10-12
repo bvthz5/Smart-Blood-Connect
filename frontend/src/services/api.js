@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Local development API URL
-const API_BASE_URL = 'http://127.0.0.1:5000';
+// Configure API base URL
+// Prefer environment variable; fall back to same-origin (Vite proxy handles /api)
+const API_BASE_URL = import.meta?.env?.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
