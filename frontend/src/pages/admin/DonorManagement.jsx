@@ -5,8 +5,6 @@ import {
   Search,
   Filter,
   Plus,
-  Edit,
-  Trash2,
   Shield,
   ShieldOff,
   Users,
@@ -21,6 +19,10 @@ import {
   Download,
   RefreshCw
 } from 'lucide-react';
+import ViewIcon from '../../assets/icons/view.svg';
+import EditIcon from '../../assets/icons/edit.svg';
+import DeleteIcon from '../../assets/icons/delete.svg';
+import BlockIcon from '../../assets/icons/block.svg';
 import donorManagementService from '../../services/donorManagementService';
 import './DonorManagement.css';
 
@@ -37,7 +39,7 @@ const DonorManagementContent = () => {
   });
   const [pagination, setPagination] = useState({
     page: 1,
-    per_page: 20,
+    per_page: 10,
     total: 0,
     pages: 0
   });
@@ -45,6 +47,7 @@ const DonorManagementContent = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Mock data for development
@@ -209,6 +212,11 @@ const DonorManagementContent = () => {
     setShowBlockModal(true);
   };
 
+  const handleView = (donor) => {
+    setSelectedDonor(donor);
+    setShowViewModal(true);
+  };
+
   const confirmDelete = async () => {
     setActionLoading(true);
     try {
@@ -291,6 +299,23 @@ const DonorManagementContent = () => {
     );
   }
 
+  const exportCsv = () => {
+    const headers = ['ID','Name','Email','Phone','Blood Group','Status','Available','City','District','Last Donation','Reliability'];
+    const rows = donors.map(d => [d.id,d.name,d.email,d.phone,d.blood_group,d.status,d.is_available ? 'Yes' : 'No',d.city,d.district,d.last_donation_date || '',d.reliability_score]);
+    const csv = [headers, ...rows].map(r => r.map(x => (`${x}`.includes(',') ? `"${(`${x}`).replaceAll('"','""')}"` : `${x}`)).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'donors.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const startIndex = (pagination.page - 1) * pagination.per_page;
+  const endIndex = startIndex + pagination.per_page;
+  const pageDonors = donors.slice(startIndex, endIndex);
+
   return (
     <div className="donor-management">
       {/* Header */}
@@ -301,13 +326,13 @@ const DonorManagementContent = () => {
             <h1>Donor Management</h1>
           </div>
           <div className="header-actions">
-            <button className="btn-secondary">
-              <Download size={16} />
-              Export
-            </button>
             <button className="btn-primary">
               <Plus size={16} />
               Add Donor
+            </button>
+            <button className="btn-secondary" onClick={exportCsv}>
+              <Download size={16} />
+              Export CSV
             </button>
           </div>
         </div>
@@ -359,10 +384,16 @@ const DonorManagementContent = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="donor-controls">
-        <div className="search-section">
-          <div className="search-input">
+      {/* Filters moved near table */}
+
+      {/* Donors Table */}
+      <div className="donor-table-container">
+        <div className="table-header">
+          <div className="table-title">
+            <span>Donors List</span>
+            <span className="table-count">({pagination.total} donors)</span>
+          </div>
+          <div className="search-input" style={{ maxWidth: 360 }}>
             <Search size={20} />
             <input
               type="text"
@@ -372,61 +403,53 @@ const DonorManagementContent = () => {
             />
           </div>
         </div>
-        
-        <div className="filters-section">
-          <div className="filter-group">
-            <label>Blood Group</label>
-            <select
-              value={filters.blood_group}
-              onChange={(e) => handleFilterChange('blood_group', e.target.value)}
-            >
-              <option value="">All Blood Groups</option>
-              {bloodGroups.map(group => (
-                <option key={group} value={group}>{group}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <label>Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-            >
-              <option value="">All Status</option>
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <label>Availability</label>
-            <select
-              value={filters.availability}
-              onChange={(e) => handleFilterChange('availability', e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="available">Available</option>
-              <option value="unavailable">Unavailable</option>
-            </select>
-          </div>
-          
-          <button className="clear-filters" onClick={clearFilters}>
-            <RefreshCw size={16} />
-            Clear Filters
-          </button>
-        </div>
-      </div>
 
-      {/* Donors Table */}
-      <div className="donor-table-container">
-        <div className="table-header">
-          <div className="table-title">
-            <span>Donors List</span>
-            <span className="table-count">({pagination.total} donors)</span>
+        <div className="filters-inline">
+          <div className="filters-section">
+            <div className="filter-group">
+              <label>Blood Group</label>
+              <select
+                value={filters.blood_group}
+                onChange={(e) => handleFilterChange('blood_group', e.target.value)}
+              >
+                <option value="">All Blood Groups</option>
+                {bloodGroups.map(group => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label>Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+              >
+                <option value="">All Status</option>
+                {statusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label>Availability</label>
+              <select
+                value={filters.availability}
+                onChange={(e) => handleFilterChange('availability', e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="available">Available</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </div>
+            
+            <button className="clear-filters" onClick={clearFilters}>
+              <RefreshCw size={16} />
+              Clear Filters
+            </button>
           </div>
         </div>
         
@@ -435,7 +458,6 @@ const DonorManagementContent = () => {
             <thead>
               <tr>
                 <th>Donor</th>
-                <th>Contact</th>
                 <th>Blood Group</th>
                 <th>Status</th>
                 <th>Availability</th>
@@ -445,7 +467,7 @@ const DonorManagementContent = () => {
               </tr>
             </thead>
             <tbody>
-              {donors.map((donor) => (
+              {pageDonors.map((donor) => (
                 <tr key={donor.id}>
                   <td>
                     <div className="donor-info">
@@ -458,18 +480,6 @@ const DonorManagementContent = () => {
                           <MapPin size={12} />
                           {donor.city}, {donor.district}
                         </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="contact-info">
-                      <div className="contact-item">
-                        <Mail size={14} />
-                        {donor.email}
-                      </div>
-                      <div className="contact-item">
-                        <Phone size={14} />
-                        {donor.phone}
                       </div>
                     </div>
                   </td>
@@ -501,25 +511,33 @@ const DonorManagementContent = () => {
                   <td>
                     <div className="action-buttons">
                       <button 
-                        className="action-btn edit"
+                        className="action-btn icon-only edit"
                         onClick={() => handleEdit(donor)}
                         title="Edit Donor"
                       >
-                        <Edit size={18} />
+                        <img src={EditIcon} alt="Edit" />
+                      </button>
+                      <button
+                        className="action-btn icon-only view"
+                        onClick={() => handleView(donor)}
+                        title="View Details"
+                      >
+                        <img src={ViewIcon} alt="View" />
+                        <span className="sr-only">View</span>
                       </button>
                       <button 
-                        className="action-btn block"
+                        className="action-btn icon-only block"
                         onClick={() => handleBlock(donor)}
                         title={donor.status === 'blocked' ? 'Unblock Donor' : 'Block Donor'}
                       >
-                        {donor.status === 'blocked' ? <Shield size={18} /> : <ShieldOff size={18} />}
+                        <img src={BlockIcon} alt={donor.status === 'blocked' ? 'Unblock' : 'Block'} />
                       </button>
                       <button 
-                        className="action-btn delete"
+                        className="action-btn icon-only delete"
                         onClick={() => handleDelete(donor)}
                         title="Delete Donor"
                       >
-                        <Trash2 size={18} />
+                        <img src={DeleteIcon} alt="Delete" />
                       </button>
                     </div>
                   </td>

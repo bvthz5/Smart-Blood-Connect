@@ -1,0 +1,231 @@
+/* Demo Page Styles */
+
+.demo-container {
+  min-height: 100vh;
+  background: var(--color-background);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.demo-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.demo-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.demo-header p {
+  font-size: 1.1rem;
+  color: var(--color-textSecondary);
+  margin: 0 0 var(--spacing-xl) 0;
+}
+
+.demo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  align-items: center;
+}
+
+.view-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  background: var(--color-surfaceVariant);
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.demo-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-md);
+  color: var(--color-textSecondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.demo-btn:hover {
+  color: var(--color-text);
+  background: var(--color-border);
+}
+
+.demo-btn.active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.theme-controls span {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.theme-btn {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-surfaceVariant);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  color: var(--color-textSecondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.theme-btn:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.theme-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.demo-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  background: var(--color-background);
+}
+
+.demo-view {
+  width: 100%;
+  max-width: 1400px;
+  height: 100%;
+  min-height: 600px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  background: var(--color-surface);
+}
+
+.demo-footer {
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: var(--spacing-2xl);
+}
+
+.demo-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-2xl);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.features h3,
+.tech-stack h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-lg) 0;
+}
+
+.features ul,
+.tech-stack ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.features li,
+.tech-stack li {
+  padding: var(--spacing-sm) 0;
+  color: var(--color-textSecondary);
+  font-size: 14px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--color-borderLight);
+}
+
+.features li:last-child,
+.tech-stack li:last-child {
+  border-bottom: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .demo-header {
+    padding: var(--spacing-lg);
+  }
+  
+  .demo-header h1 {
+    font-size: 2rem;
+  }
+  
+  .demo-controls {
+    gap: var(--spacing-md);
+  }
+  
+  .view-controls {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .demo-btn {
+    width: 100%;
+  }
+  
+  .theme-controls {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  .demo-content {
+    padding: var(--spacing-md);
+  }
+  
+  .demo-footer {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .demo-header {
+    padding: var(--spacing-md);
+  }
+  
+  .demo-header h1 {
+    font-size: 1.75rem;
+  }
+  
+  .demo-header p {
+    font-size: 1rem;
+  }
+  
+  .demo-content {
+    padding: var(--spacing-sm);
+  }
+  
+  .demo-view {
+    min-height: 500px;
+  }
+}

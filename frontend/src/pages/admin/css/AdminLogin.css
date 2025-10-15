@@ -1,0 +1,488 @@
+/* NASA-Themed Admin Login */
+
+:root {
+  /* NASA Color Palette */
+  --nasa-blue: #0B3D91;
+  --nasa-red: #FC3D21;
+  --nasa-white: #FFFFFF;
+  --nasa-dark-blue: #041E42;
+  --nasa-light-blue: #1E3A8A;
+  --nasa-gray: #6B7280;
+  --nasa-light-gray: #F3F4F6;
+  --nasa-dark-gray: #374151;
+  
+  /* Gradients */
+  --nasa-gradient-primary: linear-gradient(135deg, var(--nasa-blue) 0%, var(--nasa-light-blue) 100%);
+  --nasa-gradient-accent: linear-gradient(135deg, var(--nasa-red) 0%, #FF6B6B 100%);
+  --nasa-gradient-dark: linear-gradient(135deg, var(--nasa-dark-blue) 0%, var(--nasa-blue) 100%);
+  
+  /* Shadows */
+  --nasa-shadow-sm: 0 1px 3px rgba(11, 61, 145, 0.12);
+  --nasa-shadow-md: 0 4px 12px rgba(11, 61, 145, 0.15);
+  --nasa-shadow-lg: 0 8px 25px rgba(11, 61, 145, 0.2);
+  --nasa-glow: 0 0 20px rgba(11, 61, 145, 0.3);
+  
+  /* Transitions */
+  --nasa-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --nasa-transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base Styles */
+.admin-login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0B3D91 0%, #041E42 25%, #1E3A8A 50%, #0B3D91 75%, #041E42 100%);
+  position: relative;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Animated Background */
+.admin-login-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(252, 61, 33, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(11, 61, 145, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(30, 58, 138, 0.1) 0%, transparent 50%);
+  animation: backgroundShift 20s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes backgroundShift {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+/* Floating Particles */
+.admin-login-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(2px 2px at 20px 30px, rgba(252, 61, 33, 0.4), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(11, 61, 145, 0.4), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(30, 58, 138, 0.3), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(252, 61, 33, 0.3), transparent);
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  animation: particleFloat 25s linear infinite;
+  z-index: 0;
+}
+
+@keyframes particleFloat {
+  0% { transform: translateY(0px) translateX(0px); }
+  33% { transform: translateY(-10px) translateX(5px); }
+  66% { transform: translateY(5px) translateX(-5px); }
+  100% { transform: translateY(0px) translateX(0px); }
+}
+
+/* Login Card */
+.login-card {
+  position: relative;
+  z-index: 10;
+  max-width: 450px;
+  width: 100%;
+  padding: 2.5rem;
+  margin: 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  box-shadow: var(--nasa-shadow-lg);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: var(--nasa-transition);
+  contain: layout style paint;
+}
+
+.login-card:hover {
+  box-shadow: var(--nasa-glow);
+  transform: translateY(-4px);
+}
+
+/* Header */
+.login-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.logo-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 70px;
+  background: var(--nasa-gradient-accent);
+  border-radius: 50%;
+  box-shadow: var(--nasa-glow);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+.logo-pulse {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--nasa-red);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes logoPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.2; }
+  50% { transform: scale(1.1); opacity: 0.1; }
+  100% { transform: scale(1); opacity: 0.2; }
+}
+
+.droplet-icon {
+  color: var(--text-light);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.logo-text {
+  font-size: 1.6rem;
+  font-weight: 700;
+  background: var(--nasa-gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.logo-subtitle {
+  font-size: 0.9rem;
+  color: var(--nasa-gray);
+  font-weight: 500;
+  text-align: center;
+  margin-top: 0.25rem;
+}
+
+/* Form */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--nasa-dark-gray);
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.input-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.form-input {
+  width: 100%;
+  padding: 1.125rem 1.25rem;
+  border: 2px solid rgba(11, 61, 145, 0.2);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: var(--nasa-white);
+  color: var(--nasa-dark-gray);
+  transition: var(--nasa-transition-fast);
+  contain: layout style paint;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--nasa-red);
+  box-shadow: 0 0 0 3px rgba(252, 61, 33, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-input::placeholder {
+  color: var(--nasa-gray);
+  opacity: 0.7;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--nasa-gray);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: var(--nasa-transition-fast);
+}
+
+.password-toggle:hover {
+  color: var(--nasa-red);
+}
+
+/* Remember Me */
+.remember-me-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  justify-content: flex-start;
+}
+
+.remember-me-checkbox {
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+}
+
+.remember-me-checkbox input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.remember-me-checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background: var(--bg-light);
+  border: 2px solid var(--border-light);
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+}
+
+.remember-me-checkbox:hover .remember-me-checkmark {
+  border-color: var(--primary-red);
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.remember-me-checkbox input:checked ~ .remember-me-checkmark {
+  background: var(--gradient-primary);
+  border-color: var(--primary-red);
+}
+
+.remember-me-checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.remember-me-checkbox input:checked ~ .remember-me-checkmark:after {
+  display: block;
+}
+
+.remember-me-label {
+  font-size: 0.9rem;
+  color: var(--nasa-dark-gray);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Login Button */
+.login-button {
+  width: 100%;
+  padding: 1.375rem 1.5rem;
+  background: var(--nasa-gradient-accent);
+  color: var(--nasa-white);
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--nasa-transition-fast);
+  position: relative;
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.login-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--nasa-glow);
+}
+
+.login-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.login-button:hover::before {
+  left: 100%;
+}
+
+/* Error Message */
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-top: 1rem;
+  justify-content: center;
+  text-align: center;
+  animation: errorShake 0.5s ease-in-out;
+}
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .login-card {
+    margin: 0.5rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+  
+  .logo-icon {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .logo-text {
+    font-size: 1.25rem;
+  }
+  
+  .form-input {
+    padding: 0.875rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .login-button {
+    padding: 1rem 1.25rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-card {
+    padding: 1.25rem;
+  }
+  
+  .logo-text {
+    font-size: 1.1rem;
+  }
+  
+  .logo-subtitle {
+    font-size: 0.8rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .form-input {
+    border-width: 3px;
+  }
+  
+  .login-button {
+    border: 2px solid var(--primary-red);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .futuristic-login-container::before,
+  .futuristic-login-container::after,
+  .logo-icon,
+  .logo-pulse,
+  .login-card,
+  .form-input,
+  .login-button,
+  .remember-me-checkmark {
+    animation: none;
+    transition: none;
+  }
+  
+  .login-card:hover,
+  .form-input:focus,
+  .login-button:hover:not(:disabled) {
+    transform: none;
+  }
+}

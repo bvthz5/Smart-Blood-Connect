@@ -87,6 +87,25 @@ export const tokenManager = {
     }
   },
 
+  // Check if authenticated AND role is admin
+  isAdminAuthenticated() {
+    const token = this.getToken();
+    if (!token) return false;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+      if (payload.exp && payload.exp < currentTime) {
+        this.clearTokens();
+        return false;
+      }
+      return payload.role === 'admin';
+    } catch (error) {
+      console.warn('Admin token validation failed:', error);
+      this.clearTokens();
+      return false;
+    }
+  },
+
   // Get user info from token
   getUserFromToken() {
     const token = this.getToken();

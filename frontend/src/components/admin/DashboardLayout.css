@@ -6,6 +6,7 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   position: relative;
   overflow-x: hidden;
+  overflow-y: hidden; /* prevent page scroll; only content area will scroll */
 }
 
 /* Main Content Area */
@@ -16,6 +17,8 @@
   margin-left: 280px;
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 100vh;
+  height: 100vh; /* lock container height */
+  overflow: hidden; /* prevent container scroll */
 }
 
 .main-content.sidebar-collapsed {

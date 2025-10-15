@@ -68,11 +68,14 @@ export const batchDOMOperations = (operations) => {
 };
 
 // Performance monitoring
+// Use Vite's import.meta.env; safe in ESM modules
+const PERF_LOGS = (typeof window !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_PERF_LOGS === 'true');
+
 export const performanceMonitor = {
   violations: [],
   
   logViolation(type, duration, details = {}) {
-    if (duration > 16) { // Only log significant violations
+    if (duration > 50) { // Only record significant violations (>50ms)
       const violation = {
         type,
         duration,
@@ -86,7 +89,8 @@ export const performanceMonitor = {
         this.violations = this.violations.slice(-100);
       }
       
-      if (process.env.NODE_ENV === 'development') {
+      // Only log when enabled and for very long tasks (>200ms)
+      if (PERF_LOGS && duration > 200) {
         console.warn(`Performance violation: ${type} took ${duration}ms`, details);
       }
     }
@@ -119,8 +123,8 @@ export const optimizeHeavyComputation = (computation, delay = 0) => {
       const endTime = performance.now();
       const duration = endTime - startTime;
       
-      // If computation took longer than 16ms, log it
-      if (duration > 16) {
+      // If computation took longer than 50ms, record it
+      if (duration > 50) {
         performanceMonitor.logViolation('heavy-computation', duration, {
           type: 'computation'
         });
@@ -193,25 +197,27 @@ export const memoryManager = {
 
 // Initialize performance monitoring
 if (typeof window !== 'undefined') {
-  // Monitor long tasks
-  if ('PerformanceObserver' in window) {
-    try {
-      const observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          if (entry.duration > 50) { // Tasks longer than 50ms
-            performanceMonitor.logViolation('long-task', entry.duration, {
-              startTime: entry.startTime,
-              name: entry.name
-            });
+  if (PERF_LOGS) {
+    // Monitor long tasks only when enabled
+    if ('PerformanceObserver' in window) {
+      try {
+        const observer = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.duration > 50) { // Tasks longer than 50ms
+              performanceMonitor.logViolation('long-task', entry.duration, {
+                startTime: entry.startTime,
+                name: entry.name
+              });
+            }
           }
-        }
-      });
-      observer.observe({ entryTypes: ['longtask'] });
-    } catch (error) {
-      console.warn('Performance monitoring not supported:', error);
+        });
+        observer.observe({ entryTypes: ['longtask'] });
+      } catch (error) {
+        // Silently ignore if unsupported
+      }
     }
   }
-  
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     memoryManager.cleanup();

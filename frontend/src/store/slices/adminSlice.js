@@ -68,7 +68,7 @@ const adminSlice = createSlice({
   reducers: {
     initializeAuth: (state) => {
       if (typeof window !== 'undefined') {
-        const isAuth = tokenManager.isAuthenticated();
+        const isAuth = tokenManager.isAdminAuthenticated();
         if (isAuth) {
           const token = tokenManager.getToken();
           const refreshToken = tokenManager.getRefreshToken();
@@ -95,6 +95,7 @@ const adminSlice = createSlice({
           if (state.refreshToken !== null) state.refreshToken = null;
           if (state.isAuthenticated !== false) state.isAuthenticated = false;
           if (state.user !== null) state.user = null;
+          tokenManager.clearTokens();
         }
       }
       if (state.isLoading !== false) state.isLoading = false;

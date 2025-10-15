@@ -1,6 +1,6 @@
 /* Chart Card Styles */
 .chart-card {
-  background: var(--color-surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.64)) padding-box;
   border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 1.5rem;
@@ -10,6 +10,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
 }
 
 .chart-card::before {
@@ -24,6 +26,22 @@
   transition: opacity 0.3s ease;
 }
 
+/* gradient border ring */
+.chart-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(183,28,28,0.35), rgba(16,185,129,0.2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .chart-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
@@ -32,6 +50,14 @@
 
 .chart-card:hover::before {
   opacity: 1;
+}
+
+/* header polish */
+.chart-title {
+  letter-spacing: 0.2px;
+}
+.chart-subtitle {
+  opacity: 0.9;
 }
 
 /* Chart Header */

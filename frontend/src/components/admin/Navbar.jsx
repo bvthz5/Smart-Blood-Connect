@@ -1,22 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
   Menu,
-  Search,
   Bell,
   User,
   Settings,
   LogOut,
   ChevronDown,
-  X
+  
 } from 'lucide-react';
 import './Navbar.css';
+import { getAdminProfile } from '../../services/api';
 
 const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [adminName, setAdminName] = useState('Admin');
   const [notifications] = useState([
     {
       id: 1,
@@ -48,14 +49,20 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Handle search
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      console.log('Searching for:', searchQuery);
-      // Implement search functionality
-    }
-  };
+  // Load admin profile for subtitle and profile name
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await getAdminProfile();
+        const name = res?.data?.admin?.name || 'Admin';
+        if (mounted) setAdminName(name);
+      } catch (e) {
+        if (mounted) setAdminName('Admin');
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Handle notification click
   const handleNotificationClick = (notification) => {
@@ -68,10 +75,10 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
     setShowProfileDropdown(false);
     switch (action) {
       case 'profile':
-        console.log('Navigate to profile');
+        navigate('/admin/profile');
         break;
       case 'settings':
-        console.log('Navigate to settings');
+        navigate('/admin/settings');
         break;
       case 'logout':
         localStorage.removeItem('admin_access_token');
@@ -107,21 +114,7 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Focus search input when search is shown - Optimized to prevent reflows
-  useEffect(() => {
-    if (showSearch && searchRef.current) {
-      // Use requestIdleCallback to prevent blocking the main thread
-      if (window.requestIdleCallback) {
-        requestIdleCallback(() => {
-          searchRef.current?.focus();
-        });
-      } else {
-        setTimeout(() => {
-          searchRef.current?.focus();
-        }, 0);
-      }
-    }
-  }, [showSearch]);
+  // No navbar-search-toggle; removed per requirement
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -140,49 +133,13 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
           
           <div className="navbar-breadcrumb">
             <h1 className="navbar-title">Dashboard Overview</h1>
-            <span className="navbar-subtitle">Welcome back, Dr. Smith</span>
+            <span className="navbar-subtitle">Welcome back, {adminName}</span>
           </div>
         </div>
 
         {/* Right Section */}
         <div className="navbar-right">
-          {/* Search */}
-          <div className="navbar-search">
-            {showSearch ? (
-              <form onSubmit={handleSearch} className="search-form">
-                <div className="search-input-wrapper">
-                  <Search size={16} className="search-icon" />
-                  <input
-                    ref={searchRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search donors, hospitals, requests..."
-                    className="search-input"
-                    autoComplete="off"
-                  />
-                  <button
-                    type="button"
-                    className="search-close"
-                    onClick={() => {
-                      setShowSearch(false);
-                      setSearchQuery('');
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <button
-                className="navbar-search-toggle"
-                onClick={() => setShowSearch(true)}
-                title="Search"
-              >
-                <Search size={20} />
-              </button>
-            )}
-          </div>
+          {/* Search removed as requested */}
 
           {/* Notifications */}
           <div className="navbar-notifications" ref={dropdownRef}>
@@ -240,7 +197,7 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
               <div className="profile-avatar">
                 <User size={16} />
               </div>
-              <span className="profile-name">Dr. Smith</span>
+              <span className="profile-name">{adminName}</span>
               <ChevronDown size={16} className="profile-arrow" />
             </button>
 
@@ -252,7 +209,7 @@ const Navbar = ({ onToggleSidebar, sidebarCollapsed }) => {
                       <User size={24} />
                     </div>
                     <div className="profile-details">
-                      <div className="profile-name-large">Dr. Smith</div>
+                      <div className="profile-name-large">{adminName}</div>
                       <div className="profile-role">Administrator</div>
                     </div>
                   </div>

@@ -330,76 +330,150 @@ def get_featured_hospitals():
 @homepage_bp.route('/api/homepage/dashboard-summary', methods=['GET'])
 def get_dashboard_summary():
     """
-    Get comprehensive dashboard summary for homepage
+    Admin/Homepage dashboard summary with totals, charts, and activities
     """
     try:
-        # Get all stats in one query
         today = datetime.now().date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
-        
-        # Basic counts
+
+        # Totals
         total_donors = db.session.query(func.count(Donor.id)).join(
             User, Donor.user_id == User.id
-        ).filter(
-            User.status == "active"
-        ).scalar() or 0
-        
+        ).filter(User.status == "active").scalar() or 0
+
         total_units = db.session.query(func.sum(DonationHistory.units)).scalar() or 0
-        
+
         total_hospitals = db.session.query(func.count(Hospital.id)).filter(
             Hospital.is_active == True
         ).scalar() or 0
-        
-        # Recent activity
-        recent_donations = db.session.query(func.count(DonationHistory.id)).filter(
-            DonationHistory.donation_date >= week_ago
-        ).scalar() or 0
-        
+
         pending_requests = db.session.query(func.count(Request.id)).filter(
             Request.status == 'pending'
         ).scalar() or 0
-        
-        # Blood type distribution
-        blood_type_dist = db.session.query(
-            Donor.blood_group,
-            func.count(Donor.id)
-        ).join(
-            User, Donor.user_id == User.id
-        ).filter(
-            User.status == "active",
-            Donor.blood_group.isnot(None)
-        ).group_by(Donor.blood_group).all()
-        
-        blood_distribution = {bt: count for bt, count in blood_type_dist}
-        
-        summary = {
-            'overview': {
-                'total_donors': total_donors,
-                'total_units_collected': int(total_units) if total_units else 0,
-                'total_hospitals': total_hospitals,
-                'lives_saved': int(total_units * 3) if total_units else 0
-            },
-            'recent_activity': {
-                'recent_donations': recent_donations,
-                'pending_requests': pending_requests,
-                'active_matches': db.session.query(func.count(Match.id)).filter(
-                    Match.status == 'in_progress'
-                ).scalar() or 0
-            },
-            'blood_distribution': blood_distribution,
-            'last_updated': datetime.now().isoformat()
+
+        # Donations today and urgent pending requests
+        donations_today = db.session.query(func.count(DonationHistory.id)).filter(
+            func.date(DonationHistory.donation_date) == today
+        ).scalar() or 0
+
+        urgent_pending = db.session.query(func.count(Request.id)).filter(
+            Request.status == 'pending',
+            Request.urgency == 'high'
+        ).scalar() or 0
+
+        totals = {
+            'donors': int(total_donors),
+            'hospitals': int(total_hospitals),
+            'inventory_units': int(total_units) if total_units else 0,
+            'pending_requests': int(pending_requests),
         }
-        
+
+        # Blood group distribution (active donors)
+        blood_type_rows = db.session.query(
+            Donor.blood_group, func.count(Donor.id)
+        ).join(User, Donor.user_id == User.id).filter(
+            User.status == "active", Donor.blood_group.isnot(None)
+        ).group_by(Donor.blood_group).all()
+
+        color_map = {
+            'A+': '#FF6B6B', 'B+': '#4ECDC4', 'O+': '#45B7D1', 'AB+': '#96CEB4',
+            'A-': '#FECA57', 'B-': '#FF9FF3', 'O-': '#54A0FF', 'AB-': '#5F27CD'
+        }
+        blood_groups = [
+            { 'group': bt, 'count': int(cnt), 'color': color_map.get(bt, '#B71C1C') }
+            for bt, cnt in blood_type_rows
+        ]
+
+        # Donation trends: last 6 months
+        last6 = []
+        for i in range(5, -1, -1):
+            start = (today.replace(day=1) - timedelta(days=30*i))
+            month_label = start.strftime('%b')
+            # count donations in same month/year
+            count = db.session.query(func.count(DonationHistory.id)).filter(
+                func.extract('year', DonationHistory.donation_date) == start.year,
+                func.extract('month', DonationHistory.donation_date) == start.month,
+            ).scalar() or 0
+            last6.append({ 'month': month_label, 'donations': int(count) })
+
+        # Hospital donations top 5 last 30 days
+        hosp_rows = db.session.query(
+            Hospital.name, func.count(DonationHistory.id)
+        ).join(DonationHistory, DonationHistory.hospital_id == Hospital.id).filter(
+            DonationHistory.donation_date >= month_ago
+        ).group_by(Hospital.name).order_by(func.count(DonationHistory.id).desc()).limit(5).all()
+        hospital_donations = [ { 'hospital': n, 'donations': int(c) } for n, c in hosp_rows ]
+
+        # Request status analysis
+        statuses = ['completed', 'pending', 'cancelled']
+        color_status = { 'completed': '#10B981', 'pending': '#F59E0B', 'cancelled': '#EF4444' }
+        request_analysis = []
+        for s in statuses:
+            cnt = db.session.query(func.count(Request.id)).filter(Request.status == s).scalar() or 0
+            request_analysis.append({ 'status': s.capitalize(), 'count': int(cnt), 'color': color_status[s] })
+
+        charts = {
+            'bloodGroups': blood_groups,
+            'donationTrends': last6,
+            'hospitalDonations': hospital_donations,
+            'requestAnalysis': request_analysis,
+        }
+
+        # Recent activities (last 10 donations)
+        recent_rows = db.session.query(
+            DonationHistory.id,
+            DonationHistory.units,
+            DonationHistory.donation_date,
+            Donor.blood_group,
+            Hospital.name.label('hospital_name'),
+            User.first_name, User.last_name
+        ).join(Donor, DonationHistory.donor_id == Donor.id)
+        recent_rows = recent_rows.join(User, Donor.user_id == User.id)
+        recent_rows = recent_rows.outerjoin(Hospital, DonationHistory.hospital_id == Hospital.id)
+        recent_rows = recent_rows.order_by(DonationHistory.donation_date.desc()).limit(10).all()
+
+        def rel_time(dt):
+            if not dt:
+                return 'Just now'
+            delta = datetime.now() - dt
+            hours = int(delta.total_seconds() // 3600)
+            if hours < 1:
+                mins = int(delta.total_seconds() // 60)
+                return f"{mins} minutes ago" if mins > 0 else "Just now"
+            if hours < 24:
+                return f"{hours} hours ago"
+            days = hours // 24
+            return f"{days} days ago"
+
+        activities = []
+        for row in recent_rows:
+            activities.append({
+                'id': row.id,
+                'donor': f"{row.first_name or ''} {row.last_name or ''}".strip() or 'Donor',
+                'hospital': row.hospital_name or 'Unknown Hospital',
+                'bloodType': row.blood_group or 'N/A',
+                'units': int(row.units) if row.units else 0,
+                'status': 'completed',
+                'time': rel_time(row.donation_date),
+                'priority': 'normal'
+            })
+
         logger.info("Dashboard summary generated successfully")
         return jsonify({
             'success': True,
-            'data': summary
+            'data': {
+                'totals': totals,
+                'charts': charts,
+                'activities': activities,
+                'welcome': {
+                    'donations_today': int(donations_today),
+                    'urgent_requests': int(urgent_pending),
+                },
+                'last_updated': datetime.now().isoformat(),
+            }
         })
-        
+
     except Exception as e:
         logger.error(f"Error generating dashboard summary: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to generate dashboard summary'
-        }), 500
+        return jsonify({'success': False, 'error': 'Failed to generate dashboard summary'}), 500

@@ -1,0 +1,498 @@
+/* Admin Dashboard Styles */
+
+.admin-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+/* Welcome Section */
+.dashboard-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-xl);
+  padding: var(--spacing-2xl);
+  box-shadow: var(--shadow-md);
+  animation: slideInDown 0.6s ease-out;
+}
+
+.welcome-content h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 var(--spacing-sm) 0;
+  letter-spacing: -0.02em;
+}
+
+.welcome-subtitle {
+  font-size: 1.1rem;
+  color: var(--color-textSecondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.welcome-stats {
+  display: flex;
+  gap: var(--spacing-2xl);
+}
+
+.welcome-stat {
+  text-align: center;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--color-textSecondary);
+  margin-top: var(--spacing-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Metrics Section */
+.metrics-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+/* Charts Section */
+.charts-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+}
+
+/* Blood Group Chart */
+.blood-group-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.blood-group-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: var(--color-surfaceVariant);
+  border-radius: var(--border-radius-md);
+  transition: var(--transition-fast);
+}
+
+.blood-group-item:hover {
+  background: var(--color-border);
+  transform: translateX(4px);
+}
+
+.blood-group-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.blood-group-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+}
+
+.blood-group-label {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.blood-group-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-xs);
+}
+
+.blood-group-count {
+  font-weight: 700;
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.blood-group-percentage {
+  font-size: 12px;
+  color: var(--color-textSecondary);
+}
+
+/* Trends Chart */
+.trends-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 14px;
+  color: var(--color-textSecondary);
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-color.donations {
+  background: var(--color-primary);
+}
+
+.legend-color.requests {
+  background: var(--color-success);
+}
+
+.chart-bars {
+  display: flex;
+  align-items: end;
+  gap: var(--spacing-sm);
+  height: 200px;
+  padding: var(--spacing-md) 0;
+}
+
+.chart-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+.bar-container {
+  display: flex;
+  align-items: end;
+  gap: 2px;
+  height: 100%;
+}
+
+.bar {
+  width: 20px;
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--spacing-xs);
+}
+
+.bar.donations {
+  background: var(--color-primary);
+}
+
+.bar.requests {
+  background: var(--color-success);
+}
+
+.bar:hover {
+  opacity: 0.8;
+  transform: scaleY(1.05);
+}
+
+.bar-value {
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.bar-label {
+  font-size: 12px;
+  color: var(--color-textSecondary);
+  font-weight: 500;
+}
+
+/* Hospital Section */
+.hospital-section {
+  grid-column: 1 / -1;
+}
+
+.hospital-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.hospital-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: var(--color-surfaceVariant);
+  border-radius: var(--border-radius-md);
+  transition: var(--transition-fast);
+}
+
+.hospital-item:hover {
+  background: var(--color-border);
+  transform: translateX(4px);
+}
+
+.hospital-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.hospital-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--gradient-primary);
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.hospital-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.hospital-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.hospital-metrics {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 12px;
+  color: var(--color-textSecondary);
+}
+
+.hospital-score {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+/* Activity Section */
+.activity-section {
+  grid-column: 1 / -1;
+}
+
+/* Loading and Error States */
+.dashboard-loading,
+.dashboard-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-xl);
+  padding: var(--spacing-2xl);
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.loading-logo {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.dashboard-loading h2 {
+  font-size: 1.5rem;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.dashboard-loading p {
+  color: var(--color-textSecondary);
+  margin: 0;
+}
+
+.dashboard-error h2 {
+  color: var(--color-error);
+  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+}
+
+.dashboard-error p {
+  color: var(--color-textSecondary);
+  margin: 0;
+}
+
+/* Animations */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .charts-section {
+    grid-template-columns: 1fr;
+  }
+  
+  .metrics-section {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard {
+    gap: var(--spacing-lg);
+  }
+  
+  .dashboard-welcome {
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    text-align: center;
+    padding: var(--spacing-lg);
+  }
+  
+  .welcome-content h1 {
+    font-size: 2rem;
+  }
+  
+  .welcome-stats {
+    justify-content: center;
+    gap: var(--spacing-lg);
+  }
+  
+  .metrics-section {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .charts-section {
+    gap: var(--spacing-md);
+  }
+  
+  .chart-bars {
+    height: 150px;
+  }
+  
+  .hospital-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+  
+  .hospital-score {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-welcome {
+    padding: var(--spacing-md);
+  }
+  
+  .welcome-content h1 {
+    font-size: 1.5rem;
+  }
+  
+  .welcome-subtitle {
+    font-size: 1rem;
+  }
+  
+  .stat-number {
+    font-size: 2rem;
+  }
+  
+  .chart-bars {
+    height: 120px;
+  }
+  
+  .bar {
+    width: 16px;
+  }
+  
+  .hospital-metrics {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .dashboard-welcome,
+  .blood-group-item,
+  .hospital-item {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-welcome,
+  .blood-group-item,
+  .hospital-item,
+  .bar,
+  .loading-logo {
+    animation: none;
+    transition: none;
+  }
+  
+  .blood-group-item:hover,
+  .hospital-item:hover,
+  .bar:hover {
+    transform: none;
+  }
+}

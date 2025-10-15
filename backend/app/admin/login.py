@@ -1,15 +1,131 @@
 """
 Admin Authentication Routes
 """
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+
+"""
+Admin Authentication Routes
+"""
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, decode_token
 from app.models import User, RefreshToken
 from app.extensions import db
-from app.services.auth import verify_password
+from app.services.auth import verify_password, hash_password
+from app.services.email_service import email_service
+from app.config.email_config import EmailConfig
 from datetime import timedelta, datetime
 import secrets
 
 admin_auth_bp = Blueprint("admin_auth", __name__, url_prefix="/admin/auth")
+
+@admin_auth_bp.route("/forgot-password", methods=["POST"])
+def admin_forgot_password():
+    """Send admin password reset email with time-limited link"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json() or {}
+    email = data.get("email")
+    
+    logger.info(f"[ADMIN FORGOT PASSWORD] Request received for email: {email}")
+    
+    if not email:
+        logger.warning("[ADMIN FORGOT PASSWORD] No email provided")
+        return jsonify({"message": "If account exists, password reset instructions have been sent"}), 200
+    
+    user = User.query.filter_by(email=email, role="admin").first()
+    
+    # Always respond generically
+    if not user:
+        logger.info(f"[ADMIN FORGOT PASSWORD] No admin user found for email: {email}")
+        return jsonify({"message": "If account exists, password reset instructions have been sent"}), 200
+
+    try:
+        logger.info(f"[ADMIN FORGOT PASSWORD] Admin user found: {user.id}")
+        
+        minutes = int(current_app.config.get("RESET_EXPIRES_MINUTES", 15))
+        logger.info(f"[ADMIN FORGOT PASSWORD] Token expiry minutes: {minutes}")
+        
+        reset_token = create_access_token(identity=str(user.id), additional_claims={"pr": "admin_reset"}, expires_delta=timedelta(minutes=minutes))
+        logger.info(f"[ADMIN FORGOT PASSWORD] Reset token created")
+        
+        base = getattr(EmailConfig, 'FRONTEND_URL', 'http://localhost:3000')
+        reset_link = f"{base}/admin/reset-password?token={reset_token}"
+        logger.info(f"[ADMIN FORGOT PASSWORD] Reset link: {reset_link}")
+        
+        logger.info(f"[ADMIN FORGOT PASSWORD] SMTP Config - Server: {EmailConfig.SMTP_SERVER}, Port: {EmailConfig.SMTP_PORT}, SSL: {EmailConfig.SMTP_USE_SSL}, TLS: {EmailConfig.SMTP_USE_TLS}")
+        logger.info(f"[ADMIN FORGOT PASSWORD] Sender: {EmailConfig.SENDER_EMAIL}, Name: {EmailConfig.SENDER_NAME}")
+        
+        email_sent = email_service.send_password_reset_email(email, reset_link, (user.first_name or "User"))
+        
+        if email_sent:
+            logger.info(f"[ADMIN FORGOT PASSWORD] Email sent successfully to {email}")
+        else:
+            logger.error(f"[ADMIN FORGOT PASSWORD] Email sending failed for {email}")
+            
+    except Exception as e:
+        # Log the error but respond generically
+        logger.error(f"[ADMIN FORGOT PASSWORD] Exception occurred: {str(e)}", exc_info=True)
+        
+    return jsonify({"message": "If account exists, password reset instructions have been sent"}), 200
+
+
+@admin_auth_bp.route("/reset-password", methods=["POST"])
+def admin_reset_password():
+    """Reset admin password using token"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    data = request.get_json() or {}
+    token = data.get("token")
+    new_password = data.get("new_password")
+    
+    logger.info(f"[ADMIN RESET PASSWORD] Request received")
+    logger.info(f"[ADMIN RESET PASSWORD] Token present: {bool(token)}")
+    logger.info(f"[ADMIN RESET PASSWORD] Password present: {bool(new_password)}")
+    
+    if not token or not new_password:
+        logger.warning(f"[ADMIN RESET PASSWORD] Missing required fields - token: {bool(token)}, password: {bool(new_password)}")
+        return jsonify({"error": "token and new_password required"}), 400
+    try:
+        decoded = decode_token(token)
+        logger.info(f"[ADMIN RESET PASSWORD] Token decoded successfully")
+    except Exception as e:
+        logger.error(f"[ADMIN RESET PASSWORD] Token decode failed: {str(e)}")
+        return jsonify({"error": "invalid or expired token"}), 400
+    if decoded.get("type") != "access":
+        logger.error(f"[ADMIN RESET PASSWORD] Invalid token type: {decoded.get('type')}")
+        return jsonify({"error": "invalid token type"}), 400
+    
+    # Check for 'pr' claim in both claims object and main token body
+    claims = decoded.get("claims") or {}
+    pr_claim = claims.get("pr") or decoded.get("pr")
+    
+    if pr_claim != "admin_reset":
+        logger.error(f"[ADMIN RESET PASSWORD] Invalid reset token claim: {pr_claim}")
+        return jsonify({"error": "invalid reset token"}), 400
+    user_id = decoded.get("sub")
+    logger.info(f"[ADMIN RESET PASSWORD] User ID from token: {user_id}")
+    try:
+        user_id = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        logger.error(f"[ADMIN RESET PASSWORD] Invalid user ID format: {user_id}")
+        return jsonify({"error": "invalid user id in token"}), 400
+    user = User.query.filter_by(id=user_id, role="admin").first()
+    if not user:
+        logger.error(f"[ADMIN RESET PASSWORD] Admin user not found: {user_id}")
+        return jsonify({"error": "user not found"}), 404
+    logger.info(f"[ADMIN RESET PASSWORD] Updating password for user: {user.email}")
+    user.password_hash = hash_password(new_password)
+    try:
+        # Revoke admin refresh tokens
+        RefreshToken.query.filter_by(user_id=user.id).update({"revoked": True, "revoked_at": datetime.utcnow()})
+        db.session.commit()
+        logger.info(f"[ADMIN RESET PASSWORD] Password updated successfully for user: {user.email}")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[ADMIN RESET PASSWORD] Database error: {str(e)}")
+        return jsonify({"error": "failed to update password"}), 500
+    return jsonify({"message": "password updated"}), 200
 
 @admin_auth_bp.route("/login", methods=["OPTIONS"])
 def admin_login_options():
@@ -118,7 +234,7 @@ def admin_login():
         if not admin_user:
             return jsonify({"error": "Invalid email or password"}), 401
             
-        # Verify password
+        # Verify password (hash, password)
         if not verify_password(admin_user.password_hash, password):
             return jsonify({"error": "Invalid email or password"}), 401
             
@@ -126,16 +242,18 @@ def admin_login():
         if admin_user.status != "active":
             return jsonify({"error": "Account is deactivated"}), 401
         
-        # Create JWT tokens
+        # Create JWT access token using configured expiry
+        access_minutes = int(current_app.config.get("ACCESS_EXPIRES_MINUTES", 60))
         access_token = create_access_token(
             identity=str(admin_user.id),
-            expires_delta=timedelta(hours=1),  # Shorter access token
+            expires_delta=timedelta(minutes=access_minutes),
             additional_claims={"role": "admin"}
         )
         
         # Create refresh token
+        refresh_days = int(current_app.config.get("REFRESH_EXPIRES_DAYS", 7))
         refresh_token_value = secrets.token_urlsafe(32)
-        refresh_token_expires = datetime.utcnow() + timedelta(days=7)
+        refresh_token_expires = datetime.utcnow() + timedelta(days=refresh_days)
         
         # Store refresh token in database
         refresh_token = RefreshToken(
@@ -160,7 +278,7 @@ def admin_login():
             "access_token": access_token,
             "refresh_token": refresh_token_value,
             "token_type": "bearer",
-            "expires_in": 3600  # 1 hour in seconds
+            "expires_in": access_minutes * 60
         }), 200
         
     except Exception as e:
@@ -377,18 +495,81 @@ def refresh_token():
         if not user or user.status != "active":
             return jsonify({"error": "User not found or inactive"}), 401
         
-        # Create new access token
+        # Create new access token with configured expiry
+        access_minutes = int(current_app.config.get("ACCESS_EXPIRES_MINUTES", 60))
         access_token = create_access_token(
             identity=str(user.id),
-            expires_delta=timedelta(hours=1),
+            expires_delta=timedelta(minutes=access_minutes),
             additional_claims={"role": "admin"}
         )
         
         return jsonify({
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 3600
+            "expires_in": access_minutes * 60
         }), 200
         
     except Exception as e:
         return jsonify({"error": "Internal server error"}), 500
+
+@admin_auth_bp.route("/sessions", methods=["GET"])
+@jwt_required()
+def list_sessions():
+    current_user_id = get_jwt_identity()
+    user = User.query.filter_by(id=current_user_id, role="admin").first()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    tokens = (
+        RefreshToken.query
+        .filter_by(user_id=user.id)
+        .order_by(RefreshToken.created_at.desc())
+        .all()
+    )
+    items = []
+    for t in tokens:
+        items.append({
+            "id": t.id,
+            "revoked": t.revoked,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "expires_at": t.expires_at.isoformat() if t.expires_at else None
+        })
+    return jsonify({"sessions": items}), 200
+
+@admin_auth_bp.route("/sessions/revoke-all", methods=["POST"])
+@jwt_required()
+def revoke_all_sessions():
+    current_user_id = get_jwt_identity()
+    user = User.query.filter_by(id=current_user_id, role="admin").first()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        RefreshToken.query.filter_by(user_id=user.id, revoked=False).update({"revoked": True, "revoked_at": datetime.utcnow()})
+        db.session.commit()
+        return jsonify({"message": "All sessions revoked"}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Failed to revoke sessions"}), 500
+
+@admin_auth_bp.route("/sessions/revoke-one", methods=["POST"])
+@jwt_required()
+def revoke_one_session():
+    current_user_id = get_jwt_identity()
+    user = User.query.filter_by(id=current_user_id, role="admin").first()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    session_id = data.get("session_id")
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
+    try:
+        token_row = RefreshToken.query.filter_by(id=session_id, user_id=user.id).first()
+        if not token_row:
+            return jsonify({"error": "Session not found"}), 404
+        if not token_row.revoked:
+            token_row.revoked = True
+            token_row.revoked_at = datetime.utcnow()
+            db.session.commit()
+        return jsonify({"message": "Session revoked"}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Failed to revoke session"}), 500

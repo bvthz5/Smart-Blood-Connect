@@ -1,15 +1,17 @@
 /* Metric Card Styles */
 .metric-card {
-  background: var(--color-surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.64)) padding-box;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-radius: 14px;
+  padding: 1rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
   height: 100%;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
 }
 
 .metric-card::before {
@@ -24,6 +26,23 @@
   transition: opacity 0.3s ease;
 }
 
+/* subtle gradient border ring */
+.metric-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  padding: 1px; /* border thickness */
+  background: linear-gradient(135deg, rgba(183,28,28,0.35), rgba(16,185,129,0.2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  mask-composite: exclude;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .metric-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
@@ -32,6 +51,20 @@
 
 .metric-card:hover::before {
   opacity: 1;
+}
+
+/* animated shine */
+.metric-card:hover .metric-value {
+  background: linear-gradient(90deg, var(--color-text) 0%, var(--color-text) 45%, rgba(255,255,255,0.65) 50%, var(--color-text) 55%, var(--color-text) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 1.6s ease-in-out;
+}
+
+@keyframes shine {
+  0% { background-position: -120%; }
+  100% { background-position: 220%; }
 }
 
 /* Card Types */
@@ -64,17 +97,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .metric-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   background: var(--color-surfaceVariant);
   transition: all 0.3s ease;
 }
@@ -118,10 +151,10 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
+  padding: 0.2rem 0.45rem;
+  border-radius: 10px;
   background: var(--color-surfaceVariant);
 }
 
@@ -145,26 +178,26 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .metric-value {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--color-text);
   line-height: 1;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .metric-title {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-text);
   line-height: 1.3;
 }
 
 .metric-subtitle {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--color-textSecondary);
   line-height: 1.4;
   margin-top: auto;
@@ -183,8 +216,8 @@
 }
 
 .metric-card.loading .metric-icon.skeleton {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 
 .metric-card.loading .metric-trend.skeleton {
@@ -194,7 +227,7 @@
 
 .metric-card.loading .metric-value.skeleton {
   width: 80%;
-  height: 40px;
+  height: 32px;
   margin-bottom: 0.5rem;
 }
 
@@ -221,35 +254,35 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .metric-card {
-    padding: 1.25rem;
-  }
-  
-  .metric-value {
-    font-size: 2rem;
-  }
-  
-  .metric-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1.25rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .metric-card {
-    padding: 1rem;
+    padding: 0.875rem;
   }
   
   .metric-value {
     font-size: 1.75rem;
   }
   
+  .metric-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-card {
+    padding: 0.75rem;
+  }
+  
+  .metric-value {
+    font-size: 1.5rem;
+  }
+  
   .metric-title {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
   
   .metric-subtitle {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 }
 

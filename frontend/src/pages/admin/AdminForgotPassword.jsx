@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import "./AdminForgotPassword.css";
+import { adminForgotPassword } from "../../services/api";
 
 export default function AdminForgotPassword() {
   const [email, setEmail] = useState("");
@@ -15,26 +16,16 @@ export default function AdminForgotPassword() {
     setMessage("");
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email_or_phone: email
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage("Password reset OTP has been sent to your email address. Please check your email and contact support if you need assistance.");
+      const { status } = await adminForgotPassword(email);
+      if (status === 200) {
+        setMessage("If account exists, password reset instructions have been sent to your email.");
       } else {
-        setError(data.error || "Failed to send reset instructions. Please try again.");
+        setMessage("If account exists, password reset instructions have been sent to your email.");
       }
     } catch (err) {
       console.error('Forgot password error:', err);
-      setError("Failed to send reset instructions. Please try again.");
+      // Backend returns generic 200 even if user not found; show generic message
+      setMessage("If account exists, password reset instructions have been sent to your email.");
     } finally {
       setLoading(false);
     }

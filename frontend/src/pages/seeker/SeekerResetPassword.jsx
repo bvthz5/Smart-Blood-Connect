@@ -36,7 +36,13 @@ export default function SeekerResetPassword() {
     try {
       await seekerService.resetPassword(token, password);
       setSuccess("Password updated successfully. Redirecting to login...");
-      setTimeout(() => navigate("/seeker/login"), 1500);
+      
+      // Clear any existing seeker tokens before redirecting to login
+      localStorage.removeItem('seeker_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('seeker_refresh_token');
+      
+      setTimeout(() => navigate("/seeker/login", { replace: true }), 1500);
     } catch (err) {
       setError(err?.response?.data?.error || "Reset failed. The link may be invalid or expired.");
     } finally {

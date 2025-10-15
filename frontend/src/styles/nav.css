@@ -64,9 +64,6 @@
   margin-right: 40px;
 }
 .header__link--button { background: none !important; }
-/* underline expand */
-.header__link::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%) scaleX(0); bottom: -6px; height:2px; width:60%; background: rgba(255,255,255,0.95); border-radius:2px; transform-origin: center; transition: transform 180ms ease; }
-.header__link:hover::after, .header__link:focus::after { transform: translateX(-50%) scaleX(1); }
 .header__link.active { font-weight:800; }
 .header__controls { 
   display: flex; 

@@ -3,8 +3,34 @@ import { useTheme } from '../../contexts/ThemeContext';
 import MetricCard from './MetricCard';
 import ChartCard from './ChartCard';
 import ActivityTable from './ActivityTable';
-import { getCachedHomepageStats } from '../../services/homepageService';
+import { getDashboardSummary } from '../../services/homepageService';
 import './AdminDashboard.css';
+// chart.js modern charts
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  ArcElement,
+  BarElement,
+  LineElement,
+  PointElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+import { Pie, Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  ArcElement,
+  BarElement,
+  LineElement,
+  PointElement,
+  Tooltip,
+  Legend,
+  Filler,
+);
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -12,11 +38,80 @@ const AdminDashboard = () => {
   const [error, setError] = useState(null);
   const { theme } = useTheme();
 
-  // Initialize dashboard data immediately to prevent reflows
+  // Initialize dashboard data from backend with graceful fallback
   useEffect(() => {
-    // Set data immediately without any async operations
-    setDashboardData(mockData);
-    setLoading(false);
+    let mounted = true;
+    (async () => {
+      try {
+        const api = await getDashboardSummary();
+        // Parse { success, data: { totals, charts, activities } }
+        const payload = api?.data || {};
+        const totals = payload?.totals || {};
+        const charts = payload?.charts || {};
+
+        const built = {
+          metrics: [
+            {
+              title: 'Total Donors',
+              value: totals.donors ?? mockData.metrics[0].value,
+              subtitle: 'Active this month',
+              trend: 'up',
+              trendValue: '+12%',
+              icon: '👥',
+              type: 'donors'
+            },
+            {
+              title: 'Partner Hospitals',
+              value: totals.hospitals ?? mockData.metrics[1].value,
+              subtitle: 'Active partnerships',
+              trend: 'up',
+              trendValue: '+5%',
+              icon: '🏥',
+              type: 'hospitals'
+            },
+            {
+              title: 'Blood Units',
+              value: totals.inventory_units ?? mockData.metrics[2].value,
+              subtitle: 'Available stock',
+              trend: 'down',
+              trendValue: '-3%',
+              icon: '🩸',
+              type: 'inventory'
+            },
+            {
+              title: 'Pending Requests',
+              value: totals.pending_requests ?? mockData.metrics[3].value,
+              subtitle: 'Urgent pending requests',
+              trend: 'up',
+              trendValue: '+8%',
+              icon: '📋',
+              type: 'requests'
+            }
+          ],
+          charts: {
+            bloodGroups: charts.bloodGroups ?? mockData.charts.bloodGroups,
+            donationTrends: charts.donationTrends ?? mockData.charts.donationTrends,
+            hospitalDonations: charts.hospitalDonations ?? mockData.charts.hospitalDonations,
+            requestAnalysis: charts.requestAnalysis ?? mockData.charts.requestAnalysis,
+          },
+          activities: payload?.activities ?? [],
+          welcome: payload?.welcome ?? {
+            donations_today: 0,
+            urgent_requests: totals?.pending_requests ?? 0,
+          }
+        };
+        if (mounted) {
+          setDashboardData(built);
+          setLoading(false);
+        }
+      } catch (e) {
+        if (mounted) {
+          setDashboardData(mockData);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   // Mock dashboard data (fallback)
@@ -111,180 +206,24 @@ const AdminDashboard = () => {
     }
   };
 
-  // Remove duplicate useEffect - data loading is handled above
+  // Derived datasets for charts
+  const activeCharts = dashboardData?.charts ?? mockData.charts;
+  const recentActivities = dashboardData?.activities ?? [];
+  const bloodGroupLabels = activeCharts.bloodGroups.map(b => b.group);
+  const bloodGroupValues = activeCharts.bloodGroups.map(b => b.count);
+  const bloodGroupColors = activeCharts.bloodGroups.map(b => b.color);
 
-  // Blood Group Distribution Chart Component - static data to prevent reflows
-  const BloodGroupChart = React.memo(() => {
-    // Static data to prevent any calculations during render
-    const staticData = [
-      { group: 'A+', count: 312, color: '#FF6B6B', percentage: '25.6' },
-      { group: 'B+', count: 249, color: '#4ECDC4', percentage: '20.4' },
-      { group: 'O+', count: 374, color: '#45B7D1', percentage: '30.6' },
-      { group: 'AB+', count: 62, color: '#96CEB4', percentage: '5.1' },
-      { group: 'A-', count: 89, color: '#FECA57', percentage: '7.3' },
-      { group: 'B-', count: 67, color: '#FF9FF3', percentage: '5.5' },
-      { group: 'O-', count: 45, color: '#54A0FF', percentage: '3.7' },
-      { group: 'AB-', count: 23, color: '#5F27CD', percentage: '1.9' }
-    ];
+  const donationTrendLabels = activeCharts.donationTrends.map(d => d.month);
+  const donationTrendValues = activeCharts.donationTrends.map(d => d.donations);
 
-    return (
-      <div className="blood-group-chart">
-        <div className="chart-legend">
-          {staticData.map((group) => (
-            <div key={group.group} className="legend-item">
-              <div 
-                className="legend-color" 
-                style={{ backgroundColor: group.color }}
-              />
-              <span className="legend-label">{group.group}</span>
-              <span className="legend-count">{group.count}</span>
-              <span className="legend-percentage">
-                ({group.percentage}%)
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="chart-visual">
-          <div className="pie-chart">
-            <div className="pie-slice" style={{ background: 'conic-gradient(#FF6B6B 0deg 92deg, transparent 92deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#4ECDC4 92deg 165deg, transparent 165deg)', transform: 'rotate(92deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#45B7D1 165deg 275deg, transparent 275deg)', transform: 'rotate(165deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#96CEB4 275deg 293deg, transparent 293deg)', transform: 'rotate(275deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#FECA57 293deg 319deg, transparent 319deg)', transform: 'rotate(293deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#FF9FF3 319deg 339deg, transparent 339deg)', transform: 'rotate(319deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#54A0FF 339deg 352deg, transparent 352deg)', transform: 'rotate(339deg)' }} />
-            <div className="pie-slice" style={{ background: 'conic-gradient(#5F27CD 352deg 360deg, transparent 360deg)', transform: 'rotate(352deg)' }} />
-          </div>
-        </div>
-      </div>
-    );
-  });
+  const hospitalLabels = activeCharts.hospitalDonations.map(h => h.hospital);
+  const hospitalValues = activeCharts.hospitalDonations.map(h => h.donations);
 
-  // Donation Trends Chart Component - static data to prevent reflows
-  const DonationTrendsChart = React.memo(() => {
-    // Static data with pre-calculated heights to prevent reflows
-    const staticBars = [
-      { month: 'Jan', donations: 120, height: '60%' },
-      { month: 'Feb', donations: 135, height: '67.5%' },
-      { month: 'Mar', donations: 142, height: '71%' },
-      { month: 'Apr', donations: 158, height: '79%' },
-      { month: 'May', donations: 167, height: '83.5%' },
-      { month: 'Jun', donations: 189, height: '94.5%' }
-    ];
-
-    return (
-      <div className="donation-trends-chart">
-        <div className="chart-stats">
-          <div className="stat-item">
-            <span className="stat-icon">📈</span>
-            <span className="stat-text">15% increase this month</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-icon">🎯</span>
-            <span className="stat-text">89% target achievement</span>
-          </div>
-        </div>
-        <div className="line-chart">
-          <div className="chart-bars">
-            {staticBars.map((data) => (
-              <div key={data.month} className="chart-bar">
-                <div 
-                  className="bar-fill"
-                  style={{ height: data.height }}
-                />
-                <div className="bar-value">{data.donations}</div>
-              </div>
-            ))}
-          </div>
-          <div className="chart-labels">
-            {staticBars.map(data => (
-              <span key={data.month} className="chart-label">
-                {data.month}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  });
-
-  // Hospital Donations Chart Component - static data to prevent reflows
-  const HospitalDonationsChart = React.memo(() => {
-    // Static data with pre-calculated widths to prevent reflows
-    const staticHospitals = [
-      { hospital: 'City General', donations: 45, width: '90%' },
-      { hospital: 'Metro Medical', donations: 38, width: '76%' },
-      { hospital: 'Regional Hospital', donations: 32, width: '64%' },
-      { hospital: 'University Hospital', donations: 28, width: '56%' },
-      { hospital: 'Community Health', donations: 22, width: '44%' }
-    ];
-
-    return (
-      <div className="hospital-donations-chart">
-        <div className="chart-filters">
-          <button className="filter-button active">Monthly</button>
-          <button className="filter-button">Quarterly</button>
-          <button className="filter-button">Yearly</button>
-        </div>
-        <div className="bar-chart">
-          {staticHospitals.map((data) => (
-            <div key={data.hospital} className="hospital-bar">
-              <div className="hospital-label">{data.hospital}</div>
-              <div className="hospital-bar-container">
-                <div 
-                  className="hospital-bar-fill"
-                  style={{ width: data.width }}
-                />
-                <span className="hospital-count">{data.donations}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  });
-
-  // Request Analysis Chart Component - static data to prevent reflows
-  const RequestAnalysisChart = React.memo(() => {
-    // Static data with pre-calculated values to prevent reflows
-    const staticAnalysis = [
-      { status: 'Completed', count: 65, color: '#10B981', height: '65%', opacity: 0.8 },
-      { status: 'Pending', count: 23, color: '#F59E0B', height: '23%', opacity: 0.7 },
-      { status: 'Cancelled', count: 12, color: '#EF4444', height: '12%', opacity: 0.6 }
-    ];
-
-    return (
-      <div className="request-analysis-chart">
-        <div className="chart-summary">
-          {staticAnalysis.map((data) => (
-            <div key={data.status} className="summary-item">
-              <div 
-                className="summary-color" 
-                style={{ backgroundColor: data.color }}
-              />
-              <span className="summary-label">{data.status}</span>
-              <span className="summary-count">{data.count}%</span>
-            </div>
-          ))}
-        </div>
-        <div className="area-chart">
-          <div className="chart-area">
-            {staticAnalysis.map((data) => (
-              <div
-                key={data.status}
-                className="area-segment"
-                style={{
-                  height: data.height,
-                  backgroundColor: data.color,
-                  opacity: data.opacity
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  });
+  const requestLabels = activeCharts.requestAnalysis.map(r => r.status);
+  const requestValues = activeCharts.requestAnalysis.map(r => r.count);
+  const requestColors = activeCharts.requestAnalysis.map(r => r.color);
+  const totalBloodGroups = bloodGroupValues.reduce((a, b) => a + b, 0);
+  const totalRequests = requestValues.reduce((a, b) => a + b, 0);
 
   if (loading) {
     return (
@@ -320,12 +259,12 @@ const AdminDashboard = () => {
           <p className="welcome-subtitle">Monitor and manage your blood donation network</p>
         </div>
         <div className="welcome-stats">
-          <div className="welcome-stat">
-            <span className="stat-number">12</span>
+          <div className="welcome-stat accent-green">
+            <span className="stat-number">{dashboardData?.welcome?.donations_today ?? 0}</span>
             <span className="stat-label">Donations Today</span>
           </div>
-          <div className="welcome-stat">
-            <span className="stat-number">3</span>
+          <div className="welcome-stat accent-orange">
+            <span className="stat-number">{dashboardData?.welcome?.urgent_requests ?? 0}</span>
             <span className="stat-label">Urgent Requests</span>
           </div>
         </div>
@@ -348,34 +287,149 @@ const AdminDashboard = () => {
           title="Blood Group Distribution" 
           subtitle="Distribution of blood types in the system"
         >
-          <BloodGroupChart />
+          <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <Pie
+                data={{
+                  labels: bloodGroupLabels,
+                  datasets: [{
+                    data: bloodGroupValues,
+                    backgroundColor: bloodGroupColors,
+                    borderWidth: 0,
+                  }]
+                }}
+                options={{
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true },
+                  },
+                  responsive: true,
+                  maintainAspectRatio: false,
+                }}
+                height={220}
+              />
+            </div>
+            <div className="chart-legend" style={{ flex: 1 }}>
+              {activeCharts.bloodGroups.map((g) => (
+                <div key={g.group} className="legend-item">
+                  <div className="legend-color" style={{ backgroundColor: g.color }} />
+                  <span className="legend-label">{g.group}</span>
+                  <span className="legend-count">
+                    {g.count}
+                    {totalBloodGroups > 0 ? ` (${Math.round((g.count / totalBloodGroups) * 100)}%)` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </ChartCard>
 
         <ChartCard 
           title="Monthly Donation Trends" 
           subtitle="Donation patterns over the last 6 months"
         >
-          <DonationTrendsChart />
+          <div style={{ height: 260 }}>
+            <Line
+              data={{
+                labels: donationTrendLabels,
+                datasets: [{
+                  label: 'Donations',
+                  data: donationTrendValues,
+                  fill: true,
+                  tension: 0.35,
+                  borderColor: '#B71C1C',
+                  backgroundColor: 'rgba(183, 28, 28, 0.15)',
+                  pointBackgroundColor: '#B71C1C',
+                }]
+              }}
+              options={{
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { grid: { display: false } },
+                  y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                },
+                responsive: true,
+                maintainAspectRatio: false,
+              }}
+            />
+          </div>
         </ChartCard>
 
         <ChartCard 
           title="Hospital-wise Donations" 
           subtitle="Donation performance by hospital"
         >
-          <HospitalDonationsChart />
+          <div style={{ height: 260 }}>
+            <Bar
+              data={{
+                labels: hospitalLabels,
+                datasets: [{
+                  label: 'Donations',
+                  data: hospitalValues,
+                  backgroundColor: '#B71C1C',
+                  borderRadius: 6,
+                  maxBarThickness: 38,
+                }]
+              }}
+              options={{
+                plugins: { legend: { display: false } },
+                indexAxis: 'y',
+                scales: {
+                  x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                  y: { grid: { display: false } },
+                },
+                responsive: true,
+                maintainAspectRatio: false,
+              }}
+            />
+          </div>
         </ChartCard>
 
         <ChartCard 
           title="Request Status Analysis" 
           subtitle="Breakdown of request completion rates"
         >
-          <RequestAnalysisChart />
+          <div style={{ height: 260 }}>
+            <Bar
+              data={{
+                labels: requestLabels,
+                datasets: [{
+                  label: 'Requests',
+                  data: requestValues,
+                  backgroundColor: requestColors,
+                  borderRadius: 6,
+                }]
+              }}
+              options={{
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { grid: { display: false } },
+                  y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                },
+                responsive: true,
+                maintainAspectRatio: false,
+              }}
+            />
+          </div>
+          <div className="chart-legend" style={{ marginTop: '0.75rem' }}>
+            {activeCharts.requestAnalysis.map((r) => (
+              <div key={r.status} className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: r.color }} />
+                <span className="legend-label">{r.status}</span>
+                <span className="legend-count">
+                  {r.count}
+                  {totalRequests > 0 ? ` (${Math.round((r.count / totalRequests) * 100)}%)` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
         </ChartCard>
       </div>
 
       {/* Activity Table */}
       <div className="activity-section">
         <ActivityTable 
+          data={recentActivities}
           loading={loading}
           onRowClick={(row) => console.log('Row clicked:', row)}
         />

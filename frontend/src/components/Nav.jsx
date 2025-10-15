@@ -141,7 +141,6 @@ export default function Nav() {
                 </NavLink>
               </div>
             </div>
-            <NavLink className="header__link" to="/seeker/login">Find Blood</NavLink>
           </nav>
 
           <div className="header__actions">

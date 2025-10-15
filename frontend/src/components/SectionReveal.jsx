@@ -16,14 +16,19 @@ export default function SectionReveal({
   useEffect(() => {
     if (!sectionRef.current) return
 
+    // Ensure plugin is registered once
+    if (!gsap.core.globals().ScrollTrigger) {
+      gsap.registerPlugin(ScrollTrigger)
+    }
+
     const elements = sectionRef.current.children
     if (elements.length === 0) return
 
     // Set initial state
-    gsap.set(elements, { opacity: 0, y: y })
+    gsap.set(elements, { opacity: 0, y: y, willChange: 'transform, opacity' })
 
     // Create scroll trigger animation
-    ScrollTrigger.create({
+    const trigger = ScrollTrigger.create({
       trigger: sectionRef.current,
       start: "top 80%",
       end: "bottom 20%",
@@ -40,11 +45,7 @@ export default function SectionReveal({
     })
 
     return () => {
-      ScrollTrigger.getAll().forEach(trigger => {
-        if (trigger.trigger === sectionRef.current) {
-          trigger.kill()
-        }
-      })
+      if (trigger) trigger.kill()
     }
   }, [delay, stagger, y])
 

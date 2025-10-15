@@ -12,61 +12,8 @@ const ActivityTable = ({
   const [sortDirection, setSortDirection] = useState('desc');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // Mock data if none provided
-  const mockData = useMemo(() => [
-    {
-      id: 1,
-      donor: 'John Smith',
-      hospital: 'City General Hospital',
-      bloodType: 'A+',
-      units: 2,
-      status: 'completed',
-      time: '2 hours ago',
-      priority: 'normal'
-    },
-    {
-      id: 2,
-      donor: 'Sarah Johnson',
-      hospital: 'Metro Medical Center',
-      bloodType: 'O-',
-      units: 1,
-      status: 'pending',
-      time: '4 hours ago',
-      priority: 'urgent'
-    },
-    {
-      id: 3,
-      donor: 'Michael Brown',
-      hospital: 'Regional Hospital',
-      bloodType: 'B+',
-      units: 3,
-      status: 'in-progress',
-      time: '6 hours ago',
-      priority: 'normal'
-    },
-    {
-      id: 4,
-      donor: 'Emily Davis',
-      hospital: 'University Hospital',
-      bloodType: 'AB+',
-      units: 1,
-      status: 'completed',
-      time: '8 hours ago',
-      priority: 'normal'
-    },
-    {
-      id: 5,
-      donor: 'David Wilson',
-      hospital: 'Community Health Center',
-      bloodType: 'O+',
-      units: 2,
-      status: 'cancelled',
-      time: '12 hours ago',
-      priority: 'low'
-    }
-  ], []);
-
-  const tableData = data.length > 0 ? data : mockData;
+  // Use provided data only; when empty, an empty state will display
+  const tableData = data;
 
   // Helper function to convert time strings to comparable values
   const getTimeValue = (timeStr) => {

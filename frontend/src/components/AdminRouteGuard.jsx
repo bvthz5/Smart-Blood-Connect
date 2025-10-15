@@ -29,40 +29,18 @@ const AdminRouteGuard = ({ children }) => {
   // Enhanced debounced navigation to prevent rapid redirects
   const debouncedNavigate = useCallback((path, options = {}) => {
     if (hasNavigatedRef.current) return;
-    
     // Clear any existing timeout
     if (authCheckTimeoutRef.current) {
       clearTimeout(authCheckTimeoutRef.current);
     }
-    
     hasNavigatedRef.current = true;
-    
-    // Use requestIdleCallback for better performance
-    if (window.requestIdleCallback) {
-      authCheckTimeoutRef.current = requestIdleCallback(() => {
-        navigate(path, { replace: true, ...options });
-        
-        // Reset navigation flag after navigation
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => {
-            hasNavigatedRef.current = false;
-          }, { timeout: 200 });
-        } else {
-          setTimeout(() => {
-            hasNavigatedRef.current = false;
-          }, 200);
-        }
-      }, { timeout: 100 });
-    } else {
-      authCheckTimeoutRef.current = setTimeout(() => {
-        navigate(path, { replace: true, ...options });
-        
-        // Reset navigation flag after navigation
-        setTimeout(() => {
-          hasNavigatedRef.current = false;
-        }, 200);
+    // Perform a minimal async to batch layout work without requestIdleCallback
+    authCheckTimeoutRef.current = setTimeout(() => {
+      navigate(path, { replace: true, ...options });
+      setTimeout(() => {
+        hasNavigatedRef.current = false;
       }, 100);
-    }
+    }, 0);
   }, [navigate]);
 
   // Enhanced authentication check with better state management
@@ -83,6 +61,7 @@ const AdminRouteGuard = ({ children }) => {
 
     const isAuth = isAuthenticated && user;
     const isLoginPage = location.pathname === "/admin/login";
+    const isResetPasswordPage = location.pathname === "/admin/reset-password" || location.pathname === "/admin/forgot-password";
     const isAdminPage = location.pathname.startsWith("/admin/");
 
     // Skip authentication check for navigation within admin pages or during navigation
@@ -91,75 +70,48 @@ const AdminRouteGuard = ({ children }) => {
       return;
     }
 
-    // Use requestIdleCallback for better performance
-    if (window.requestIdleCallback) {
-      authCheckTimeoutRef.current = requestIdleCallback(() => {
-        if (!isAuth) {
-          // Not authenticated
-          if (!isLoginPage && isAdminPage) {
-            batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
-            debouncedNavigate("/admin/login");
-            return;
-          }
-          // On login page and not authenticated - show login
-          batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
-        } else {
-          // Authenticated
-          if (isLoginPage) {
-            batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
-            debouncedNavigate("/admin/dashboard");
-            return;
-          }
-          // On protected page and authenticated - show content
-          batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
+    // Minimal async to avoid blocking; no requestIdleCallback
+    authCheckTimeoutRef.current = setTimeout(() => {
+      // Allow reset password and forgot password pages without authentication
+      if (isResetPasswordPage) {
+        batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
+        return;
+      }
+      
+      if (!isAuth) {
+        // Not authenticated
+        if (!isLoginPage && isAdminPage) {
+          batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
+          debouncedNavigate("/admin/login");
+          return;
         }
-      }, { timeout: 50 });
-    } else {
-      authCheckTimeoutRef.current = setTimeout(() => {
-        if (!isAuth) {
-          // Not authenticated
-          if (!isLoginPage && isAdminPage) {
-            batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
-            debouncedNavigate("/admin/login");
-            return;
-          }
-          // On login page and not authenticated - show login
-          batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
-        } else {
-          // Authenticated
-          if (isLoginPage) {
-            batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
-            debouncedNavigate("/admin/dashboard");
-            return;
-          }
-          // On protected page and authenticated - show content
-          batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
+        // On login page and not authenticated - show login
+        batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
+      } else {
+        // Authenticated
+        if (isLoginPage) {
+          batchedSetRenderState({ showLoading: false, showContent: false, isInitialized: true });
+          debouncedNavigate("/admin/dashboard");
+          return;
         }
-      }, 50);
-    }
+        // On protected page and authenticated - show content
+        batchedSetRenderState({ showLoading: false, showContent: true, isInitialized: true });
+      }
+    }, 0);
   }, [isAuthenticated, user, isLoading, location.pathname, debouncedNavigate, renderState.isInitialized]);
 
   // Effect for authentication checking
   useEffect(() => {
     checkAuthentication();
     
-    // Add a timeout to prevent infinite loading - use requestIdleCallback
+    // Add a timeout to prevent infinite loading - use standard timeout
     let maxLoadingTimeout;
-    if (window.requestIdleCallback) {
-      maxLoadingTimeout = requestIdleCallback(() => {
-        if (renderState.showLoading) {
-          console.log('AdminRouteGuard: Max loading time reached, showing login');
-          setRenderState({ showLoading: false, showContent: true, isInitialized: true });
-        }
-      }, { timeout: 3000 }); // 3 second max loading time
-    } else {
-      maxLoadingTimeout = setTimeout(() => {
-        if (renderState.showLoading) {
-          console.log('AdminRouteGuard: Max loading time reached, showing login');
-          setRenderState({ showLoading: false, showContent: true, isInitialized: true });
-        }
-      }, 3000); // 3 second max loading time
-    }
+    maxLoadingTimeout = setTimeout(() => {
+      if (renderState.showLoading) {
+        console.log('AdminRouteGuard: Max loading time reached, showing login');
+        setRenderState({ showLoading: false, showContent: true, isInitialized: true });
+      }
+    }, 800); // faster 0.8s max loading time
     
     // Cleanup timeout on unmount
     return () => {
@@ -182,17 +134,18 @@ const AdminRouteGuard = ({ children }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 25%, #dee2e6 50%, #ced4da 75%, #adb5bd 100%)',
+        background: 'radial-gradient(closest-side, #ffffff 0%, #f7f7f9 40%, #eef1f5 100%)',
         fontFamily: 'Inter, sans-serif'
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid #e9ecef',
-            borderTop: '4px solid #B71C1C',
+            width: '56px',
+            height: '56px',
+            border: '4px solid rgba(183, 28, 28, 0.15)',
+            borderTopColor: '#B71C1C',
             borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
+            animation: 'spin 0.8s linear infinite, glow 1.6s ease-in-out infinite',
+            boxShadow: '0 0 0 0 rgba(183, 28, 28, 0.6)',
             margin: '0 auto 1rem'
           }}></div>
           <p style={{
@@ -212,6 +165,11 @@ const AdminRouteGuard = ({ children }) => {
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+          @keyframes glow {
+            0% { box-shadow: 0 0 0 0 rgba(183, 28, 28, 0.0); }
+            50% { box-shadow: 0 0 0 8px rgba(183, 28, 28, 0.08); }
+            100% { box-shadow: 0 0 0 0 rgba(183, 28, 28, 0.0); }
           }
         `}</style>
       </div>

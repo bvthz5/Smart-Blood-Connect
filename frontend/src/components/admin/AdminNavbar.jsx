@@ -65,6 +65,21 @@ const AdminNavbar = ({ onToggleSidebar, sidebarCollapsed }) => {
     setProfileDropdownOpen(false);
   };
 
+  const handleGoProfile = () => {
+    navigate('/admin/profile');
+    setProfileDropdownOpen(false);
+  };
+
+  const handleEditProfile = () => {
+    navigate('/admin/profile?edit=1');
+    setProfileDropdownOpen(false);
+  };
+
+  const handleGoSettings = () => {
+    navigate('/admin/settings');
+    setProfileDropdownOpen(false);
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -221,12 +236,32 @@ const AdminNavbar = ({ onToggleSidebar, sidebarCollapsed }) => {
                 <div className="profile-dropdown-menu">
                   <button 
                     className="dropdown-item"
+                    onClick={handleGoProfile}
+                  >
+                    <User size={18} />
+                    <span>Profile</span>
+                  </button>
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleEditProfile}
+                  >
+                    <User size={18} />
+                    <span>Edit Profile</span>
+                  </button>
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleGoSettings}
+                  >
+                    <Settings size={18} />
+                    <span>Settings</span>
+                  </button>
+                  <button 
+                    className="dropdown-item"
                     onClick={handleChangePassword}
                   >
                     <Settings size={18} />
                     <span>Change Password</span>
                   </button>
-                  
                   <button 
                     className="dropdown-item logout"
                     onClick={handleLogout}

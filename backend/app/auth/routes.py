@@ -5,6 +5,7 @@ from app.models import User, Donor, OTPSession, HospitalStaff, RefreshToken
 from .utils import generate_otp, otp_hash, verify_otp, hash_password, verify_password
 from flask_jwt_extended import create_access_token, create_refresh_token, decode_token
 import logging
+from app.config.email_config import EmailConfig
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = logging.getLogger(__name__)
@@ -174,8 +175,8 @@ def forgot_password():
             try:
                 from app.services.email_service import email_service
                 reset_token = create_access_token(identity=str(user.id), additional_claims={"pr": "reset"}, expires_delta=timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15)))
-                reset_link = f"{current_app.config.get('FRONTEND_URL', 'http://localhost:3000')}/seeker/reset-password?token={reset_token}"
-                email_sent = email_service.send_password_reset_email(ident, reset_link, user.first_name or "User")
+                reset_link = f"{getattr(EmailConfig, 'FRONTEND_URL', 'http://localhost:3000')}/seeker/reset-password?token={reset_token}"
+                email_sent = email_service.send_password_reset_email(ident, reset_link, (user.first_name or "User"))
                 if email_sent:
                     logger.info(f"Password reset email sent to {ident}")
                 else:
@@ -203,8 +204,12 @@ def reset_password():
         return jsonify({"error": "invalid or expired token"}), 400
     if decoded.get("type") != "access":
         return jsonify({"error": "invalid token type"}), 400
+    
+    # Check for 'pr' claim in both claims object and main token body
     claims = decoded.get("claims") or {}
-    if claims.get("pr") != "reset":
+    pr_claim = claims.get("pr") or decoded.get("pr")
+    
+    if pr_claim != "reset":
         return jsonify({"error": "invalid reset token"}), 400
     user_id = decoded.get("sub")
     try:
@@ -246,9 +251,17 @@ def change_password():
     data = request.get_json() or {}
     old = data.get("old_password")
     new = data.get("new_password")
+    if not old or not new:
+        return jsonify({"error":"old_password and new_password required"}), 400
+    if not user:
+        return jsonify({"error":"user not found"}), 404
     if not verify_password(old, user.password_hash):
         return jsonify({"error":"wrong old password"}), 400
     user.password_hash = hash_password(new)
     RefreshToken.query.filter_by(user_id=user.id).update({"revoked": True})
     db.session.commit()
     return jsonify({"message":"password changed"}), 200
+
+@auth_bp.route("/change-password", methods=["OPTIONS"])
+def change_password_options():
+    return jsonify({}), 200

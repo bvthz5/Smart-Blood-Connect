@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { store } from './store';
+import { useDispatch } from 'react-redux';
 import ScrollToTop from './components/ScrollToTop';
+import { initializeAuth } from './store/slices/adminSlice';
 
 // Pages
 import Home from './pages/Home';
@@ -34,11 +34,14 @@ import SeekerResetPassword from './pages/seeker/SeekerResetPassword';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboardNew from './pages/admin/AdminDashboardNew';
 import AdminForgotPassword from './pages/admin/AdminForgotPassword';
+import AdminResetPassword from './pages/admin/AdminResetPassword';
 import DonorManagement from './pages/admin/DonorManagement';
 import HospitalManagement from './pages/admin/HospitalManagement';
 import BloodMatching from './pages/admin/BloodMatching';
 import DonationRequests from './pages/admin/DonationRequests';
 import DonationHistory from './pages/admin/DonationHistory';
+import AdminProfile from './pages/admin/AdminProfile';
+import AdminSettings from './pages/admin/AdminSettings';
 
 // Route Guards
 import ProtectedRoute from './components/ProtectedRoute';
@@ -47,8 +50,13 @@ import AdminRouteGuard from './components/AdminRouteGuard';
 import './App.css';
 
 function App() {
+  // Initialize admin auth state on app load
+  const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(initializeAuth());
+  }, [dispatch]);
+
   return (
-    <Provider store={store}>
       <div className="App">
         <ScrollToTop />
         <Routes>
@@ -109,7 +117,12 @@ function App() {
           
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
+          <Route path="/admin/reset-password" element={<AdminResetPassword />} />
+          <Route path="/admin/dashboard" element={
+            <AdminRouteGuard>
+              <AdminDashboardNew />
+            </AdminRouteGuard>
+          } />
           <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
           <Route path="/admin/dashboard-new" element={<AdminDashboardNew />} />
           <Route path="/admin/donors" element={
@@ -137,12 +150,21 @@ function App() {
               <DonationHistory />
             </AdminRouteGuard>
           } />
+          <Route path="/admin/profile" element={
+            <AdminRouteGuard>
+              <AdminProfile />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/settings" element={
+            <AdminRouteGuard>
+              <AdminSettings />
+            </AdminRouteGuard>
+          } />
           
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
-    </Provider>
   );
 }
 

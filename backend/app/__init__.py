@@ -170,9 +170,11 @@ def create_app(config_name='default'):
 
     # Validate email (SMTP) configuration early and warn if missing
     try:
+        print("\n" + "="*60)
         EmailConfig.validate_config()
+        print("="*60 + "\n")
     except Exception as e:
-        print(f"[EmailConfig] Warning: {e}. Forgot password emails will fail until SMTP credentials are set.")
+        print(f"\n[EmailConfig] Warning: {e}. Forgot password emails will fail until SMTP credentials are set.\n")
 
     # Configure CORS
     configure_cors(app)

@@ -18,6 +18,11 @@ class EmailService:
     def send_password_reset_email(self, recipient_email, reset_link, user_name="User"):
         """Send password reset email with provided reset link"""
         try:
+            current_app.logger.info(f"[EMAIL SERVICE] Starting password reset email to {recipient_email}")
+            current_app.logger.info(f"[EMAIL SERVICE] SMTP Server: {self.smtp_server}:{self.smtp_port}")
+            current_app.logger.info(f"[EMAIL SERVICE] Sender: {self.sender_email}")
+            current_app.logger.info(f"[EMAIL SERVICE] User name: {user_name}")
+            
             subject = EmailConfig.RESET_SUBJECT if hasattr(EmailConfig, 'RESET_SUBJECT') else "SmartBlood - Password Reset"
             html_content = self._create_password_reset_html(user_name, reset_link)
             text_content = self._create_password_reset_text(user_name, reset_link)
@@ -35,18 +40,50 @@ class EmailService:
             message.attach(text_part)
             message.attach(html_part)
             
-            # Send email
+            current_app.logger.info(f"[EMAIL SERVICE] Message created, preparing to send")
+            
+            # Send email with proper TLS/SSL handling
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls(context=context)
-                server.login(self.sender_email, self.sender_password)
-                server.sendmail(self.sender_email, recipient_email, message.as_string())
+            use_ssl = getattr(EmailConfig, 'SMTP_USE_SSL', False)
+            use_tls = getattr(EmailConfig, 'SMTP_USE_TLS', True)
+            
+            current_app.logger.info(f"[EMAIL SERVICE] SSL: {use_ssl}, TLS: {use_tls}")
+            
+            if use_ssl:
+                current_app.logger.info(f"[EMAIL SERVICE] Using SMTP_SSL on port {self.smtp_port}")
+                with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context, timeout=20) as server:
+                    current_app.logger.info(f"[EMAIL SERVICE] Connected to SMTP server")
+                    server.set_debuglevel(1)  # Enable SMTP debug output
+                    server.login(self.sender_email, self.sender_password)
+                    current_app.logger.info(f"[EMAIL SERVICE] Login successful")
+                    server.sendmail(self.sender_email, recipient_email, message.as_string())
+                    current_app.logger.info(f"[EMAIL SERVICE] Email sent successfully")
+            else:
+                current_app.logger.info(f"[EMAIL SERVICE] Using SMTP with STARTTLS on port {self.smtp_port}")
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=20) as server:
+                    current_app.logger.info(f"[EMAIL SERVICE] Connected to SMTP server")
+                    server.set_debuglevel(1)  # Enable SMTP debug output
+                    server.ehlo()
+                    if use_tls:
+                        current_app.logger.info(f"[EMAIL SERVICE] Starting TLS")
+                        server.starttls(context=context)
+                        server.ehlo()
+                    server.login(self.sender_email, self.sender_password)
+                    current_app.logger.info(f"[EMAIL SERVICE] Login successful")
+                    server.sendmail(self.sender_email, recipient_email, message.as_string())
+                    current_app.logger.info(f"[EMAIL SERVICE] Email sent successfully")
             
             current_app.logger.info(f"Password reset email sent to {recipient_email}")
             return True
             
+        except smtplib.SMTPAuthenticationError as e:
+            current_app.logger.error(f"[EMAIL SERVICE] SMTP Authentication failed: {str(e)}")
+            return False
+        except smtplib.SMTPException as e:
+            current_app.logger.error(f"[EMAIL SERVICE] SMTP error: {str(e)}")
+            return False
         except Exception as e:
-            current_app.logger.error(f"Failed to send password reset email to {recipient_email}: {str(e)}")
+            current_app.logger.error(f"[EMAIL SERVICE] Failed to send password reset email to {recipient_email}: {str(e)}", exc_info=True)
             return False
 
     def _create_password_reset_html(self, user_name, reset_link):
@@ -147,7 +184,7 @@ SmartBlood - Password Reset
 Dear {user_name},
 
 We received a request to reset your SmartBlood account password.
-Reset link (expires in 15 minutes):
+Reset link (expires in {expiry} minutes):
 {reset_link}
 
 If you didn't request this, you can ignore this email.

@@ -308,9 +308,13 @@
 }
 
 .table-header {
-  padding: 1.5rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .table-title {
@@ -329,6 +333,24 @@
 
 .table-wrapper {
   overflow-x: auto;
+}
+
+/* Inline Filters near the table */
+.filters-inline {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.filters-inline .filters-section {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.filters-inline .filter-group select {
+  padding: 0.5rem 0.75rem;
 }
 
 .donor-table {
@@ -525,23 +547,24 @@
 /* Action Buttons */
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   justify-content: center;
   align-items: center;
 }
 
 .action-btn {
-  width: 36px;
-  height: 36px;
+  height: 40px;
   border: none;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  padding: 0 12px;
 }
 
 .action-btn::before {
@@ -608,6 +631,46 @@
 
 .action-btn:hover svg {
   transform: scale(1.1);
+}
+
+/* Ensure embedded SVG <img> icons render larger and crisp */
+.action-btn img,
+.action-btn .icon-img {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+/* Icon-only variant: remove borders/backgrounds and overlays */
+.action-btn.icon-only {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  height: 36px;
+  width: 36px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.action-btn.icon-only::before { display: none; }
+.action-btn.icon-only:hover { background: var(--color-surfaceVariant, rgba(0,0,0,0.06)) !important; }
+.action-btn.icon-only:hover svg,
+.action-btn.icon-only:hover img { transform: scale(1.05); }
+.action-btn.icon-only:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+
+/* Override colored backgrounds for specific classes when icon-only */
+.action-btn.icon-only.edit,
+.action-btn.icon-only.block,
+.action-btn.icon-only.delete {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Small text labels inside action buttons (icon fallback) */
+.action-btn .btn-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: inherit;
 }
 
 /* Pagination */

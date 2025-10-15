@@ -1,17 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginSeeker } from "../../services/api";
+import { useDispatch, useSelector } from 'react-redux';
+import { loginAdmin, clearError } from '../../store/slices/adminSlice';
 import "./AdminLogin.css";
 
 export default function AdminLogin() {
   const [formData, setFormData] = useState({
-    email_or_phone: "",
+    email: "",
     password: ""
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading, error } = useSelector((state) => state.admin);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -19,26 +20,27 @@ export default function AdminLogin() {
       ...prev,
       [name]: value
     }));
-    if (error) setError("");
+    if (error) dispatch(clearError());
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await loginSeeker(formData);
-      localStorage.setItem("admin_access_token", response.data.access_token);
-      localStorage.setItem("admin_refresh_token", response.data.refresh_token);
-      localStorage.setItem("user_type", "admin");
-      navigate("/admin/dashboard");
-    } catch (err) {
-      setError(err?.response?.data?.error || "Login failed. Please check your credentials.");
-    } finally {
-      setLoading(false);
-    }
+    dispatch(loginAdmin({ email: formData.email, password: formData.password }))
+      .unwrap()
+      .then(() => {
+        navigate('/admin/dashboard');
+      })
+      .catch(() => {
+        // Error is handled in slice; keep on page
+      });
   };
+
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/admin/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   return (
     <div className="admin-login-page">
@@ -75,14 +77,14 @@ export default function AdminLogin() {
 
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
-              <label htmlFor="email_or_phone" className="form-label">
+              <label htmlFor="email" className="form-label">
                 Email Address
               </label>
               <input
                 type="email"
-                id="email_or_phone"
-                name="email_or_phone"
-                value={formData.email_or_phone}
+                id="email"
+                name="email"
+                value={formData.email}
                 onChange={handleInputChange}
                 placeholder="Enter your email address"
                 required
@@ -142,9 +144,9 @@ export default function AdminLogin() {
             <button 
               type="submit" 
               className="login-button"
-              disabled={loading}
+              disabled={isLoading}
             >
-              {loading ? (
+              {isLoading ? (
                 <>
                   <svg className="spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
