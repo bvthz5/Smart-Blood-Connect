@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 from flask import current_app
+import gzip
+import pickle
+import glob
 
 
 class ModelClient:
@@ -93,14 +96,47 @@ class ModelClient:
         # Construct full path
         full_path = self.artifacts_dir.parent / artifact_path
         
+        # Resolve alternative compressed artifact if the expected file is missing
+        gzip_path = None
         if not full_path.exists():
-            raise FileNotFoundError(f"Model artifact not found: {full_path}")
+            # Prefer <artifact>.gz next to the expected path
+            p_str = str(full_path)
+            if not p_str.endswith('.gz'):
+                gzip_path_candidate = Path(p_str + '.gz')
+            else:
+                gzip_path_candidate = full_path
+            # If .gz file doesn't exist yet, check for split parts and reconstruct
+            if not gzip_path_candidate.exists():
+                part_glob = f"{str(gzip_path_candidate)}.part*"
+                part_files = sorted(glob.glob(part_glob))
+                if part_files:
+                    try:
+                        current_app.logger.info(
+                            f"[MODEL CLIENT] Reconstructing compressed artifact from parts: {part_glob}"
+                        )
+                        with open(gzip_path_candidate, "wb") as f_out:
+                            for part in part_files:
+                                with open(part, "rb") as f_in:
+                                    f_out.write(f_in.read())
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"[MODEL CLIENT] Failed to reconstruct artifact: {str(e)}"
+                        )
+                        raise
+            if gzip_path_candidate.exists():
+                gzip_path = gzip_path_candidate
+            else:
+                raise FileNotFoundError(f"Model artifact not found: {full_path}")
         
         # Load model with thread safety
         with self._lock:
             try:
                 start_time = datetime.now()
-                model = joblib.load(full_path)
+                if gzip_path is not None:
+                    with gzip.open(gzip_path, 'rb') as f:
+                        model = pickle.load(f)
+                else:
+                    model = joblib.load(full_path)
                 load_time = (datetime.now() - start_time).total_seconds() * 1000
                 
                 self.models[model_key] = model
