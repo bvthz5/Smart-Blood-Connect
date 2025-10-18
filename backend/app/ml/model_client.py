@@ -14,6 +14,7 @@ from flask import current_app
 import gzip
 import pickle
 import glob
+from huggingface_hub import hf_hub_download
 
 
 class ModelClient:
@@ -89,11 +90,55 @@ class ModelClient:
         
         metadata = self.model_metadata[model_key]
         artifact_path = metadata.get('artifact_path')
+        hf_repo_id = metadata.get('hf_repo_id')
+        hf_filename = metadata.get('hf_filename')
         
-        if not artifact_path:
-            raise ValueError(f"No artifact_path specified for model '{model_key}'")
+        if not artifact_path and not (hf_repo_id and hf_filename):
+            raise ValueError(f"No artifact_path or Hugging Face info specified for model '{model_key}'")
+
+        # If Hugging Face details are provided in metadata, download via hf_hub
+        if hf_repo_id and hf_filename:
+            try:
+                token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+                start_time = datetime.now()
+                local_path = hf_hub_download(repo_id=hf_repo_id, filename=hf_filename, use_auth_token=token)
+                model = joblib.load(local_path)
+                load_time = (datetime.now() - start_time).total_seconds() * 1000
+                with self._lock:
+                    self.models[model_key] = model
+                current_app.logger.info(
+                    f"[MODEL CLIENT] Loaded '{model_key}' from HF repo {hf_repo_id} file {hf_filename} "
+                    f"in {load_time:.2f}ms"
+                )
+                return model
+            except Exception as e:
+                current_app.logger.error(f"[MODEL CLIENT] HF load failed for '{model_key}': {str(e)}")
+                raise
+
+        # Support artifact_path with hf:// schema -> hf://<repo_id>/<filename>
+        if isinstance(artifact_path, str) and artifact_path.startswith('hf://'):
+            try:
+                path_part = artifact_path[len('hf://'):]
+                repo_and_file = path_part.split('/', 1)
+                if len(repo_and_file) != 2:
+                    raise ValueError(f"Invalid HF artifact_path format: {artifact_path}")
+                repo_id, filename = repo_and_file
+                token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+                start_time = datetime.now()
+                local_path = hf_hub_download(repo_id=repo_id, filename=filename, use_auth_token=token)
+                model = joblib.load(local_path)
+                load_time = (datetime.now() - start_time).total_seconds() * 1000
+                with self._lock:
+                    self.models[model_key] = model
+                current_app.logger.info(
+                    f"[MODEL CLIENT] Loaded '{model_key}' from HF path {artifact_path} in {load_time:.2f}ms"
+                )
+                return model
+            except Exception as e:
+                current_app.logger.error(f"[MODEL CLIENT] HF path load failed for '{model_key}': {str(e)}")
+                raise
         
-        # Construct full path
+        # Construct full path for local artifact
         full_path = self.artifacts_dir.parent / artifact_path
         
         # Resolve alternative compressed artifact if the expected file is missing

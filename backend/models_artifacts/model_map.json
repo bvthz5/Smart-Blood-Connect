@@ -82,6 +82,8 @@
       "name": "kerala_demand_forecast_stacked_optuna",
       "version": "1.0.0",
       "artifact_path": "models_artifacts/kerala_demand_forecast_stacked_optuna.pkl",
+      "hf_repo_id": "bvthz5/Smart_Blood",
+      "hf_filename": "kerala_demand_forecast_stacked_optuna.pkl",
       "type": "time_series",
       "description": "Kerala blood demand forecasting with stacked ensemble",
       "features": [
