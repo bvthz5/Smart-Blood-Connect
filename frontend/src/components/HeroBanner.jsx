@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 // import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { syncHeaderAlertHeights } from "../utils/layoutOffsets";
 import { scheduleTask, scheduleLowPriorityTask } from "../utils/taskScheduler";
+import HeroAnimation from "./HeroAnimation";
 import "./HeroBanner.module.css";
 
 export default function HeroBanner({ language }) {
@@ -141,7 +142,9 @@ export default function HeroBanner({ language }) {
   // Track dark mode theme changes
   useEffect(() => {
     const checkTheme = () => {
-      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      console.log('HeroBanner: Dark mode status:', isDark);
+      setIsDarkMode(isDark);
     };
     
     // Check initial theme
@@ -232,6 +235,7 @@ export default function HeroBanner({ language }) {
           : 'transparent',
       }}
     >
+      {isDarkMode && <HeroAnimation />}
       <div className="hero-gradient-overlay" aria-hidden="true"></div>
 
       <div
@@ -253,7 +257,7 @@ export default function HeroBanner({ language }) {
       >
         <div className="hero-text-content" style={{ 
           textAlign: "center",
-          color: "#2c3e50",
+          color: isDarkMode ? "#ffffff" : "#2c3e50",
           marginTop: "-15px",
           marginRight: "70px",
           opacity: 1,
@@ -262,19 +266,19 @@ export default function HeroBanner({ language }) {
           <div className="hero-text-title" style={{ 
             fontSize: "1.3rem", 
             fontWeight: "800", 
-            color: "#e74c3c", 
+            color: isDarkMode ? "#ff6b7a" : "#e74c3c", 
             marginBottom: "8px", 
             lineHeight: "1.2",
-            textShadow: "1px 1px 2px rgba(255, 255, 255, 0.8)"
+            textShadow: isDarkMode ? "none" : "1px 1px 2px rgba(255, 255, 255, 0.8)"
           }}>
             {images[currentImage].title}
           </div>
           <div className="hero-text-description" style={{ 
             fontSize: "1rem", 
-            color: "#34495e", 
+            color: isDarkMode ? "#e8e8e8" : "#34495e", 
             lineHeight: "1.4",
             fontWeight: "600",
-            textShadow: "1px 1px 2px rgba(255, 255, 255, 0.8)"
+            textShadow: isDarkMode ? "none" : "1px 1px 2px rgba(255, 255, 255, 0.8)"
           }}>
             {images[currentImage].description}
           </div>
@@ -289,12 +293,11 @@ export default function HeroBanner({ language }) {
           aria-label="Hero"
         >
           <h1 className="hero-title" style={{ 
-            transform: "translateX(30px)",
             fontSize: "2.8rem",
             fontWeight: "800",
             lineHeight: "1.2",
-            marginTop: "4px",
-            marginLeft: "10px"
+            marginBottom: "1rem",
+            marginLeft: "20px"
           }}>
             {language === "en"
               ? "Give Blood. Save Lives."
@@ -304,12 +307,12 @@ export default function HeroBanner({ language }) {
           <p
             className="hero-subtitle"
             style={{ 
-              transform: "translateX(-200px)",
               fontSize: "1.2rem",
               fontWeight: "500",
               lineHeight: "1.4",
               marginBottom: "2rem",
-              marginRight: "662px"
+              maxWidth: "600px",
+              marginLeft: "20px"
             }}
           >
             {language === "en"
@@ -319,12 +322,20 @@ export default function HeroBanner({ language }) {
 
           <div
             className="hero-ctas"
-            style={{ transform: "translateX(20px) translateY(5px)" }}
+            style={{ 
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "flex-start",
+              marginLeft: "20px"
+            }}
           >
             <Link
               to="/seeker/login"
               className="btn btn--primary btn--large"
-              style={{ transform: "translateX(5px) translateY(5px)" }}
+              style={{ 
+                boxShadow: "none",
+                border: "2px solid transparent"
+              }}
             >
               {language === "en" ? "Become a Donor" : "ഒരു ദാനിയായി മാറുക"}
             </Link>
@@ -333,16 +344,19 @@ export default function HeroBanner({ language }) {
               to="/seeker/login"
               className="btn btn--outline btn--large"
               style={{ 
-                transform: "translateX(10px) translateY(5px)",
-                background: "#9c02021c",
-                transition: "all 0.3s ease",
-                marginLeft: "10px"
+                background: "rgba(255, 255, 255, 0.1)",
+                backdropFilter: "blur(10px)",
+                border: "2px solid rgba(230, 57, 70, 0.5)",
+                boxShadow: "none",
+                transition: "all 0.3s ease"
               }}
               onMouseEnter={(e) => {
-                e.target.style.background = "rgb(240 0 0 / 78%)";
+                e.target.style.background = "rgba(230, 57, 70, 0.2)";
+                e.target.style.borderColor = "rgba(230, 57, 70, 0.8)";
               }}
               onMouseLeave={(e) => {
-                e.target.style.background = "#9c02021c";
+                e.target.style.background = "rgba(255, 255, 255, 0.1)";
+                e.target.style.borderColor = "rgba(230, 57, 70, 0.5)";
               }}
             >
               {language === "en"

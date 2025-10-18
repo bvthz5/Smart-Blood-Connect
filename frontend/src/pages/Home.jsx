@@ -10,6 +10,8 @@ import SectionReveal from '../components/SectionReveal'
 import AlertsBar from '../components/AlertsBar'
 import { scheduleTask, scheduleLowPriorityTask } from '../utils/taskScheduler'
 import '../styles/home-new.css'
+import '../styles/home-enhancements.css'
+import '../styles/home-redesign.css'
 
 
 // DISABLE GSAP completely to eliminate performance violations
@@ -75,15 +77,19 @@ function StatsSection({ language }) {
   }, [])
 
   const stats = language === 'en' ? [
-    { label: 'Donors Registered', value: loading ? '...' : counts.donors.toLocaleString() },
-    { label: 'Units Collected', value: loading ? '...' : counts.units.toLocaleString() },
-    { label: 'Active Hospitals', value: loading ? '...' : counts.hospitals.toLocaleString() },
-    { label: 'Districts Covered', value: loading ? '...' : counts.districts.toLocaleString() }
+    { label: 'Donors Registered', value: loading ? '...' : counts.donors.toLocaleString(), icon: '👥' },
+    { label: 'Units Collected', value: loading ? '...' : counts.units.toLocaleString(), icon: '🩸' },
+    { label: 'Active Hospitals', value: loading ? '...' : counts.hospitals.toLocaleString(), icon: '🏥' },
+    { label: 'Districts Covered', value: loading ? '...' : counts.districts.toLocaleString(), icon: '📍' },
+    { label: 'Avg Response Time', value: '< 2 hrs', icon: '⚡' },
+    { label: 'Success Rate', value: '94%', icon: '✅' }
   ] : [
-    { label: 'രജിസ്റ്റർ ചെയ്ത ദാനികൾ', value: loading ? '...' : counts.donors.toLocaleString() },
-    { label: 'ശേഖരിച്ച യൂണിറ്റുകൾ', value: loading ? '...' : counts.units.toLocaleString() },
-    { label: 'സജീവ ആശുപത്രികൾ', value: loading ? '...' : counts.hospitals.toLocaleString() },
-    { label: 'ഉൾപ്പെടുത്തിയ ജില്ലകൾ', value: loading ? '...' : counts.districts.toLocaleString() }
+    { label: 'രജിസ്റ്റർ ചെയ്ത ദാനികൾ', value: loading ? '...' : counts.donors.toLocaleString(), icon: '👥' },
+    { label: 'ശേഖരിച്ച യൂണിറ്റുകൾ', value: loading ? '...' : counts.units.toLocaleString(), icon: '🩸' },
+    { label: 'സജീവ ആശുപത്രികൾ', value: loading ? '...' : counts.hospitals.toLocaleString(), icon: '🏥' },
+    { label: 'ഉൾപ്പെടുത്തിയ ജില്ലകൾ', value: loading ? '...' : counts.districts.toLocaleString(), icon: '📍' },
+    { label: 'ശരാശരി പ്രതികരണ സമയം', value: '< 2 മണിക്കൂർ', icon: '⚡' },
+    { label: 'വിജയ നിരക്ക്', value: '94%', icon: '✅' }
   ]
 
   return (
@@ -92,6 +98,7 @@ function StatsSection({ language }) {
         <div className="stats-grid">
           {stats.map((stat, index) => (
             <div key={index} className="stat-card">
+              <div className="stat-icon">{stat.icon}</div>
               <div className="stat-number">{stat.value}</div>
               <div className="stat-label">{stat.label}</div>
             </div>
@@ -108,17 +115,19 @@ function WhyDonateSection({ language }) {
   const cardsRef = useRef([])
   
   const reasons = language === 'en' ? [
-    { title: 'Takes Only 1 Hour', description: 'Quick and safe at certified centers.' },
-    { title: 'Free Health Check-up', description: 'Medical screening before donation.' },
-    { title: 'Save Up to 3 Lives', description: 'Your gift multiplies impact.' },
-    { title: 'Help Kerala Community', description: 'Support your local community.' },
-    { title: 'Trusted by Hospitals', description: 'Partnered with leading medical centers.' }
+    { title: 'Takes Only 1 Hour', description: 'Quick and safe at certified centers.', icon: '⏱️', motivation: 'One hour of your time can save three lives' },
+    { title: 'Free Health Check-up', description: 'Complete medical screening before donation.', icon: '🏥', motivation: 'Know your health status for free' },
+    { title: 'Save Up to 3 Lives', description: 'One donation helps multiple patients.', icon: '❤️', motivation: 'Be someone\'s hero today' },
+    { title: 'Help Kerala Community', description: 'Support your neighbors in need.', icon: '🤝', motivation: 'Together we are stronger' },
+    { title: 'Trusted by Hospitals', description: 'Partnered with 245+ medical centers.', icon: '🏆', motivation: 'Certified and reliable network' },
+    { title: 'Make a Difference', description: 'Your donation creates a ripple of hope.', icon: '🌟', motivation: 'Small act, huge impact' }
   ] : [
-    { title: '1 മണിക്കൂർ മാത്രം', description: 'സർട്ടിഫൈഡ് സെന്ററുകളിൽ വേഗവും സുരക്ഷിതവുമാണ്.' },
-    { title: 'സൗജന്യ ആരോഗ്യ പരിശോധന', description: 'ദാനത്തിന് മുമ്പ് മെഡിക്കൽ സ്ക്രീനിംഗ്.' },
-    { title: '3 ജീവിതങ്ങൾ രക്ഷിക്കുക', description: 'നിങ്ങളുടെ സമ്മാനം പ്രഭാവം ഗുണിക്കുന്നു.' },
-    { title: 'കേരള സമൂഹത്തെ സഹായിക്കുക', description: 'നിങ്ങളുടെ പ്രാദേശിക സമൂഹത്തെ പിന്തുണയ്ക്കുക.' },
-    { title: 'ആശുപത്രികൾ ആശ്രയിക്കുന്നു', description: 'മുൻനിര മെഡിക്കൽ സെന്ററുകളുമായി പങ്കാളിത്തം.' }
+    { title: '1 മണിക്കൂർ മാത്രം', description: 'സർട്ടിഫൈഡ് സെന്ററുകളിൽ വേഗവും സുരക്ഷിതവുമാണ്.', icon: '⏱️', motivation: 'നിങ്ങളുടെ ഒരു മണിക്കൂർ മൂന്ന് ജീവിതങ്ങൾ രക്ഷിക്കും' },
+    { title: 'സൗജന്യ ആരോഗ്യ പരിശോധന', description: 'ദാനത്തിന് മുമ്പ് പൂർണ്ണ മെഡിക്കൽ സ്ക്രീനിംഗ്.', icon: '🏥', motivation: 'സൗജന്യമായി നിങ്ങളുടെ ആരോഗ്യ നില അറിയുക' },
+    { title: '3 ജീവിതങ്ങൾ രക്ഷിക്കുക', description: 'ഒരു ദാനം ഒന്നിലധികം രോഗികളെ സഹായിക്കുന്നു.', icon: '❤️', motivation: 'ഇന്ന് ആരുടെയെങ്കിലും ഹീറോ ആകൂ' },
+    { title: 'കേരള സമൂഹത്തെ സഹായിക്കുക', description: 'ആവശ്യമുള്ള അയൽക്കാരെ പിന്തുണയ്ക്കുക.', icon: '🤝', motivation: 'ഒരുമിച്ച് നമ്മൾ ശക്തരാണ്' },
+    { title: 'ആശുപത്രികൾ ആശ്രയിക്കുന്നു', description: '245+ മെഡിക്കൽ സെന്ററുകളുമായി പങ്കാളിത്തം.', icon: '🏆', motivation: 'സർട്ടിഫൈഡും വിശ്വസനീയവുമായ നെറ്റ്‌വർക്ക്' },
+    { title: 'വ്യത്യാസം വരുത്തുക', description: 'നിങ്ങളുടെ ദാനം പ്രതീക്ഷയുടെ തിരമാല സൃഷ്ടിക്കുന്നു.', icon: '🌟', motivation: 'ചെറിയ പ്രവൃത്തി, വലിയ സ്വാധീനം' }
   ]
 
   useEffect(() => {
@@ -166,8 +175,10 @@ function WhyDonateSection({ language }) {
               ref={el => cardsRef.current[index] = el}
               className="reason-card"
             >
+              <div className="reason-icon">{reason.icon}</div>
               <h3 className="reason-title">{reason.title}</h3>
               <p className="reason-description">{reason.description}</p>
+              <p className="reason-motivation">{reason.motivation}</p>
             </div>
           ))}
         </div>
@@ -311,59 +322,86 @@ function CompatibilityTool({ language }) {
   )
 }
 
-// Component for How It Works
+// Component for How It Works - Simplified & Real
 function HowItWorksSection({ language }) {
   const donorSteps = language === 'en' ? [
-    { step: '1', title: 'Register', description: 'Sign up as a donor' },
-    { step: '2', title: 'Get Matched', description: 'Receive blood requests' },
-    { step: '3', title: 'Donate', description: 'Visit hospital & donate' }
+    { step: '1', title: 'Sign Up', description: 'Register with your blood group and contact details', icon: '✍️', color: '#4CAF50' },
+    { step: '2', title: 'Get Matched', description: 'Receive notifications when your blood type is needed nearby', icon: '🔔', color: '#2196F3' },
+    { step: '3', title: 'Donate Blood', description: 'Visit the hospital and complete your donation', icon: '🩸', color: '#E63946' },
+    { step: '4', title: 'Save Lives', description: 'Track your impact and donation history', icon: '❤️', color: '#FF9800' }
   ] : [
-    { step: '1', title: 'രജിസ്റ്റർ', description: 'ഒരു ദാനിയായി സൈൻ അപ്പ് ചെയ്യുക' },
-    { step: '2', title: 'മാച്ച് ചെയ്യുക', description: 'രക്ത അഭ്യർത്ഥനകൾ സ്വീകരിക്കുക' },
-    { step: '3', title: 'ദാനം ചെയ്യുക', description: 'ആശുപത്രിയിൽ സന്ദർശിക്കുകയും ദാനം ചെയ്യുക' }
+    { step: '1', title: 'സൈൻ അപ്പ് ചെയ്യുക', description: 'നിങ്ങളുടെ രക്തഗ്രൂപ്പും ബന്ധപ്പെടാനുള്ള വിശദാംശങ്ങളും രജിസ്റ്റർ ചെയ്യുക', icon: '✍️', color: '#4CAF50' },
+    { step: '2', title: 'മാച്ച് ചെയ്യപ്പെടുക', description: 'അടുത്തുള്ള സ്ഥലത്ത് നിങ്ങളുടെ രക്തഗ്രൂപ്പ് ആവശ്യമുള്ളപ്പോൾ അറിയിപ്പുകൾ സ്വീകരിക്കുക', icon: '🔔', color: '#2196F3' },
+    { step: '3', title: 'രക്തദാനം ചെയ്യുക', description: 'ആശുപത്രി സന്ദർശിച്ച് നിങ്ങളുടെ ദാനം പൂർത്തിയാക്കുക', icon: '🩸', color: '#E63946' },
+    { step: '4', title: 'ജീവൻ രക്ഷിക്കുക', description: 'നിങ്ങളുടെ സ്വാധീനവും ദാന ചരിത്രവും ട്രാക്ക് ചെയ്യുക', icon: '❤️', color: '#FF9800' }
   ]
 
   const hospitalSteps = language === 'en' ? [
-    { step: '1', title: 'Login', description: 'Hospital admin login' },
-    { step: '2', title: 'Create Request', description: 'Post blood requirements' },
-    { step: '3', title: 'Donors Notified', description: 'Automatic donor matching' }
+    { step: '1', title: 'Login', description: 'Access your hospital dashboard securely', icon: '🔐', color: '#9C27B0' },
+    { step: '2', title: 'Post Request', description: 'Enter blood type, quantity, and urgency level', icon: '📝', color: '#E91E63' },
+    { step: '3', title: 'Auto-Match', description: 'System finds compatible donors in your area', icon: '⚡', color: '#FF5722' },
+    { step: '4', title: 'Coordinate', description: 'Connect with donors and schedule donations', icon: '📞', color: '#00BCD4' }
   ] : [
-    { step: '1', title: 'ലോഗിൻ', description: 'ആശുപത്രി അഡ്മിൻ ലോഗിൻ' },
-    { step: '2', title: 'അഭ്യർത്ഥന സൃഷ്ടിക്കുക', description: 'രക്ത ആവശ്യകതകൾ പോസ്റ്റ് ചെയ്യുക' },
-    { step: '3', title: 'ദാനികൾക്ക് അറിയിക്കുക', description: 'ഓട്ടോമാറ്റിക് ദാനി മാച്ചിംഗ്' }
+    { step: '1', title: 'ലോഗിൻ', description: 'നിങ്ങളുടെ ആശുപത്രി ഡാഷ്ബോർഡ് സുരക്ഷിതമായി ആക്സസ് ചെയ്യുക', icon: '🔐', color: '#9C27B0' },
+    { step: '2', title: 'അഭ്യർത്ഥന പോസ്റ്റ് ചെയ്യുക', description: 'രക്തഗ്രൂപ്പ്, അളവ്, അടിയന്തിര നില എന്നിവ നൽകുക', icon: '📝', color: '#E91E63' },
+    { step: '3', title: 'ഓട്ടോ-മാച്ച്', description: 'സിസ്റ്റം നിങ്ങളുടെ പ്രദേശത്തെ അനുയോജ്യമായ ദാനികളെ കണ്ടെത്തുന്നു', icon: '⚡', color: '#FF5722' },
+    { step: '4', title: 'ഏകോപിപ്പിക്കുക', description: 'ദാനികളുമായി ബന്ധപ്പെടുകയും ദാനങ്ങൾ ഷെഡ്യൂൾ ചെയ്യുകയും ചെയ്യുക', icon: '📞', color: '#00BCD4' }
   ]
 
   return (
-    <section className="how-it-works-section">
+    <section className="how-it-works-section-new">
       <div className="container">
-        <h2 className="section-title">
-          {language === 'en' ? 'How It Works' : 'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നു'}
-        </h2>
-        <div className="workflows">
-          <div className="workflow">
-            <h3>{language === 'en' ? 'For Donors' : 'ദാനികൾക്ക്'}</h3>
-            <div className="steps">
+        <div className="section-header-centered">
+          <h2 className="section-title-modern">
+            {language === 'en' ? 'How It Works' : 'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നു'}
+          </h2>
+          <p className="section-subtitle-modern">
+            {language === 'en' 
+              ? 'Simple steps to save lives' 
+              : 'ജീവൻ രക്ഷിക്കാനുള്ള ലളിതമായ ഘട്ടങ്ങൾ'}
+          </p>
+        </div>
+        
+        <div className="workflows-modern">
+          {/* Donors Section */}
+          <div className="workflow-modern">
+            <div className="workflow-header">
+              <span className="workflow-badge workflow-badge--donor">
+                {language === 'en' ? '👤 For Donors' : '👤 ദാനികൾക്ക്'}
+              </span>
+            </div>
+            <div className="steps-modern">
               {donorSteps.map((step, index) => (
-                <div key={index} className="step">
-                  <div className="step-number">{step.step}</div>
-                  <div className="step-content">
-                    <h4>{step.title}</h4>
-                    <p>{step.description}</p>
+                <div key={index} className="step-modern" style={{ '--step-color': step.color }}>
+                  <div className="step-icon-modern">{step.icon}</div>
+                  <div className="step-details">
+                    <div className="step-number-modern">{step.step}</div>
+                    <h4 className="step-title-modern">{step.title}</h4>
+                    <p className="step-description-modern">{step.description}</p>
                   </div>
+                  {index < donorSteps.length - 1 && <div className="step-connector"></div>}
                 </div>
               ))}
             </div>
           </div>
-          <div className="workflow">
-            <h3>{language === 'en' ? 'For Hospitals' : 'ആശുപത്രികൾക്ക്'}</h3>
-            <div className="steps">
+
+          {/* Hospitals Section */}
+          <div className="workflow-modern">
+            <div className="workflow-header">
+              <span className="workflow-badge workflow-badge--hospital">
+                {language === 'en' ? '🏥 For Hospitals' : '🏥 ആശുപത്രികൾക്ക്'}
+              </span>
+            </div>
+            <div className="steps-modern">
               {hospitalSteps.map((step, index) => (
-                <div key={index} className="step">
-                  <div className="step-number">{step.step}</div>
-                  <div className="step-content">
-                    <h4>{step.title}</h4>
-                    <p>{step.description}</p>
+                <div key={index} className="step-modern" style={{ '--step-color': step.color }}>
+                  <div className="step-icon-modern">{step.icon}</div>
+                  <div className="step-details">
+                    <div className="step-number-modern">{step.step}</div>
+                    <h4 className="step-title-modern">{step.title}</h4>
+                    <p className="step-description-modern">{step.description}</p>
                   </div>
+                  {index < hospitalSteps.length - 1 && <div className="step-connector"></div>}
                 </div>
               ))}
             </div>
@@ -374,36 +412,263 @@ function HowItWorksSection({ language }) {
   )
 }
 
-// Component for Alerts & Camps
+// Component for Alerts & Camps - Redesigned with Two Carousels
 function AlertsCampsSection({ language }) {
-  const alerts = language === 'en' ? [
-    { type: 'alert', title: 'Platelet Shortage', message: 'Critical shortage of platelets in central Kerala' },
-    { type: 'camp', title: 'Blood Donation Camp', message: 'March 15, 2024 at Medical College, Trivandrum' },
-    { type: 'camp', title: 'Community Drive', message: 'March 20, 2024 at Kochi Convention Centre' }
+  const [currentUrgent, setCurrentUrgent] = useState(0)
+  const [currentCamp, setCurrentCamp] = useState(0)
+  
+  const urgentRequests = language === 'en' ? [
+    { 
+      title: 'O- Blood Urgently Needed', 
+      hospital: 'Medical College Hospital',
+      location: 'Trivandrum',
+      bloodType: 'O-',
+      units: '3 Units',
+      time: 'Within 2 hours',
+      contact: '+91-471-2528300'
+    },
+    { 
+      title: 'AB+ Platelets Required', 
+      hospital: 'Amrita Hospital',
+      location: 'Kochi',
+      bloodType: 'AB+',
+      units: '2 Units',
+      time: 'Immediate',
+      contact: '+91-484-2851234'
+    },
+    { 
+      title: 'B+ Blood for Surgery', 
+      hospital: 'KIMS Hospital',
+      location: 'Trivandrum',
+      bloodType: 'B+',
+      units: '4 Units',
+      time: 'Today 4:00 PM',
+      contact: '+91-471-3041400'
+    }
   ] : [
-    { type: 'alert', title: 'പ്ലേറ്റ്ലെറ്റ് കുറവ്', message: 'മധ്യ കേരളത്തിൽ പ്ലേറ്റ്ലെറ്റുകളുടെ നിർണായക കുറവ്' },
-    { type: 'camp', title: 'രക്തദാന ക്യാമ്പ്', message: 'മാർച്ച് 15, 2024 മെഡിക്കൽ കോളേജ്, തിരുവനന്തപുരം' },
-    { type: 'camp', title: 'കമ്മ്യൂണിറ്റി ഡ്രൈവ്', message: 'മാർച്ച് 20, 2024 കൊച്ചി കൺവെൻഷൻ സെന്റർ' }
+    { 
+      title: 'O- രക്തം അടിയന്തിരമായി ആവശ്യം', 
+      hospital: 'മെഡിക്കൽ കോളേജ് ആശുപത്രി',
+      location: 'തിരുവനന്തപുരം',
+      bloodType: 'O-',
+      units: '3 യൂണിറ്റുകൾ',
+      time: '2 മണിക്കൂറിനുള്ളിൽ',
+      contact: '+91-471-2528300'
+    },
+    { 
+      title: 'AB+ പ്ലേറ്റ്ലെറ്റുകൾ ആവശ്യം', 
+      hospital: 'അമൃത ആശുപത്രി',
+      location: 'കൊച്ചി',
+      bloodType: 'AB+',
+      units: '2 യൂണിറ്റുകൾ',
+      time: 'ഉടനടി',
+      contact: '+91-484-2851234'
+    },
+    { 
+      title: 'ശസ്ത്രക്രിയയ്ക്ക് B+ രക്തം', 
+      hospital: 'KIMS ആശുപത്രി',
+      location: 'തിരുവനന്തപുരം',
+      bloodType: 'B+',
+      units: '4 യൂണിറ്റുകൾ',
+      time: 'ഇന്ന് 4:00 PM',
+      contact: '+91-471-3041400'
+    }
   ]
 
+  const bloodCamps = language === 'en' ? [
+    { 
+      title: 'Mega Blood Donation Camp', 
+      organizer: 'Rajagiri Hospital',
+      location: 'Aluva, Ernakulam',
+      date: 'Jan 25, 2025',
+      time: '9:00 AM - 5:00 PM',
+      expected: '200+ Donors',
+      contact: '+91-484-2905000'
+    },
+    { 
+      title: 'Community Blood Drive', 
+      organizer: 'Rotary Club Kochi',
+      location: 'Lakeshore Hospital, Kochi',
+      date: 'Jan 28, 2025',
+      time: '10:00 AM - 4:00 PM',
+      expected: '150+ Donors',
+      contact: '+91-484-2701032'
+    },
+    { 
+      title: 'Youth Blood Donation Camp', 
+      organizer: 'NSS Kerala',
+      location: 'University Campus, Trivandrum',
+      date: 'Feb 2, 2025',
+      time: '8:00 AM - 2:00 PM',
+      expected: '300+ Donors',
+      contact: '+91-471-2305501'
+    }
+  ] : [
+    { 
+      title: 'മെഗാ രക്തദാന ക്യാമ്പ്', 
+      organizer: 'രാജഗിരി ആശുപത്രി',
+      location: 'ആലുവ, എറണാകുളം',
+      date: 'ജനുവരി 25, 2025',
+      time: '9:00 AM - 5:00 PM',
+      expected: '200+ ദാനികൾ',
+      contact: '+91-484-2905000'
+    },
+    { 
+      title: 'കമ്മ്യൂണിറ്റി ബ്ലഡ് ഡ്രൈവ്', 
+      organizer: 'റോട്ടറി ക്ലബ് കൊച്ചി',
+      location: 'ലേക്ഷോർ ആശുപത്രി, കൊച്ചി',
+      date: 'ജനുവരി 28, 2025',
+      time: '10:00 AM - 4:00 PM',
+      expected: '150+ ദാനികൾ',
+      contact: '+91-484-2701032'
+    },
+    { 
+      title: 'യൂത്ത് ബ്ലഡ് ഡൊണേഷൻ ക്യാമ്പ്', 
+      organizer: 'NSS കേരള',
+      location: 'യൂണിവേഴ്സിറ്റി കാമ്പസ്, തിരുവനന്തപുരം',
+      date: 'ഫെബ്രുവരി 2, 2025',
+      time: '8:00 AM - 2:00 PM',
+      expected: '300+ ദാനികൾ',
+      contact: '+91-471-2305501'
+    }
+  ]
+
+  useEffect(() => {
+    const urgentInterval = setInterval(() => {
+      setCurrentUrgent((prev) => (prev + 1) % urgentRequests.length)
+    }, 5000)
+    return () => clearInterval(urgentInterval)
+  }, [urgentRequests.length])
+
+  useEffect(() => {
+    const campInterval = setInterval(() => {
+      setCurrentCamp((prev) => (prev + 1) % bloodCamps.length)
+    }, 7000)
+    return () => clearInterval(campInterval)
+  }, [bloodCamps.length])
+
   return (
-    <section className="alerts-camps-section">
+    <section className="alerts-camps-section-new">
       <div className="container">
-        <h2 className="section-title">
-          {language === 'en' ? 'Alerts & Upcoming Camps' : 'അലേർട്ടുകളും വരാനിരിക്കുന്ന ക്യാമ്പുകളും'}
-        </h2>
-        <div className="alerts-grid">
-          {alerts.map((alert, index) => (
-            <div key={index} className={`alert-card ${alert.type}`}>
-              <div className="alert-icon">
-                {alert.type === 'alert' ? 'Alert' : 'Hospital'}
+        <div className="section-header-centered">
+          <h2 className="section-title-modern">
+            {language === 'en' ? 'Blood Requests & Donation Camps' : 'രക്ത അഭ്യർത്ഥനകളും ദാന ക്യാമ്പുകളും'}
+          </h2>
+        </div>
+
+        {/* Two-Column Layout */}
+        <div className="alerts-camps-grid">
+          {/* Urgent Requests Carousel */}
+          <div className="carousel-section urgent-section">
+            <div className="carousel-header">
+              <h3 className="carousel-title">
+                <span className="title-icon">🚨</span>
+                {language === 'en' ? 'Urgent Blood Requests' : 'അടിയന്തര രക്ത അഭ്യർത്ഥനകൾ'}
+              </h3>
+              <span className="live-badge">LIVE</span>
+            </div>
+            
+            <div className="carousel-container">
+              <div className="urgent-card">
+                <div className="blood-type-badge">{urgentRequests[currentUrgent].bloodType}</div>
+                <h4 className="urgent-title">{urgentRequests[currentUrgent].title}</h4>
+                <div className="urgent-details">
+                  <div className="detail-row">
+                    <span className="detail-icon">🏥</span>
+                    <span>{urgentRequests[currentUrgent].hospital}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">📍</span>
+                    <span>{urgentRequests[currentUrgent].location}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">🩸</span>
+                    <span>{urgentRequests[currentUrgent].units}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">⏰</span>
+                    <span>{urgentRequests[currentUrgent].time}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">📞</span>
+                    <a href={`tel:${urgentRequests[currentUrgent].contact}`}>{urgentRequests[currentUrgent].contact}</a>
+                  </div>
+                </div>
+                <button className="respond-btn">
+                  {language === 'en' ? '🩸 I Can Donate' : '🩸 എനിക്ക് ദാനം ചെയ്യാം'}
+                </button>
               </div>
-              <div className="alert-content">
-                <h3>{alert.title}</h3>
-                <p>{alert.message}</p>
+              
+              <div className="carousel-dots">
+                {urgentRequests.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`dot ${index === currentUrgent ? 'active' : ''}`}
+                    onClick={() => setCurrentUrgent(index)}
+                    aria-label={`Request ${index + 1}`}
+                  />
+                ))}
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* Blood Camps Carousel */}
+          <div className="carousel-section camps-section">
+            <div className="carousel-header">
+              <h3 className="carousel-title">
+                <span className="title-icon">🏕️</span>
+                {language === 'en' ? 'Upcoming Blood Camps' : 'വരാനിരിക്കുന്ന ബ്ലഡ് ക്യാമ്പുകൾ'}
+              </h3>
+              <span className="upcoming-badge">UPCOMING</span>
+            </div>
+            
+            <div className="carousel-container">
+              <div className="camp-card">
+                <div className="camp-icon">🎪</div>
+                <h4 className="camp-title">{bloodCamps[currentCamp].title}</h4>
+                <div className="camp-details">
+                  <div className="detail-row">
+                    <span className="detail-icon">👥</span>
+                    <span>{bloodCamps[currentCamp].organizer}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">📍</span>
+                    <span>{bloodCamps[currentCamp].location}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">📅</span>
+                    <span>{bloodCamps[currentCamp].date}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">🕐</span>
+                    <span>{bloodCamps[currentCamp].time}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">🎯</span>
+                    <span>{bloodCamps[currentCamp].expected}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-icon">📞</span>
+                    <a href={`tel:${bloodCamps[currentCamp].contact}`}>{bloodCamps[currentCamp].contact}</a>
+                  </div>
+                </div>
+                <button className="register-btn">
+                  {language === 'en' ? '📝 Register Now' : '📝 ഇപ്പോൾ രജിസ്റ്റർ ചെയ്യുക'}
+                </button>
+              </div>
+              
+              <div className="carousel-dots">
+                {bloodCamps.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`dot ${index === currentCamp ? 'active' : ''}`}
+                    onClick={() => setCurrentCamp(index)}
+                    aria-label={`Camp ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -419,35 +684,95 @@ function TestimonialsSection({ language }) {
   // Default fallback testimonials
   const defaultTestimonials = language === 'en' ? [
     {
-      quote: "SmartBlood saved my father's life by connecting us with a donor within hours.",
-      author: "Priya S.",
-      role: "Patient's Family"
+      quote: "SmartBlood helped me donate blood at Rajagiri Hospital and save lives.",
+      author: "Ramesh Das",
+      role: "Blood Donor",
+      location: "Ernakulam",
+      donations: "12 donations",
+      image: "👨‍⚕️",
+      rating: 5
     },
     {
-      quote: "As a regular donor, this platform makes it so easy to help when needed most.",
-      author: "Rajesh K.",
-      role: "Blood Donor"
+      quote: "Within 2 hours of posting a request, we found 5 compatible donors. This platform is a lifesaver!",
+      author: "Dr. Anjali Menon",
+      role: "Blood Bank Officer",
+      location: "Medical College, Trivandrum",
+      impact: "Helped 200+ patients",
+      image: "👩‍⚕️",
+      rating: 5
     },
     {
-      quote: "The real-time matching system has revolutionized our blood bank operations.",
-      author: "Dr. Meera",
-      role: "Hospital Administrator"
+      quote: "My mother needed AB- blood urgently. SmartBlood's AI matched us with a donor in our locality within minutes. Forever grateful!",
+      author: "Arjun Krishnan",
+      role: "Patient's Son",
+      location: "Kochi",
+      impact: "Life saved",
+      image: "🙏",
+      rating: 5
+    },
+    {
+      quote: "As a regular donor for 5 years, SmartBlood makes it incredibly easy to contribute. The notifications are timely and the process is seamless.",
+      author: "Sreelakshmi Nair",
+      role: "Regular Donor",
+      location: "Kozhikode",
+      donations: "28 donations",
+      image: "👩",
+      rating: 5
+    },
+    {
+      quote: "The ML-powered matching saved precious time during an emergency. This is the future of blood donation management.",
+      author: "Dr. Thomas Jacob",
+      role: "Emergency Medicine",
+      location: "Amrita Hospital, Kochi",
+      impact: "Critical care specialist",
+      image: "👨‍⚕️",
+      rating: 5
     }
   ] : [
     {
-      quote: "സ്മാർട്ട് ബ്ലഡ് മണിക്കൂറുകൾക്കുള്ളിൽ ഒരു ദാനിയുമായി ഞങ്ങളെ ബന്ധിപ്പിച്ച് എന്റെ അച്ഛന്റെ ജീവിതം രക്ഷിച്ചു.",
-      author: "പ്രിയ എസ്.",
-      role: "രോഗിയുടെ കുടുംബം"
+      quote: "സ്മാർട്ട് ബ്ലഡ് രാജഗിരി ആശുപത്രിയിൽ രക്തദാനം ചെയ്യാനും ജീവൻ രക്ഷിക്കാനും എന്നെ സഹായിച്ചു.",
+      author: "രമേഷ് ദാസ്",
+      role: "രക്ത ദാനി",
+      location: "എറണാകുളം",
+      donations: "12 ദാനങ്ങൾ",
+      image: "👨‍⚕️",
+      rating: 5
     },
     {
-      quote: "ഒരു സാധാരണ ദാനിയായി, ആവശ്യമുള്ളപ്പോൾ സഹായിക്കാൻ ഈ പ്ലാറ്റ്ഫോം വളരെ എളുപ്പമാക്കുന്നു.",
-      author: "രാജേഷ് കെ.",
-      role: "രക്ത ദാനി"
+      quote: "അഭ്യർത്ഥന പോസ്റ്റ് ചെയ്ത് 2 മണിക്കൂറിനുള്ളിൽ 5 അനുയോജ്യമായ ദാനികളെ കണ്ടെത്തി. ഈ പ്ലാറ്റ്ഫോം ജീവൻ രക്ഷകമാണ്!",
+      author: "ഡോ. അഞ്ജലി മേനോൻ",
+      role: "ബ്ലഡ് ബാങ്ക് ഓഫീസർ",
+      location: "മെഡിക്കൽ കോളേജ്, തിരുവനന്തപുരം",
+      impact: "200+ രോഗികളെ സഹായിച്ചു",
+      image: "👩‍⚕️",
+      rating: 5
     },
     {
-      quote: "റിയൽ-ടൈം മാച്ചിംഗ് സിസ്റ്റം ഞങ്ങളുടെ ബ്ലഡ് ബാങ്ക് പ്രവർത്തനങ്ങളിൽ വിപ്ലവം സൃഷ്ടിച്ചു.",
-      author: "ഡോ. മീര",
-      role: "ആശുപത്രി അഡ്മിനിസ്ട്രേറ്റർ"
+      quote: "എന്റെ അമ്മയ്ക്ക് AB- രക്തം അടിയന്തിരമായി ആവശ്യമായിരുന്നു. സ്മാർട്ട് ബ്ലഡിന്റെ AI മിനിറ്റുകൾക്കുള്ളിൽ ഞങ്ങളുടെ പ്രദേശത്തെ ദാനിയുമായി ബന്ധിപ്പിച്ചു. എന്നേക്കും നന്ദിയുള്ളവനാണ്!",
+      author: "അർജുൻ കൃഷ്ണൻ",
+      role: "രോഗിയുടെ മകൻ",
+      location: "കൊച്ചി",
+      impact: "ജീവൻ രക്ഷിച്ചു",
+      image: "🙏",
+      rating: 5
+    },
+    {
+      quote: "5 വർഷമായി സ്ഥിരം ദാനിയായി, സ്മാർട്ട് ബ്ലഡ് സംഭാവന നൽകുന്നത് അവിശ്വസനീയമാംവണ്ണം എളുപ്പമാക്കുന്നു. അറിയിപ്പുകൾ സമയബന്ധിതവും പ്രക്രിയ തടസ്സമില്ലാത്തതുമാണ്.",
+      author: "ശ്രീലക്ഷ്മി നായർ",
+      role: "സ്ഥിരം ദാനി",
+      location: "കോഴിക്കോട്",
+      donations: "28 ദാനങ്ങൾ",
+      image: "👩",
+      rating: 5
+    },
+    {
+      quote: "ML-പവർഡ് മാച്ചിംഗ് അടിയന്തിര സമയത്ത് വിലയേറിയ സമയം ലാഭിച്ചു. ഇത് രക്തദാന മാനേജ്മെന്റിന്റെ ഭാവിയാണ്.",
+      author: "ഡോ. തോമസ് ജേക്കബ്",
+      role: "എമർജൻസി മെഡിസിൻ",
+      location: "അമൃത ആശുപത്രി, കൊച്ചി",
+      impact: "ക്രിട്ടിക്കൽ കെയർ സ്പെഷ്യലിസ്റ്റ്",
+      image: "👨‍⚕️",
+      rating: 5
     }
   ]
 
@@ -493,127 +818,161 @@ function TestimonialsSection({ language }) {
   }, [testimonials.length])
 
   return (
-    <section className="testimonials-section">
+    <section className="testimonials-section-new">
       <div className="container">
-        <h2 className="section-title">
-          {language === 'en' ? 'What People Say' : 'ആളുകൾ എന്താണ് പറയുന്നത്'}
-        </h2>
-        <div className="testimonial-carousel">
-          <div className="testimonial-card">
-            {loading ? (
-              <div className="testimonial-quote">Loading testimonials...</div>
-            ) : (
-              <>
-                <div className="testimonial-quote">"{testimonials[currentTestimonial]?.quote}"</div>
-                <div className="testimonial-author">
-                  <strong>{testimonials[currentTestimonial]?.author}</strong>
-                  <span>{testimonials[currentTestimonial]?.role}</span>
+        <div className="section-header-centered">
+          <h2 className="section-title-modern">
+            {language === 'en' ? 'Real Stories, Real Impact' : 'യഥാർത്ഥ കഥകൾ, യഥാർത്ഥ സ്വാധീനം'}
+          </h2>
+          <p className="section-subtitle-modern">
+            {language === 'en' ? 'Hear from our community of lifesavers' : 'ജീവൻ രക്ഷകരുടെ ഞങ്ങളുടെ കമ്മ്യൂണിറ്റിയിൽ നിന്ന് കേൾക്കുക'}
+          </p>
+        </div>
+        
+        <div className="testimonial-modern-wrapper">
+          {loading ? (
+            <div className="testimonial-loading">Loading stories...</div>
+          ) : (
+            <>
+              <div className="testimonial-modern-card">
+                <div className="quote-mark">"</div>
+                <div className="testimonial-content-modern">
+                  <p className="testimonial-text-modern">{testimonials[currentTestimonial]?.quote}</p>
+                  
+                  <div className="testimonial-author-modern">
+                    <div className="author-avatar">{testimonials[currentTestimonial]?.image}</div>
+                    <div className="author-details-modern">
+                      <h4 className="author-name-modern">{testimonials[currentTestimonial]?.author}</h4>
+                      <p className="author-role-modern">{testimonials[currentTestimonial]?.role}</p>
+                      <p className="author-location-modern">📍 {testimonials[currentTestimonial]?.location}</p>
+                    </div>
+                    <div className="author-badge-modern">
+                      {testimonials[currentTestimonial]?.donations && (
+                        <span className="badge-item">🩸 {testimonials[currentTestimonial]?.donations}</span>
+                      )}
+                      {testimonials[currentTestimonial]?.impact && (
+                        <span className="badge-item">✨ {testimonials[currentTestimonial]?.impact}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </>
-            )}
-          </div>
-          <div className="testimonial-dots">
-            {testimonials.map((_, index) => (
-              <button
-                key={index}
-                className={`testimonial-dot ${index === currentTestimonial ? 'active' : ''}`}
-                onClick={() => setCurrentTestimonial(index)}
-              />
-            ))}
-          </div>
+              </div>
+              
+              <div className="testimonial-nav-modern">
+                <button 
+                  className="nav-btn-modern nav-btn--prev"
+                  onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
+                  aria-label="Previous"
+                >
+                  ←
+                </button>
+                <div className="testimonial-indicators">
+                  {testimonials.map((_, index) => (
+                    <button
+                      key={index}
+                      className={`indicator ${index === currentTestimonial ? 'active' : ''}`}
+                      onClick={() => setCurrentTestimonial(index)}
+                      aria-label={`Story ${index + 1}`}
+                    />
+                  ))}
+                </div>
+                <button 
+                  className="nav-btn-modern nav-btn--next"
+                  onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)}
+                  aria-label="Next"
+                >
+                  →
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </section>
   )
 }
 
-// Component for Download App
-function DownloadAppSection({ language }) {
-  const sectionRef = useRef(null)
-  const infoRef = useRef(null)
-  const qrRef = useRef(null)
-  const buttonsRef = useRef([])
-  const squaresRef = useRef([])
-
-  useEffect(() => {
-    // DISABLE GSAP animations to eliminate performance violations
-    // if (!sectionRef.current) return
-
-    // // Set initial state
-    // gsap.set([infoRef.current, qrRef.current], { opacity: 0, y: 50 })
-    // gsap.set(buttonsRef.current, { opacity: 0, scale: 0.8 })
-    // gsap.set(squaresRef.current, { opacity: 0, scale: 0 })
-
-    // // Create scroll trigger animation
-    // ScrollTrigger.create({
-    //   trigger: sectionRef.current,
-    //   start: "top 80%",
-    //   onEnter: () => {
-    //     gsap.to([infoRef.current, qrRef.current], {
-    //       opacity: 1,
-    //       y: 0,
-    //       duration: 0.8,
-    //       stagger: 0.2,
-    //       ease: "power3.out"
-    //     })
-
-    //     gsap.to(buttonsRef.current, {
-    //       opacity: 1,
-    //       scale: 1,
-    //       duration: 0.6,
-    //       stagger: 0.1,
-    //       ease: "back.out(1.7)",
-    //       delay: 0.4
-    //     })
-
-    //     gsap.to(squaresRef.current, {
-    //       opacity: 1,
-    //       scale: 1,
-    //       duration: 0.4,
-    //       stagger: 0.05,
-    //       ease: "power3.out",
-    //       delay: 0.6
-    //     })
-    //   }
-    // })
-
-    // return () => {
-    //   ScrollTrigger.getAll().forEach(trigger => trigger.kill())
-    // }
-  }, [])
+// Component for Emergency Preparedness - Simplified
+function EmergencyPreparednessSection({ language }) {
+  const preparednessItems = language === 'en' ? [
+    {
+      icon: '🚨',
+      title: '24/7 Support',
+      description: 'Emergency helpline always available'
+    },
+    {
+      icon: '⚡',
+      title: 'Quick Response',
+      description: 'Average response time under 2 hours'
+    },
+    {
+      icon: '🏥',
+      title: '245+ Hospitals',
+      description: 'Connected blood banks across Kerala'
+    },
+    {
+      icon: '🔐',
+      title: 'Verified Network',
+      description: 'All donors and hospitals are verified'
+    }
+  ] : [
+    {
+      icon: '🚨',
+      title: '24/7 പിന്തുണ',
+      description: 'എമർജൻസി ഹെൽപ്പ്ലൈൻ എപ്പോഴും ലഭ്യമാണ്'
+    },
+    {
+      icon: '⚡',
+      title: 'ദ്രുത പ്രതികരണം',
+      description: 'ശരാശരി പ്രതികരണ സമയം 2 മണിക്കൂറിൽ താഴെ'
+    },
+    {
+      icon: '🏥',
+      title: '245+ ആശുപത്രികൾ',
+      description: 'കേരളത്തിലുടനീളം ബന്ധിപ്പിച്ച ബ്ലഡ് ബാങ്കുകൾ'
+    },
+    {
+      icon: '🔐',
+      title: 'സ്ഥിരീകരിച്ച നെറ്റ്‌വർക്ക്',
+      description: 'എല്ലാ ദാനികളും ആശുപത്രികളും സ്ഥിരീകരിച്ചവയാണ്'
+    }
+  ]
 
   return (
-    <section ref={sectionRef} className="download-app-section">
+    <section className="emergency-preparedness-section-new">
       <div className="container">
-        <div className="download-content">
-          <div ref={infoRef} className="download-info">
-            <h2>{language === 'en' ? 'Download the App' : 'ആപ്പ് ഡൗൺലോഡ് ചെയ്യുക'}</h2>
-            <p>
-              {language === 'en' 
-                ? 'Get instant notifications for blood requests in your area.'
-                : 'നിങ്ങളുടെ പ്രദേശത്തെ രക്ത അഭ്യർത്ഥനകൾക്കായി തൽക്ഷണ അറിയിപ്പുകൾ നേടുക.'}
-            </p>
-            <div className="download-buttons">
-              <button ref={el => buttonsRef.current[0] = el} className="store-button">
-                <img src="/applestore.png" alt="App Store" />
-              </button>
-              <button ref={el => buttonsRef.current[1] = el} className="store-button">
-                <img src="/playstore.png" alt="Google Play" />
-              </button>
+        <div className="section-header-centered">
+          <h2 className="section-title-modern">
+            {language === 'en' ? 'Why Choose SmartBlood?' : 'എന്തുകൊണ്ട് സ്മാർട്ട് ബ്ലഡ്?'}
+          </h2>
+          <p className="section-subtitle-modern">
+            {language === 'en' 
+              ? 'Fast, reliable, and always there when you need us'
+              : 'വേഗമേറിയതും വിശ്വസനീയവും നിങ്ങൾക്ക് ആവശ്യമുള്ളപ്പോൾ എപ്പോഴും ഉണ്ട്'}
+          </p>
+        </div>
+        
+        <div className="preparedness-grid-modern">
+          {preparednessItems.map((item, index) => (
+            <div key={index} className="preparedness-card-modern">
+              <div className="card-icon-modern">{item.icon}</div>
+              <h3 className="card-title-modern">{item.title}</h3>
+              <p className="card-description-modern">{item.description}</p>
             </div>
-          </div>
-          <div ref={qrRef} className="qr-code">
-            <div className="qr-placeholder">
-              <div className="qr-squares">
-                {Array.from({ length: 64 }, (_, index) => (
-                  <div 
-                    key={index} 
-                    ref={el => squaresRef.current[index] = el}
-                    className="qr-square"
-                  />
-                ))}
-              </div>
-              <span>{language === 'en' ? 'Scan to Download' : 'ഡൗൺലോഡ് ചെയ്യാൻ സ്കാൻ ചെയ്യുക'}</span>
+          ))}
+        </div>
+        
+        <div className="emergency-cta-modern">
+          <div className="cta-content-modern">
+            <h3 className="cta-title">{language === 'en' ? 'Need Blood Urgently?' : 'അടിയന്തിരമായി രക്തം ആവശ്യമുണ്ടോ?'}</h3>
+            <p className="cta-subtitle">{language === 'en' ? 'We\'re here 24/7 to help' : 'സഹായിക്കാൻ ഞങ്ങൾ 24/7 ഇവിടെയുണ്ട്'}</p>
+            <div className="cta-buttons-modern">
+              <Link to="/seeker/request" className="cta-btn cta-btn--primary">
+                🩸 {language === 'en' ? 'Request Blood' : 'രക്തം അഭ്യർത്ഥിക്കുക'}
+              </Link>
+              <a href="tel:1800XXXBLOOD" className="cta-btn cta-btn--secondary">
+                📞 {language === 'en' ? 'Call Hotline' : 'ഹോട്ട്‌ലൈൻ വിളിക്കുക'}
+              </a>
             </div>
           </div>
         </div>
@@ -752,7 +1111,7 @@ export default function Home() {
       </SectionReveal>
       
       <SectionReveal>
-        <DownloadAppSection language={language} />
+        <EmergencyPreparednessSection language={language} />
       </SectionReveal>
       
       <SectionReveal>

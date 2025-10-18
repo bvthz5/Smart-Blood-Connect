@@ -6,6 +6,8 @@
   width: 100vw;
   margin: 0;
   padding: 0;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.1);
 }
 .header.scrolled { box-shadow: 0 14px 48px rgba(0,0,0,0.2); }
 .header__inner { 
@@ -73,21 +75,26 @@
 .header__toggle-btn { 
   background: rgba(255,255,255,0.15); 
   color: var(--color-white); 
-  padding: 6px 10px; 
+  padding: 8px 12px; 
   border-radius: 8px; 
   border: 1px solid rgba(255,255,255,0.2); 
   font-size: 12px; 
   cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 600;
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 40px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(10px);
-  line-height: 1.2;
+  line-height: 1;
   text-align: center;
+  gap: 4px;
+}
+
+.header__toggle-btn svg {
+  flex-shrink: 0;
 }
 .header__toggle-btn:hover { 
   background: rgba(255,255,255,0.25); 
@@ -334,6 +341,29 @@
   outline-offset: -2px;
 }
 
+[data-theme="dark"] .header__dropdown-menu {
+  background: #2d2d2d !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .header__dropdown-item {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .header__dropdown-item:hover {
+  background: rgba(255, 71, 87, 0.15);
+  color: #ff6b7a;
+}
+
+[data-theme="dark"] .header__link {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .header__link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
 /* Auth dropdown styles */
 .auth-dropdown {
   position: relative;
@@ -407,29 +437,36 @@ html {
 }
 
 /* Dark mode support for header */
+[data-theme="dark"] .header {
+  border-bottom-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.05);
+}
+
 [data-theme="dark"] .header__cta {
-  background: #2d2d2d;
+  background: #f8f9fa;
   color: #ff4757;
   border: 2px solid rgba(255, 71, 87, 0.3);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .header__cta:hover {
-  background: #3d3d3d;
-  color: #ff6b7a;
+  background: #ffffff;
+  color: #ff3742;
   border-color: rgba(255, 71, 87, 0.5);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
   transform: translateX(53px) translateY(-3px);
 }
 
 [data-theme="dark"] .header__toggle-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
 }
 
 [data-theme="dark"] .header__toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
 }
 
 /* Dark mode toggle button hover positions */

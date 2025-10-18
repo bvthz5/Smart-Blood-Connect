@@ -229,14 +229,15 @@
   background-repeat: initial !important;
 }
 
-/* Ensure hero inner is also dark themed */
+/* Ensure hero inner is also dark themed but transparent for animation */
 [data-theme="dark"] .hero-inner {
-  background: rgba(26, 26, 26, 0.9);
+  background: transparent;
 }
 
-/* Dark mode gradient overlay */
+/* Dark mode gradient overlay - disable to show animation */
 [data-theme="dark"] .hero-gradient-overlay {
-  background: linear-gradient(135deg, rgba(26, 26, 26, 0.8), rgba(40, 40, 40, 0.6));
+  background: none;
+  opacity: 0;
 }
 
 .hero-text-description {

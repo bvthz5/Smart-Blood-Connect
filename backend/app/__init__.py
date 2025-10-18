@@ -107,6 +107,7 @@ def register_blueprints(app):
     from .admin.match_routes import admin_match_bp
     from .api.health import health_bp
     from .homepage.routes import homepage_bp
+    from .ml.routes import ml_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(donor_bp)
@@ -117,6 +118,34 @@ def register_blueprints(app):
     app.register_blueprint(admin_match_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(homepage_bp)
+    app.register_blueprint(ml_bp)
+
+def initialize_ml_models(app):
+    """Initialize ML model client"""
+    with app.app_context():
+        try:
+            from pathlib import Path
+            from app.ml.model_client import model_client
+            
+            # Get paths
+            base_dir = Path(app.root_path).parent
+            artifacts_dir = base_dir / 'models_artifacts'
+            model_map_path = artifacts_dir / 'model_map.json'
+            
+            # Initialize model client
+            model_client.initialize(str(artifacts_dir), str(model_map_path))
+            
+            # Optionally preload critical models
+            try:
+                model_client.load_model('donor_seeker_match')
+                model_client.load_model('donor_availability')
+                print("[ML] Critical models preloaded successfully")
+            except Exception as e:
+                print(f"[ML] Warning: Could not preload models: {e}")
+                
+        except Exception as e:
+            print(f"[ML] Model initialization error: {e}")
+            print("[ML] ML features will be unavailable")
 
 def initialize_database(app):
     """Initialize database and create tables if they don't exist"""
@@ -193,6 +222,9 @@ def create_app(config_name='default'):
         
         # Initialize database and create tables if they don't exist
         initialize_database(app)
+        
+        # Initialize ML models
+        initialize_ml_models(app)
 
     # Register main routes
     @app.route("/")

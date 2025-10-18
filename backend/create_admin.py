@@ -31,7 +31,7 @@ def create_admin():
             first_name="Admin",
             last_name="User",
             email=admin_email,
-            phone="+91-9876543210",
+            phone="+91-0000000000",
             password_hash=hash_password(admin_password),
             role="admin",
             status="active",

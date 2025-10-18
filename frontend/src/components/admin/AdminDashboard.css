@@ -65,13 +65,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.25);
+  background: #ffffff;
+  border: 2px solid rgba(230, 57, 70, 0.2);
   border-radius: 12px;
   padding: 0.75rem 1rem;
   min-width: 160px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-  backdrop-filter: blur(4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  backdrop-filter: none;
 }
 
 .stat-number {
@@ -79,27 +79,31 @@
   font-weight: 800;
   line-height: 1;
   margin-bottom: 0.15rem;
+  color: #2d3436;
 }
 
 .stat-label {
   font-size: 0.85rem;
   opacity: 0.95;
   font-weight: 600;
+  color: #6c757d;
 }
 
 /* accent variants */
 .welcome-stat.accent-green {
   border-left: 4px solid #10B981;
-  background: rgba(16, 185, 129, 0.18);
+  background: #ffffff;
   padding: 0.85rem 1.1rem;
   min-width: 180px;
   margin-left: 25px;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
 }
 .welcome-stat.accent-orange {
   border-left: 4px solid #F59E0B;
-  background: rgba(245, 158, 11, 0.18);
+  background: #ffffff;
   padding: 0.85rem 1.1rem;
   min-width: 180px;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
 }
 
 /* Metrics Grid */
@@ -669,6 +673,41 @@
     min-width: 80px;
     font-size: 0.75rem;
   }
+}
+
+/* Dark Mode Support */
+[data-theme="dark"] .admin-dashboard {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] .dashboard-welcome {
+  background: linear-gradient(135deg, #ff4757 0%, #ff3742 100%);
+}
+
+[data-theme="dark"] .welcome-stat {
+  background: #ffffff;
+  border-color: rgba(230, 57, 70, 0.3);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .welcome-stat.accent-green {
+  background: #ffffff;
+  border-left-color: #10B981;
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .welcome-stat.accent-orange {
+  background: #ffffff;
+  border-left-color: #F59E0B;
+  box-shadow: 0 12px 32px rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .stat-number {
+  color: #2d3436;
+}
+
+[data-theme="dark"] .stat-label {
+  color: #6c757d;
 }
 
 /* Print Styles */

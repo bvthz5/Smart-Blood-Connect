@@ -86,6 +86,24 @@ const AdminDashboard = () => {
               trendValue: '+8%',
               icon: '📋',
               type: 'requests'
+            },
+            {
+              title: 'Completed Donations',
+              value: totals.completed_donations ?? mockData.metrics[4].value,
+              subtitle: 'This quarter',
+              trend: 'up',
+              trendValue: '+15%',
+              icon: '💚',
+              type: 'donations'
+            },
+            {
+              title: 'Critical Alerts',
+              value: totals.critical_alerts ?? mockData.metrics[5].value,
+              subtitle: 'Require immediate action',
+              trend: 'up',
+              trendValue: '+3',
+              icon: '🚨',
+              type: 'alerts'
             }
           ],
           charts: {

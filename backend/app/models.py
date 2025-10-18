@@ -163,3 +163,98 @@ class OTPSession(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ============================================================================
+# ML Models and Predictions
+# ============================================================================
+
+class ModelArtifact(db.Model):
+    """Track ML model versions and metadata"""
+    __tablename__ = "model_artifacts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_name = db.Column(db.String(100), nullable=False, unique=True)
+    version = db.Column(db.String(50), nullable=False)
+    artifact_path = db.Column(db.String(500), nullable=False)
+    metadata_json = db.Column(db.JSON)  # Store model metrics, features, etc.
+    is_active = db.Column(db.Boolean, default=True)
+    deployed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MatchPrediction(db.Model):
+    """Store ML-based donor-request match predictions"""
+    __tablename__ = "match_predictions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("blood_requests.id", ondelete="CASCADE"), nullable=False)
+    donor_id = db.Column(db.Integer, db.ForeignKey("donors.id", ondelete="CASCADE"), nullable=False)
+    
+    # Prediction scores
+    match_score = db.Column(db.Float)  # Overall match score
+    availability_score = db.Column(db.Float)  # Availability prediction
+    response_time_hours = db.Column(db.Float)  # Predicted response time
+    reliability_score = db.Column(db.Float)  # Donor reliability
+    
+    # Model metadata
+    model_version = db.Column(db.String(50))
+    feature_vector = db.Column(db.JSON)  # Store features used for prediction
+    
+    # Status tracking
+    rank = db.Column(db.Integer)  # Rank in the match list
+    notified = db.Column(db.Boolean, default=False)
+    actual_response_time = db.Column(db.Float)  # For model evaluation
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DemandForecast(db.Model):
+    """Store blood demand forecasts by district and blood group"""
+    __tablename__ = "demand_forecasts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    district = db.Column(db.String(100), nullable=False)
+    blood_group = db.Column(db.String(5), nullable=False)
+    
+    # Forecast data
+    forecast_date = db.Column(db.Date, nullable=False)
+    predicted_demand = db.Column(db.Float, nullable=False)
+    confidence_lower = db.Column(db.Float)  # Lower confidence interval
+    confidence_upper = db.Column(db.Float)  # Upper confidence interval
+    
+    # Metadata
+    model_version = db.Column(db.String(50))
+    actual_demand = db.Column(db.Float)  # For evaluation
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Unique constraint to prevent duplicate forecasts
+    __table_args__ = (
+        db.UniqueConstraint('district', 'blood_group', 'forecast_date', name='unique_forecast'),
+    )
+
+
+class ModelPredictionLog(db.Model):
+    """Log all ML model predictions for monitoring and debugging"""
+    __tablename__ = "model_prediction_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_name = db.Column(db.String(100), nullable=False)
+    model_version = db.Column(db.String(50))
+    
+    # Request details
+    endpoint = db.Column(db.String(200))
+    input_data = db.Column(db.JSON)
+    
+    # Prediction results
+    prediction_output = db.Column(db.JSON)
+    inference_time_ms = db.Column(db.Float)  # Latency tracking
+    
+    # Status
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

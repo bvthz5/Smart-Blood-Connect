@@ -1,6 +1,7 @@
 // src/components/Nav.jsx
 import React, { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { Sun, Moon } from 'lucide-react'
 import AuthDropdown from './AuthDropdown'
 import { throttle } from '../utils/performance'
 import '../styles/nav.css'
@@ -150,7 +151,7 @@ export default function Nav() {
                 onClick={toggleDarkMode}
                 aria-label="Toggle dark mode"
               >
-                {darkMode ? '☀️' : '🌙'}
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <button 
                 className="header__toggle-btn header__toggle-btn--language" 
@@ -286,7 +287,7 @@ export default function Nav() {
               onClick={toggleDarkMode}
               aria-label="Toggle dark mode"
             >
-              {darkMode ? 'Sun' : 'Moon'}
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button 
               className="header__toggle-btn header__toggle-btn--language" 

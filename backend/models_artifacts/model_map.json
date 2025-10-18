@@ -1,0 +1,110 @@
+{
+  "models": {
+    "donor_seeker_match": {
+      "name": "donor_seeker_model",
+      "version": "1.0.0",
+      "artifact_path": "models_artifacts/donor_seeker_model.pkl",
+      "type": "classification",
+      "description": "Donor-seeker ranking and matching model",
+      "features": [
+        "blood_group_compatibility",
+        "distance_km",
+        "donor_availability",
+        "last_donation_days",
+        "reliability_score",
+        "urgency_level",
+        "units_required"
+      ],
+      "metrics": {
+        "accuracy": 0.89,
+        "precision": 0.87,
+        "recall": 0.91
+      }
+    },
+    "donor_availability": {
+      "name": "donor_availability",
+      "version": "1.0.0",
+      "artifact_path": "models_artifacts/donor_availability.pkl",
+      "type": "classification",
+      "description": "Predicts donor availability and response likelihood",
+      "features": [
+        "time_since_last_donation",
+        "total_donations",
+        "response_rate",
+        "day_of_week",
+        "hour_of_day",
+        "distance_km"
+      ],
+      "metrics": {
+        "accuracy": 0.85,
+        "auc_roc": 0.88
+      }
+    },
+    "donor_response_time": {
+      "name": "donor_response_time_model",
+      "version": "1.0.0",
+      "artifact_path": "models_artifacts/donor_response_time_model.pkl",
+      "type": "regression",
+      "description": "Predicts donor response time in hours",
+      "features": [
+        "distance_km",
+        "donor_age",
+        "past_response_times",
+        "urgency_level",
+        "time_of_day"
+      ],
+      "metrics": {
+        "mae": 2.3,
+        "rmse": 3.1,
+        "r2": 0.76
+      }
+    },
+    "donor_reliability": {
+      "name": "donor_reliability_model",
+      "version": "1.0.0",
+      "artifact_path": "models_artifacts/donor_reliability_model.pkl",
+      "type": "regression",
+      "description": "Long-term donor reliability scoring",
+      "features": [
+        "total_donations",
+        "completion_rate",
+        "cancellation_rate",
+        "average_response_time",
+        "tenure_days"
+      ],
+      "metrics": {
+        "mae": 0.12,
+        "rmse": 0.18,
+        "r2": 0.82
+      }
+    },
+    "demand_forecast": {
+      "name": "kerala_demand_forecast_stacked_optuna",
+      "version": "1.0.0",
+      "artifact_path": "models_artifacts/kerala_demand_forecast_stacked_optuna.pkl",
+      "type": "time_series",
+      "description": "Kerala blood demand forecasting with stacked ensemble",
+      "features": [
+        "historical_demand",
+        "seasonality",
+        "day_of_week",
+        "month",
+        "district",
+        "blood_group",
+        "holidays",
+        "events"
+      ],
+      "metrics": {
+        "mape": 8.5,
+        "rmse": 12.3,
+        "mae": 9.1
+      }
+    }
+  },
+  "metadata": {
+    "last_updated": "2025-01-18",
+    "total_models": 5,
+    "framework": "scikit-learn + LightGBM",
+    "python_version": "3.9+"
+  }
+}

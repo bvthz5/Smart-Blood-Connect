@@ -21,7 +21,6 @@ def run_migrations():
     if not os.environ.get("DATABASE_URL"):
         print("Error: DATABASE_URL environment variable is required")
         print("Please create a .env file with DATABASE_URL configured.")
-        print("Copy env.template to .env and update the values.")
         sys.exit(1)
     
     app = create_app()
