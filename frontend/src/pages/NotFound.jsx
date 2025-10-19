@@ -1,8 +1,40 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Home, Search, Heart } from 'lucide-react';
+import { tokenManager } from '../utils/tokenManager';
 
 const NotFound = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isAdminContext, setIsAdminContext] = useState(false);
+
+  // Check if user came from an admin route
+  useEffect(() => {
+    const referrer = document.referrer;
+    const previousPath = location.state?.from?.pathname || '';
+    const isFromAdmin = previousPath.includes('/admin') || referrer.includes('/admin');
+    setIsAdminContext(isFromAdmin);
+  }, [location]);
+
+  // Handle "Return Home" click for admin users
+  const handleReturnHome = (e) => {
+    if (isAdminContext) {
+      e.preventDefault();
+      
+      // Check if admin token is valid
+      const isValidAdmin = tokenManager.isAdminAuthenticated();
+      
+      if (isValidAdmin) {
+        // Token is valid, redirect to admin dashboard
+        navigate('/admin/dashboard');
+      } else {
+        // Token is invalid or expired, redirect to admin login
+        navigate('/admin/login');
+      }
+    }
+    // For non-admin users, the Link component will handle navigation to '/'
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -100,23 +132,27 @@ const NotFound = () => {
           gap: '1rem',
           marginBottom: '3rem'
         }}>
-          <Link to="/" style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            padding: '1rem 2rem',
-            borderRadius: '12px',
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            textDecoration: 'none',
-            background: 'linear-gradient(135deg, #B71C1C 0%, #FF6B6B 100%)',
-            color: 'white',
-            boxShadow: '0 10px 25px rgba(183, 28, 28, 0.4)',
-            transition: 'all 0.3s ease'
-          }}>
+          <Link 
+            to="/" 
+            onClick={handleReturnHome}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '1rem 2rem',
+              borderRadius: '12px',
+              fontSize: '1.1rem',
+              fontWeight: '600',
+              textDecoration: 'none',
+              background: 'linear-gradient(135deg, #B71C1C 0%, #FF6B6B 100%)',
+              color: 'white',
+              boxShadow: '0 10px 25px rgba(183, 28, 28, 0.4)',
+              transition: 'all 0.3s ease',
+              cursor: 'pointer'
+            }}>
             <Home size={20} />
-            Return Home
+            {isAdminContext ? 'Return to Admin' : 'Return Home'}
           </Link>
           
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>

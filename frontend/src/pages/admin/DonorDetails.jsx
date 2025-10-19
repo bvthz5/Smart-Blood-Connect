@@ -22,6 +22,7 @@ import {
   Download,
   Edit,
   Ban,
+  Unlock,
   Trash2,
   MessageSquare,
   FileText,
@@ -38,6 +39,8 @@ const DonorDetailsContent = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchDonorDetails();
@@ -62,17 +65,33 @@ const DonorDetailsContent = () => {
   };
 
   const handleEdit = () => {
-    navigate(`/admin/donors/${id}/edit`);
+    navigate(`/admin/donors/edit/${id}`);
   };
 
-  const handleBlock = async () => {
-    if (window.confirm(`Are you sure you want to ${donor.status === 'active' ? 'block' : 'unblock'} this donor?`)) {
-      try {
-        await donorManagementService.toggleDonorStatus(id);
-        fetchDonorDetails();
-      } catch (err) {
-        alert('Failed to update donor status');
+  const handleBlock = () => {
+    setShowBlockModal(true);
+  };
+
+  const confirmBlock = async () => {
+    const action = donor.status === 'blocked' ? 'unblock' : 'block';
+    
+    try {
+      setActionLoading(true);
+      const response = await donorManagementService.toggleDonorStatus(id);
+      
+      setShowBlockModal(false);
+      await fetchDonorDetails();
+      
+      if (response.success) {
+        alert(response.message || `Donor ${action}ed successfully!`);
+      } else {
+        alert(response.message || `Failed to ${action} donor`);
       }
+    } catch (err) {
+      console.error(`Error ${action}ing donor:`, err);
+      alert(err.response?.data?.message || `Failed to ${action} donor. Please try again.`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -133,7 +152,8 @@ const DonorDetailsContent = () => {
     const statusConfig = {
       active: { icon: CheckCircle, color: 'success', label: 'Active' },
       blocked: { icon: Ban, color: 'danger', label: 'Blocked' },
-      inactive: { icon: XCircle, color: 'warning', label: 'Inactive' }
+      inactive: { icon: XCircle, color: 'warning', label: 'Inactive' },
+      deleted: { icon: Trash2, color: 'deleted', label: 'Deleted' }
     };
     const config = statusConfig[status] || statusConfig.inactive;
     const Icon = config.icon;
@@ -199,21 +219,40 @@ const DonorDetailsContent = () => {
               <Download size={18} />
               Download Report
             </button>
-            <button onClick={handleEdit} className="btn-action btn-edit">
-              <Edit size={18} />
-              Edit
-            </button>
-            <button 
-              onClick={handleBlock} 
-              className={`btn-action ${donor.status === 'active' ? 'btn-block' : 'btn-unblock'}`}
-            >
-              <Ban size={18} />
-              {donor.status === 'active' ? 'Block' : 'Unblock'}
-            </button>
-            <button onClick={handleDelete} className="btn-action btn-delete">
-              <Trash2 size={18} />
-              Delete
-            </button>
+            {donor.status !== 'deleted' && (
+              <>
+                <button onClick={handleEdit} className="btn-action btn-edit">
+                  <Edit size={18} />
+                  Edit
+                </button>
+                <button 
+                  onClick={handleBlock} 
+                  className={`btn-action ${donor.status === 'blocked' ? 'btn-unblock' : 'btn-block'}`}
+                >
+                  {donor.status === 'blocked' ? (
+                    <>
+                      <Unlock size={18} />
+                      Unblock
+                    </>
+                  ) : (
+                    <>
+                      <Ban size={18} />
+                      Block
+                    </>
+                  )}
+                </button>
+                <button onClick={handleDelete} className="btn-action btn-delete">
+                  <Trash2 size={18} />
+                  Delete
+                </button>
+              </>
+            )}
+            {donor.status === 'deleted' && (
+              <div className="deleted-notice">
+                <AlertCircle size={18} />
+                <span>This account has been permanently deleted</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -223,12 +262,12 @@ const DonorDetailsContent = () => {
             <div className="avatar-circle">
               <User size={48} />
             </div>
+          </div>
+          <div className="profile-info">
             <div className="avatar-badge">
               <Droplets size={20} />
               {donor.blood_group}
             </div>
-          </div>
-          <div className="profile-info">
             <h1 className="profile-name">{donor.name}</h1>
             <p className="profile-id">Donor ID: #{donor.donor_id}</p>
             <div className="profile-badges">
@@ -751,6 +790,48 @@ const DonorDetailsContent = () => {
           </div>
         )}
       </div>
+
+      {/* Block/Unblock Confirmation Modal */}
+      {showBlockModal && donor && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>{donor.status === 'blocked' ? 'Unblock' : 'Block'} Donor</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Are you sure you want to {donor.status === 'blocked' ? 'unblock' : 'block'} <strong>{donor.name}</strong>?
+              </p>
+              {donor.status !== 'blocked' && (
+                <p className="warning-text">
+                  ⚠️ This donor will be immediately logged out and restricted from accessing the system.
+                </p>
+              )}
+              {donor.status === 'blocked' && (
+                <p className="success-text">
+                  ✓ This donor will regain full access to the system.
+                </p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setShowBlockModal(false)}
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className={donor.status === 'blocked' ? 'btn-success' : 'btn-warning'}
+                onClick={confirmBlock}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Processing...' : (donor.status === 'blocked' ? 'Unblock' : 'Block')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

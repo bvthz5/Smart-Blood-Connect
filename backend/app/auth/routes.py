@@ -89,6 +89,21 @@ def login():
         user = User.query.filter_by(phone=ident).first()
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error":"invalid credentials"}), 401
+    
+    # Check if user is deleted
+    if user.status == 'deleted':
+        return jsonify({
+            "error": "account deleted",
+            "message": "This account has been permanently deleted. Please contact support or create a new account."
+        }), 403
+    
+    # Check if user is blocked
+    if user.status == 'blocked':
+        return jsonify({
+            "error": "account blocked",
+            "message": "Your account has been blocked. Please contact support for assistance."
+        }), 403
+    
     if not user.is_phone_verified:
         return jsonify({"error":"not verified"}), 403
 
@@ -115,6 +130,20 @@ def seeker_login():
     
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "invalid credentials"}), 401
+    
+    # Check if user is deleted
+    if user.status == 'deleted':
+        return jsonify({
+            "error": "account deleted",
+            "message": "This account has been permanently deleted. Please contact support or create a new account."
+        }), 403
+    
+    # Check if user is blocked
+    if user.status == 'blocked':
+        return jsonify({
+            "error": "account blocked",
+            "message": "Your account has been blocked. Please contact support for assistance."
+        }), 403
     
     if not user.is_phone_verified:
         return jsonify({"error": "account not verified"}), 403

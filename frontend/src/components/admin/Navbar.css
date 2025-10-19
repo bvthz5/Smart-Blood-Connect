@@ -367,6 +367,14 @@
   letter-spacing: 0.01em;
 }
 
+/* Apply font styling to all profile name instances */
+.profile-name,
+.profile-name-large,
+.navbar-subtitle {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 500;
+}
+
 .profile-arrow {
   transition: transform 0.2s ease;
   width: 14px;

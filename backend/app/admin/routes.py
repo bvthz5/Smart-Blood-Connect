@@ -432,6 +432,8 @@ def get_donor_by_id(donor_id):
             "phone_verified": getattr(user, 'is_phone_verified', False),
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "last_login": user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None,
+            "deleted_at": user.deleted_at.isoformat() if hasattr(user, 'deleted_at') and user.deleted_at else None,
+            "is_deleted": user.status == 'deleted',
             
             # Additional fields
             "weight": donor.weight if hasattr(donor, 'weight') else None,
@@ -543,37 +545,49 @@ def update_donor(donor_id):
                 "message": "Request body cannot be empty"
             }), 400
         
-        # Update user fields
-        if 'first_name' in data:
+        # Update user fields (only if value is provided and not empty)
+        if 'first_name' in data and data['first_name']:
             user.first_name = data['first_name']
-        if 'last_name' in data:
+        if 'last_name' in data and data['last_name']:
             user.last_name = data['last_name']
-        if 'email' in data:
+        if 'email' in data and data['email']:
             user.email = data['email']
-        if 'phone' in data:
+        if 'phone' in data and data['phone']:
             user.phone = data['phone']
-        if 'city' in data:
+        if 'city' in data and data['city']:
             user.city = data['city']
-        if 'district' in data:
+        if 'district' in data and data['district']:
             user.district = data['district']
-        if 'status' in data:
+        if 'address' in data:
+            # Allow empty address (user might want to clear it)
+            user.address = data['address'] if data['address'] else None
+        if 'status' in data and data['status']:
             user.status = data['status']
         
-        # Update donor fields
-        if 'blood_group' in data:
+        # Update donor fields (only if value is provided and not empty)
+        if 'blood_group' in data and data['blood_group']:
             donor.blood_group = data['blood_group']
-        if 'gender' in data:
+        if 'gender' in data and data['gender']:
             donor.gender = data['gender']
-        if 'date_of_birth' in data:
+        if 'date_of_birth' in data and data['date_of_birth']:
             donor.date_of_birth = data['date_of_birth']
         if 'is_available' in data:
+            # Boolean field - always update if present
             donor.is_available = data['is_available']
         if 'reliability_score' in data:
+            # Numeric field - always update if present (can be 0)
             donor.reliability_score = data['reliability_score']
+        if 'last_donation_date' in data:
+            from datetime import datetime
+            if data['last_donation_date']:
+                donor.last_donation_date = datetime.fromisoformat(data['last_donation_date'].replace('Z', '+00:00'))
+            else:
+                donor.last_donation_date = None
         
         db.session.commit()
         
         return jsonify({
+            "success": True,
             "message": "Donor updated successfully",
             "donor_id": donor_id
         }), 200
@@ -621,12 +635,26 @@ def delete_donor(donor_id):
                 "message": "Associated user account not found"
             }), 404
         
-        # Soft delete by setting status to 'deleted'
+        # Check if already deleted
+        if user.status == 'deleted' and user.deleted_at:
+            return jsonify({
+                "error": "Already deleted",
+                "message": "This donor has already been deleted"
+            }), 400
+        
+        # Soft delete by setting status to 'deleted' and recording timestamp
         user.status = 'deleted'
+        user.deleted_at = datetime.utcnow()
+        user.deleted_by = current_user_id
+        
+        # Also mark donor as unavailable
+        donor.is_available = False
+        
         db.session.commit()
         
         return jsonify({
-            "message": "Donor deleted successfully",
+            "success": True,
+            "message": "Donor deleted successfully. The user account has been permanently deactivated.",
             "donor_id": donor_id
         }), 200
         
@@ -735,8 +763,18 @@ def toggle_donor_status(donor_id):
         description: Server error
     """
     try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({
+                "success": False,
+                "error": "Unauthorized"
+            }), 401
+        
         # Get donor
-        donor = Donor.query.filter_by(donor_id=donor_id).first()
+        donor = Donor.query.filter_by(id=donor_id).first()
         
         if not donor:
             return jsonify({
@@ -744,19 +782,29 @@ def toggle_donor_status(donor_id):
                 "error": "Donor not found"
             }), 404
         
+        # Get user
+        user = User.query.get(donor.user_id)
+        if not user:
+            return jsonify({
+                "success": False,
+                "error": "User not found"
+            }), 404
+        
         # Toggle status
-        if donor.user.status == 'active':
-            donor.user.status = 'blocked'
-            new_status = 'blocked'
-        else:
-            donor.user.status = 'active'
+        if user.status == 'blocked':
+            user.status = 'active'
             new_status = 'active'
+            message = "Donor unblocked successfully. They can now access the system."
+        else:
+            user.status = 'blocked'
+            new_status = 'blocked'
+            message = "Donor blocked successfully. They have been logged out and cannot access the system."
         
         db.session.commit()
         
         return jsonify({
             "success": True,
-            "message": f"Donor status updated to {new_status}",
+            "message": message,
             "data": {
                 "donor_id": donor_id,
                 "status": new_status

@@ -37,6 +37,7 @@ import AdminForgotPassword from './pages/admin/AdminForgotPassword';
 import AdminResetPassword from './pages/admin/AdminResetPassword';
 import DonorManagement from './pages/admin/DonorManagement';
 import DonorDetails from './pages/admin/DonorDetails';
+import DonorEdit from './pages/admin/DonorEdit';
 import HospitalManagement from './pages/admin/HospitalManagement';
 import BloodMatching from './pages/admin/BloodMatching';
 import DonationRequests from './pages/admin/DonationRequests';
@@ -129,6 +130,11 @@ function App() {
           <Route path="/admin/donors" element={
             <AdminRouteGuard>
               <DonorManagement />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/donors/edit/:donorId" element={
+            <AdminRouteGuard>
+              <DonorEdit />
             </AdminRouteGuard>
           } />
           <Route path="/admin/donors/:id" element={

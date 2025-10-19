@@ -24,6 +24,7 @@ import ViewIcon from '../../assets/icons/view.svg';
 import EditIcon from '../../assets/icons/edit.svg';
 import DeleteIcon from '../../assets/icons/delete.svg';
 import BlockIcon from '../../assets/icons/block.svg';
+import UnblockIcon from '../../assets/icons/unblock.svg';
 import donorManagementService from '../../services/donorManagementService';
 import './DonorManagement.css';
 
@@ -205,8 +206,7 @@ const DonorManagementContent = () => {
   };
 
   const handleEdit = (donor) => {
-    setSelectedDonor(donor);
-    setShowEditModal(true);
+    navigate(`/admin/donors/edit/${donor.donor_id}`);
   };
 
   const handleDelete = (donor) => {
@@ -559,13 +559,6 @@ const DonorManagementContent = () => {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      <button 
-                        className="action-btn icon-only edit"
-                        onClick={() => handleEdit(donor)}
-                        title="Edit Donor"
-                      >
-                        <img src={EditIcon} alt="Edit" />
-                      </button>
                       <button
                         className="action-btn icon-only view"
                         onClick={() => handleView(donor)}
@@ -574,20 +567,39 @@ const DonorManagementContent = () => {
                         <img src={ViewIcon} alt="View" />
                         <span className="sr-only">View</span>
                       </button>
-                      <button 
-                        className="action-btn icon-only block"
-                        onClick={() => handleBlock(donor)}
-                        title={donor.status === 'blocked' ? 'Unblock Donor' : 'Block Donor'}
-                      >
-                        <img src={BlockIcon} alt={donor.status === 'blocked' ? 'Unblock' : 'Block'} />
-                      </button>
-                      <button 
-                        className="action-btn icon-only delete"
-                        onClick={() => handleDelete(donor)}
-                        title="Delete Donor"
-                      >
-                        <img src={DeleteIcon} alt="Delete" />
-                      </button>
+                      {donor.status !== 'deleted' && (
+                        <>
+                          <button 
+                            className="action-btn icon-only edit"
+                            onClick={() => handleEdit(donor)}
+                            title="Edit Donor"
+                          >
+                            <img src={EditIcon} alt="Edit" />
+                          </button>
+                          <button 
+                            className={`action-btn icon-only ${donor.status === 'blocked' ? 'unblock' : 'block'}`}
+                            onClick={() => handleBlock(donor)}
+                            title={donor.status === 'blocked' ? 'Unblock Donor' : 'Block Donor'}
+                          >
+                            <img 
+                              src={donor.status === 'blocked' ? UnblockIcon : BlockIcon} 
+                              alt={donor.status === 'blocked' ? 'Unblock' : 'Block'} 
+                            />
+                          </button>
+                          <button 
+                            className="action-btn icon-only delete"
+                            onClick={() => handleDelete(donor)}
+                            title="Delete Donor"
+                          >
+                            <img src={DeleteIcon} alt="Delete" />
+                          </button>
+                        </>
+                      )}
+                      {donor.status === 'deleted' && (
+                        <span className="deleted-badge" title={`Deleted on ${donor.deleted_at ? new Date(donor.deleted_at).toLocaleDateString() : 'N/A'}`}>
+                          🗑️ Deleted
+                        </span>
+                      )}
                     </div>
                   </td>
                 </tr>

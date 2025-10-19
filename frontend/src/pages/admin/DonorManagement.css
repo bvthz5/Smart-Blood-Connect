@@ -638,6 +638,18 @@
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
+.action-btn.unblock {
+  background: linear-gradient(135deg, rgba(249, 62, 43, 0.15) 0%, rgba(249, 62, 43, 0.25) 100%);
+  color: #F93E2B;
+  border: 1px solid rgba(249, 62, 43, 0.2);
+}
+
+.action-btn.unblock:hover {
+  background: linear-gradient(135deg, rgba(249, 62, 43, 0.25) 0%, rgba(249, 62, 43, 0.35) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249, 62, 43, 0.3);
+}
+
 .action-btn.delete {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.25) 100%);
   color: #ef4444;
@@ -689,9 +701,25 @@
 .action-btn.icon-only:hover img { transform: scale(1.05); }
 .action-btn.icon-only:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
 
+/* Deleted Badge */
+.deleted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.15) 0%, rgba(107, 114, 128, 0.25) 100%);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: help;
+}
+
 /* Override colored backgrounds for specific classes when icon-only */
 .action-btn.icon-only.edit,
 .action-btn.icon-only.block,
+.action-btn.icon-only.unblock,
 .action-btn.icon-only.delete {
   background: transparent !important;
   box-shadow: none !important;

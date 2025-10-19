@@ -48,13 +48,30 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle auth errors
+// Response interceptor to handle auth errors and blocked users
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        const isAdminRoute = window.location.pathname.startsWith('/admin');
+    if (typeof window !== 'undefined') {
+      const isAdminRoute = window.location.pathname.startsWith('/admin');
+      
+      // Handle blocked user (403 with blocked flag)
+      if (error.response?.status === 403 && error.response?.data?.blocked) {
+        if (!isAdminRoute) {
+          // Clear user tokens
+          localStorage.removeItem('seeker_token');
+          localStorage.removeItem('token');
+          localStorage.removeItem('seeker_refresh_token');
+          localStorage.removeItem('donor_token');
+          
+          // Show alert and redirect
+          alert('Your account has been blocked by an administrator. Please contact support for assistance.');
+          window.location.href = '/seeker/login';
+        }
+      }
+      
+      // Handle unauthorized (401)
+      if (error.response?.status === 401) {
         if (isAdminRoute) {
           // Clear only admin tokens
           localStorage.removeItem('admin_access_token');
