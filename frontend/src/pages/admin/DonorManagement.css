@@ -887,8 +887,48 @@
 }
 
 @media (max-width: 480px) {
+  .donor-management {
+    padding: 0;
+  }
+  
+  .donor-header {
+    margin-bottom: 1rem;
+  }
+  
+  .header-content {
+    padding: 0.75rem 0;
+  }
+  
+  .header-title h1 {
+    font-size: 1.25rem;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.5rem;
+  }
+  
+  .header-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+  
   .donor-stats {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .stat-card {
+    padding: 0.75rem;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
   }
   
   .table-wrapper {

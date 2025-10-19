@@ -16,6 +16,12 @@ const donorManagementService = {
     return response.data;
   },
 
+  // Get single donor by ID
+  getDonorById: async (donorId) => {
+    const response = await api.get(`/api/admin/donors/${donorId}`);
+    return response.data;
+  },
+
   // Update donor information
   updateDonor: async (donorId, donorData) => {
     const response = await api.put(`/api/admin/donors/${donorId}`, donorData);
@@ -31,6 +37,12 @@ const donorManagementService = {
   // Block or unblock donor
   blockDonor: async (donorId, action = 'block') => {
     const response = await api.post(`/api/admin/donors/${donorId}/block`, { action });
+    return response.data;
+  },
+
+  // Toggle donor status (active/blocked)
+  toggleDonorStatus: async (donorId) => {
+    const response = await api.post(`/api/admin/donors/${donorId}/toggle-status`);
     return response.data;
   },
 

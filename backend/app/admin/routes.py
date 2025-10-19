@@ -317,6 +317,192 @@ def get_all_donors():
         }), 500
 
 
+@admin_bp.route("/donors/<int:donor_id>", methods=["GET"])
+@jwt_required()
+def get_donor_by_id(donor_id):
+    """
+    Get Single Donor Details
+    ---
+    tags:
+      - Admin
+    summary: Get detailed information about a specific donor
+    description: Retrieve complete donor profile including personal info, donation history, and statistics
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: donor_id
+        type: integer
+        required: true
+        description: ID of the donor to retrieve
+    responses:
+      200:
+        description: Donor details retrieved successfully
+      404:
+        description: Donor not found
+      500:
+        description: Server error
+    """
+    try:
+        # Get donor with user information
+        donor = Donor.query.filter_by(id=donor_id).first()
+        
+        if not donor:
+            return jsonify({
+                "success": False,
+                "error": "Donor not found",
+                "message": f"No donor found with ID {donor_id}"
+            }), 404
+        
+        # Get user information
+        user = User.query.get(donor.user_id)
+        if not user:
+            return jsonify({
+                "success": False,
+                "error": "User not found",
+                "message": "Associated user not found"
+            }), 404
+        
+        # Get donation history (safely)
+        donation_history = []
+        try:
+            donation_history = DonationHistory.query.filter_by(
+                donor_id=donor_id
+            ).order_by(DonationHistory.donation_date.desc()).limit(10).all()
+        except Exception as dh_error:
+            print(f"Donation history error: {str(dh_error)}")
+        
+        # Get request history (matches) - safely
+        request_history = []
+        try:
+            request_history = Match.query.filter_by(
+                donor_id=donor_id
+            ).order_by(Match.matched_at.desc()).limit(10).all()
+        except Exception as rh_error:
+            print(f"Request history error: {str(rh_error)}")
+        
+        # Calculate statistics safely
+        total_donations = len(donation_history)
+        total_requests = 0
+        requests_accepted = 0
+        requests_declined = 0
+        
+        try:
+            total_requests = Match.query.filter_by(donor_id=donor_id).count()
+            requests_accepted = Match.query.filter_by(donor_id=donor_id, status='accepted').count()
+            requests_declined = Match.query.filter_by(donor_id=donor_id, status='declined').count()
+        except Exception as stat_error:
+            print(f"Statistics calculation error: {str(stat_error)}")
+        
+        # Calculate response rate
+        response_rate = 0
+        if total_requests > 0:
+            responded = requests_accepted + requests_declined
+            response_rate = round((responded / total_requests) * 100, 1)
+        
+        # Calculate completion rate
+        completion_rate = 0
+        if requests_accepted > 0:
+            try:
+                completed = Match.query.filter_by(donor_id=donor_id, status='completed').count()
+                completion_rate = round((completed / requests_accepted) * 100, 1)
+            except Exception as comp_error:
+                print(f"Completion rate error: {str(comp_error)}")
+        
+        # Build donor data
+        donor_data = {
+            "donor_id": donor.id,
+            "name": f"{user.first_name} {user.last_name}" if user.last_name else user.first_name,
+            "email": user.email,
+            "phone": user.phone,
+            "blood_group": donor.blood_group,
+            "gender": getattr(donor, 'gender', None),
+            "date_of_birth": donor.date_of_birth.isoformat() if donor.date_of_birth else None,
+            "city": getattr(user, 'city', None),
+            "district": getattr(user, 'district', None),
+            "state": getattr(user, 'state', None),
+            "pin_code": getattr(user, 'pincode', None),
+            "address": getattr(user, 'address', None),
+            "is_available": donor.is_available,
+            "last_donation_date": donor.last_donation_date.isoformat() if donor.last_donation_date else None,
+            "next_eligible_date": donor.next_eligible_date.isoformat() if hasattr(donor, 'next_eligible_date') and donor.next_eligible_date else None,
+            "reliability_score": float(donor.reliability_score) if donor.reliability_score else 0.0,
+            "status": user.status,
+            "email_verified": getattr(user, 'is_email_verified', False),
+            "phone_verified": getattr(user, 'is_phone_verified', False),
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login": user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None,
+            
+            # Additional fields
+            "weight": donor.weight if hasattr(donor, 'weight') else None,
+            "height": donor.height if hasattr(donor, 'height') else None,
+            "medical_conditions": donor.medical_conditions if hasattr(donor, 'medical_conditions') else None,
+            "allergies": donor.allergies if hasattr(donor, 'allergies') else None,
+            "medications": donor.medications if hasattr(donor, 'medications') else None,
+            "medical_notes": donor.medical_notes if hasattr(donor, 'medical_notes') else None,
+            "whatsapp_number": donor.whatsapp_number if hasattr(donor, 'whatsapp_number') else user.phone,
+            "email_notifications": donor.email_notifications if hasattr(donor, 'email_notifications') else True,
+            "sms_notifications": donor.sms_notifications if hasattr(donor, 'sms_notifications') else True,
+            
+            # Statistics
+            "total_donations": total_donations,
+            "total_requests": total_requests,
+            "requests_accepted": requests_accepted,
+            "requests_declined": requests_declined,
+            "response_rate": response_rate,
+            "completion_rate": completion_rate,
+            
+            # History
+            "donation_history": [
+                {
+                    "date": history.donation_date.isoformat() if history.donation_date else None,
+                    "location": history.location if hasattr(history, 'location') else "N/A",
+                    "units": history.units if hasattr(history, 'units') else 1,
+                    "status": history.status if hasattr(history, 'status') else "completed"
+                }
+                for history in donation_history
+            ],
+            "request_history": []
+        }
+        
+        # Build request history safely
+        for match in request_history:
+            try:
+                hospital_name = "N/A"
+                blood_group = None
+                
+                if hasattr(match, 'request') and match.request:
+                    blood_group = getattr(match.request, 'blood_group', None)
+                    if hasattr(match.request, 'hospital') and match.request.hospital:
+                        hospital_name = match.request.hospital.name
+                
+                donor_data["request_history"].append({
+                    "date": match.matched_at.isoformat() if hasattr(match, 'matched_at') and match.matched_at else None,
+                    "hospital": hospital_name,
+                    "response": getattr(match, 'status', 'N/A'),
+                    "blood_group": blood_group
+                })
+            except Exception as rh_build_error:
+                print(f"Error building request history item: {str(rh_build_error)}")
+                continue
+        
+        return jsonify({
+            "success": True,
+            "data": donor_data,
+            "message": "Donor details retrieved successfully"
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error fetching donor details: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": "Failed to fetch donor details",
+            "message": str(e)
+        }), 500
+
+
 @admin_bp.route("/donors/<int:donor_id>", methods=["PUT"])
 @jwt_required()
 def update_donor(donor_id):
@@ -519,6 +705,71 @@ def block_donor(donor_id):
         return jsonify({
             "error": "Failed to update donor status",
             "message": "An error occurred while updating donor status"
+        }), 500
+
+
+@admin_bp.route("/donors/<int:donor_id>/toggle-status", methods=["POST"])
+@jwt_required()
+def toggle_donor_status(donor_id):
+    """
+    Toggle Donor Status (Active/Blocked)
+    ---
+    tags:
+      - Admin
+    summary: Toggle donor status between active and blocked
+    description: Switch donor status from active to blocked or vice versa
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: donor_id
+        type: integer
+        required: true
+        description: ID of the donor
+    responses:
+      200:
+        description: Status toggled successfully
+      404:
+        description: Donor not found
+      500:
+        description: Server error
+    """
+    try:
+        # Get donor
+        donor = Donor.query.filter_by(donor_id=donor_id).first()
+        
+        if not donor:
+            return jsonify({
+                "success": False,
+                "error": "Donor not found"
+            }), 404
+        
+        # Toggle status
+        if donor.user.status == 'active':
+            donor.user.status = 'blocked'
+            new_status = 'blocked'
+        else:
+            donor.user.status = 'active'
+            new_status = 'active'
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Donor status updated to {new_status}",
+            "data": {
+                "donor_id": donor_id,
+                "status": new_status
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error toggling donor status: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to toggle donor status",
+            "message": str(e)
         }), 500
 
 

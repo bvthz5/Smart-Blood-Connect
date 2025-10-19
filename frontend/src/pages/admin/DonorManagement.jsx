@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
 import DashboardLayout from '../../components/admin/DashboardLayout';
 import {
@@ -28,6 +29,7 @@ import './DonorManagement.css';
 
 const DonorManagementContent = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [donors, setDonors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -218,8 +220,8 @@ const DonorManagementContent = () => {
   };
 
   const handleView = (donor) => {
-    setSelectedDonor(donor);
-    setShowViewModal(true);
+    // Navigate to donor details page
+    navigate(`/admin/donors/${donor.donor_id}`);
   };
 
   const confirmDelete = async () => {
