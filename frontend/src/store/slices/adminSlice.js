@@ -7,7 +7,7 @@ export const loginAdmin = createAsyncThunk(
   'admin/login',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      const response = await api.post('/admin/auth/login', { email, password });
+      const response = await api.post('/api/admin/auth/login', { email, password });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Login failed');
@@ -23,7 +23,7 @@ export const fetchDashboardData = createAsyncThunk(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      const response = await api.get('/admin/dashboard/', {
+      const response = await api.get('/api/admin/dashboard/', {
         signal: controller.signal
       });
       

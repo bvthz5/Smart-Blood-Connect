@@ -43,17 +43,28 @@ const AdminDashboard = () => {
     let mounted = true;
     (async () => {
       try {
-        const api = await getDashboardSummary();
-        // Parse { success, data: { totals, charts, activities } }
-        const payload = api?.data || {};
-        const totals = payload?.totals || {};
+        // Call admin dashboard endpoint instead of homepage
+        const token = localStorage.getItem('admin_access_token');
+        const response = await fetch('/api/admin/dashboard/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch dashboard data');
+        }
+        
+        const payload = await response.json();
+        const stats = payload?.stats || {};
         const charts = payload?.charts || {};
 
         const built = {
           metrics: [
             {
               title: 'Total Donors',
-              value: totals.donors ?? mockData.metrics[0].value,
+              value: stats.totalDonors ?? mockData.metrics[0].value,
               subtitle: 'Active this month',
               trend: 'up',
               trendValue: '+12%',
@@ -62,7 +73,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Partner Hospitals',
-              value: totals.hospitals ?? mockData.metrics[1].value,
+              value: stats.hospitals ?? mockData.metrics[1].value,
               subtitle: 'Active partnerships',
               trend: 'up',
               trendValue: '+5%',
@@ -71,7 +82,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Blood Units',
-              value: totals.inventory_units ?? mockData.metrics[2].value,
+              value: stats.inventoryUnits ?? mockData.metrics[2].value,
               subtitle: 'Available stock',
               trend: 'down',
               trendValue: '-3%',
@@ -80,8 +91,8 @@ const AdminDashboard = () => {
             },
             {
               title: 'Pending Requests',
-              value: totals.pending_requests ?? mockData.metrics[3].value,
-              subtitle: 'Urgent pending requests',
+              value: stats.openRequests ?? mockData.metrics[3].value,
+              subtitle: `Urgent: ${stats.urgentRequests ?? 0} critical`,
               trend: 'up',
               trendValue: '+8%',
               icon: '📋',
@@ -89,7 +100,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Completed Donations',
-              value: totals.completed_donations ?? mockData.metrics[4].value,
+              value: stats.completedDonations ?? mockData.metrics[4].value,
               subtitle: 'This quarter',
               trend: 'up',
               trendValue: '+15%',
@@ -98,7 +109,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Critical Alerts',
-              value: totals.critical_alerts ?? mockData.metrics[5].value,
+              value: stats.criticalAlerts ?? mockData.metrics[5].value,
               subtitle: 'Require immediate action',
               trend: 'up',
               trendValue: '+3',
@@ -107,15 +118,44 @@ const AdminDashboard = () => {
             }
           ],
           charts: {
-            bloodGroups: charts.bloodGroups ?? mockData.charts.bloodGroups,
-            donationTrends: charts.donationTrends ?? mockData.charts.donationTrends,
-            hospitalDonations: charts.hospitalDonations ?? mockData.charts.hospitalDonations,
-            requestAnalysis: charts.requestAnalysis ?? mockData.charts.requestAnalysis,
+            // Blood groups - transform backend data to include colors
+            bloodGroups: (charts.bloodGroupDistribution || []).map((item, index) => ({
+              group: item.group,
+              count: item.count,
+              color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][index % 8]
+            })).length > 0 ? (charts.bloodGroupDistribution || []).map((item, index) => ({
+              group: item.group,
+              count: item.count,
+              color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][index % 8]
+            })) : mockData.charts.bloodGroups,
+            
+            // Donation trends - transform requestsOverTime to month format
+            donationTrends: (charts.requestsOverTime || []).map(item => ({
+              month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+              donations: item.count
+            })).length > 0 ? (charts.requestsOverTime || []).map(item => ({
+              month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+              donations: item.count
+            })) : mockData.charts.donationTrends,
+            
+            // Hospital donations - transform requestsByDistrict
+            hospitalDonations: (charts.requestsByDistrict || []).map(item => ({
+              hospital: item.district,
+              donations: item.count
+            })).length > 0 ? (charts.requestsByDistrict || []).map(item => ({
+              hospital: item.district,
+              donations: item.count
+            })) : mockData.charts.hospitalDonations,
+            
+            // Request analysis - transform backend data
+            requestAnalysis: (charts.requestStatusAnalysis || []).length > 0 
+              ? charts.requestStatusAnalysis 
+              : mockData.charts.requestAnalysis
           },
           activities: payload?.activities ?? [],
-          welcome: payload?.welcome ?? {
-            donations_today: 0,
-            urgent_requests: totals?.pending_requests ?? 0,
+          welcome: {
+            donations_today: stats.donationsToday ?? 0,
+            urgent_requests: stats.urgentRequests ?? 0,
           }
         };
         if (mounted) {
@@ -343,15 +383,15 @@ const AdminDashboard = () => {
         </ChartCard>
 
         <ChartCard 
-          title="Monthly Donation Trends" 
-          subtitle="Donation patterns over the last 6 months"
+          title="Request Trends (Last 7 Days)" 
+          subtitle="Blood request activity over the past week"
         >
           <div style={{ height: 260 }}>
             <Line
               data={{
                 labels: donationTrendLabels,
                 datasets: [{
-                  label: 'Donations',
+                  label: 'Requests',
                   data: donationTrendValues,
                   fill: true,
                   tension: 0.35,
@@ -374,15 +414,15 @@ const AdminDashboard = () => {
         </ChartCard>
 
         <ChartCard 
-          title="Hospital-wise Donations" 
-          subtitle="Donation performance by hospital"
+          title="District-wise Requests" 
+          subtitle="Blood requests by district"
         >
           <div style={{ height: 260 }}>
             <Bar
               data={{
                 labels: hospitalLabels,
                 datasets: [{
-                  label: 'Donations',
+                  label: 'Requests',
                   data: hospitalValues,
                   backgroundColor: '#B71C1C',
                   borderRadius: 6,

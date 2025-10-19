@@ -107,10 +107,10 @@ const AdminDashboard = () => {
     setActivitiesLoading(true);
     try {
       const response = await fetch(
-        `/api/admin/activities?page=${activitiesPagination.page}&per_page=${activitiesPagination.per_page}`,
+        `/api/admin/activity-table?page=${activitiesPagination.page}&per_page=${activitiesPagination.per_page}&status=all`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('admin_access_token')}`
           }
         }
       );

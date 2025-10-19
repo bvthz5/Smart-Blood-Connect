@@ -22,7 +22,7 @@ api.interceptors.request.use(
       if (config.headers && config.headers.Authorization) {
         return config;
       }
-      const isAdminPath = url.startsWith('/admin');
+      const isAdminPath = url.startsWith('/admin') || url.startsWith('/api/admin');
       if (isAdminPath) {
         // Admin module: ONLY use admin access token
         const adminToken = localStorage.getItem('admin_access_token');
@@ -91,19 +91,19 @@ export async function loginSeeker(payload) {
 }
 
 export async function adminLogin(payload) {
-  return api.post("/admin/auth/login", payload);
+  return api.post("/api/admin/auth/login", payload);
 }
 
 export async function adminRefreshToken(refreshToken) {
-  return api.post('/admin/auth/refresh', { refresh_token: refreshToken });
+  return api.post('/api/admin/auth/refresh', { refresh_token: refreshToken });
 }
 
 export async function adminForgotPassword(email) {
-  return api.post('/admin/auth/forgot-password', { email });
+  return api.post('/api/admin/auth/forgot-password', { email });
 }
 
 export async function adminResetPassword(token, new_password) {
-  return api.post('/admin/auth/reset-password', { token, new_password });
+  return api.post('/api/admin/auth/reset-password', { token, new_password });
 }
 
 export async function adminChangePassword(old_password, new_password) {
@@ -120,20 +120,20 @@ export async function refreshToken(refreshToken) {
 }
 
 export async function getAdminProfile() {
-  return api.get('/admin/auth/profile');
+  return api.get('/api/admin/auth/profile');
 }
 
 // Admin session management
 export async function getAdminSessions() {
-  return api.get('/admin/auth/sessions');
+  return api.get('/api/admin/auth/sessions');
 }
 
 export async function revokeAllAdminSessions() {
-  return api.post('/admin/auth/sessions/revoke-all', {});
+  return api.post('/api/admin/auth/sessions/revoke-all', {});
 }
 
 export async function revokeOneAdminSession(session_id) {
-  return api.post('/admin/auth/sessions/revoke-one', { session_id });
+  return api.post('/api/admin/auth/sessions/revoke-one', { session_id });
 }
 
 // Donor functions
@@ -168,7 +168,7 @@ export async function listRequests(mine = false) {
 
 // Admin functions
 export async function adminGenerateMatches(payload) {
-  return api.post("/admin/match/generate", payload);
+  return api.post("/api/admin/match/generate", payload);
 }
 
 export default api;

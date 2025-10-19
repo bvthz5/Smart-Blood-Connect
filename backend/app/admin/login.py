@@ -15,7 +15,7 @@ from app.config.email_config import EmailConfig
 from datetime import timedelta, datetime
 import secrets
 
-admin_auth_bp = Blueprint("admin_auth", __name__, url_prefix="/admin/auth")
+admin_auth_bp = Blueprint("admin_auth", __name__, url_prefix="/api/admin/auth")
 
 @admin_auth_bp.route("/forgot-password", methods=["POST"])
 def admin_forgot_password():

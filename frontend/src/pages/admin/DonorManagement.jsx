@@ -225,19 +225,14 @@ const DonorManagementContent = () => {
   const confirmDelete = async () => {
     setActionLoading(true);
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
-      setDonors(prev => prev.filter(donor => donor.id !== selectedDonor.id));
+      await donorManagementService.deleteDonor(selectedDonor.donor_id);
       setShowDeleteModal(false);
       setSelectedDonor(null);
+      // Refresh the donors list and stats
+      await fetchDonors();
+      await fetchStats();
     } catch (err) {
-      setError('Failed to delete donor');
+      setError(err.response?.data?.message || 'Failed to delete donor');
     } finally {
       setActionLoading(false);
     }
@@ -246,23 +241,15 @@ const DonorManagementContent = () => {
   const confirmBlock = async () => {
     setActionLoading(true);
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
-      setDonors(prev => prev.map(donor => 
-        donor.id === selectedDonor.id 
-          ? { ...donor, status: donor.status === 'blocked' ? 'active' : 'blocked' }
-          : donor
-      ));
+      const action = selectedDonor.status === 'blocked' ? 'unblock' : 'block';
+      await donorManagementService.blockDonor(selectedDonor.donor_id, action);
       setShowBlockModal(false);
       setSelectedDonor(null);
+      // Refresh the donors list and stats
+      await fetchDonors();
+      await fetchStats();
     } catch (err) {
-      setError('Failed to update donor status');
+      setError(err.response?.data?.message || 'Failed to update donor status');
     } finally {
       setActionLoading(false);
     }
@@ -304,17 +291,54 @@ const DonorManagementContent = () => {
     );
   }
 
-  const exportCsv = () => {
-    const headers = ['ID','Name','Email','Phone','Blood Group','Status','Available','City','District','Last Donation','Reliability'];
-    const rows = donors.map(d => [d.id,d.name,d.email,d.phone,d.blood_group,d.status,d.is_available ? 'Yes' : 'No',d.city,d.district,d.last_donation_date || '',d.reliability_score]);
-    const csv = [headers, ...rows].map(r => r.map(x => (`${x}`.includes(',') ? `"${(`${x}`).replaceAll('"','""')}"` : `${x}`)).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'donors.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportCsv = async () => {
+    try {
+      // Export all filtered donors (not just current page)
+      const params = {
+        search: searchTerm,
+        blood_group: filters.blood_group,
+        status: filters.status,
+        availability: filters.availability
+      };
+      
+      // Get all donors with current filters (no pagination)
+      const allDonorsParams = { ...params, per_page: 10000 }; // Large number to get all
+      const response = await donorManagementService.getDonors(allDonorsParams);
+      const allDonors = response.donors || [];
+      
+      // Generate CSV
+      const headers = ['ID','Name','Email','Phone','Blood Group','Gender','Status','Available','City','District','Last Donation','Reliability Score','Created At'];
+      const rows = allDonors.map(d => [
+        d.id,
+        d.name,
+        d.email,
+        d.phone,
+        d.blood_group,
+        d.gender || '',
+        d.status,
+        d.is_available ? 'Yes' : 'No',
+        d.city || '',
+        d.district || '',
+        d.last_donation_date || 'Never',
+        d.reliability_score || '0',
+        d.created_at ? new Date(d.created_at).toLocaleDateString() : ''
+      ]);
+      
+      const csv = [headers, ...rows].map(r => 
+        r.map(x => (`${x}`.includes(',') || `${x}`.includes('"') ? `"${(`${x}`).replaceAll('"','""')}"` : `${x}`)).join(',')
+      ).join('\n');
+      
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `donors_export_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to export donors. Please try again.');
+      console.error('Export error:', err);
+    }
   };
 
   // Using server-side pagination; donors already represent the current page

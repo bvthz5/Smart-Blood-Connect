@@ -1,18 +1,26 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronUp, ChevronDown, Filter, MoreHorizontal } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import './ActivityTable.css';
 
 const ActivityTable = ({ 
-  data = [], 
-  loading = false, 
   onRowClick,
   className = '' 
 }) => {
   const [sortField, setSortField] = useState('time');
   const [sortDirection, setSortDirection] = useState('desc');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    per_page: 10,
+    total: 0,
+    pages: 0,
+    has_next: false,
+    has_prev: false
+  });
 
-  // Use provided data only; when empty, an empty state will display
+  // Use fetched data
   const tableData = data;
 
   // Helper function to convert time strings to comparable values
@@ -46,11 +54,51 @@ const ActivityTable = ({
     });
   }, [tableData, sortField, sortDirection]);
 
-  // Filter data
+  // Fetch data from backend
+  const fetchActivities = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/admin/activity-table?page=${pagination.page}&per_page=${pagination.per_page}&status=${filterStatus}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('admin_access_token')}`
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const result = await response.json();
+        setData(result.activities || []);
+        setPagination({
+          page: result.page,
+          per_page: result.per_page,
+          total: result.total,
+          pages: result.pages,
+          has_next: result.has_next,
+          has_prev: result.has_prev
+        });
+      } else {
+        console.error('Failed to fetch activities');
+        setData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data when pagination or filter changes
+  useEffect(() => {
+    fetchActivities();
+  }, [pagination.page, filterStatus]);
+
+  // Filter data (client-side for already fetched data)
   const filteredData = useMemo(() => {
-    if (filterStatus === 'all') return sortedData;
-    return sortedData.filter(item => item.status === filterStatus);
-  }, [sortedData, filterStatus]);
+    return sortedData;
+  }, [sortedData]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -59,6 +107,11 @@ const ActivityTable = ({
       setSortField(field);
       setSortDirection('asc');
     }
+  };
+
+  const handleFilterChange = (e) => {
+    setFilterStatus(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 when filter changes
   };
 
   const getStatusBadge = (status) => {
@@ -80,7 +133,9 @@ const ActivityTable = ({
 
   const getPriorityIndicator = (priority) => {
     const priorityConfig = {
+      high: { label: '🚨', className: 'priority-urgent' },
       urgent: { label: '🚨', className: 'priority-urgent' },
+      medium: { label: '⚪', className: 'priority-normal' },
       normal: { label: '⚪', className: 'priority-normal' },
       low: { label: '🔵', className: 'priority-low' }
     };
@@ -143,7 +198,7 @@ const ActivityTable = ({
           <div className="table-filters">
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={handleFilterChange}
               className="filter-select"
             >
               <option value="all">All Status</option>
@@ -153,9 +208,6 @@ const ActivityTable = ({
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <button className="view-all-button">
-            View All →
-          </button>
         </div>
       </div>
 
@@ -265,11 +317,45 @@ const ActivityTable = ({
         </table>
       </div>
 
-      {filteredData.length === 0 && (
+      {filteredData.length === 0 && !loading && (
         <div className="table-empty">
           <div className="empty-icon">📋</div>
           <div className="empty-title">No activities found</div>
           <div className="empty-subtitle">Try adjusting your filters</div>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {pagination.pages > 1 && (
+        <div className="table-pagination">
+          <div className="pagination-info">
+            Showing {((pagination.page - 1) * pagination.per_page) + 1} to {Math.min(pagination.page * pagination.per_page, pagination.total)} of {pagination.total} activities
+          </div>
+          <div className="pagination-controls">
+            <button
+              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+              disabled={!pagination.has_prev}
+              className="pagination-btn"
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
+            
+            <div className="pagination-pages">
+              <span className="page-indicator">
+                Page {pagination.page} of {pagination.pages}
+              </span>
+            </div>
+            
+            <button
+              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              disabled={!pagination.has_next}
+              className="pagination-btn"
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       )}
     </div>

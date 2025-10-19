@@ -5,7 +5,7 @@ from app.models import Request, Donor, Match
 from datetime import datetime
 from sqlalchemy import and_
 
-admin_match_bp = Blueprint("admin_match", __name__, url_prefix="/admin/match")
+admin_match_bp = Blueprint("admin_match", __name__, url_prefix="/api/admin/match")
 
 def simple_distance_score(dummy_dist_km):
     # placeholder: convert distance to score (lower distance -> higher score)

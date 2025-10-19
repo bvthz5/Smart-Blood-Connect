@@ -6,8 +6,9 @@ from app.models import User, Request, Donor, Hospital, Match, DonationHistory
 from app.extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
+from datetime import datetime
 
-admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 @admin_bp.route("/users", methods=["GET"])
 @jwt_required()
@@ -1480,3 +1481,138 @@ def export_donation_history():
         
     except Exception as e:
         return jsonify({"error": "Failed to export donation history"}), 500
+
+
+@admin_bp.route("/activity-table", methods=["GET"])
+@jwt_required()
+def get_activity_table():
+    """
+    Get activity table data with pagination
+    Returns donation history with donor, hospital, and request details
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
+        
+        # Get pagination parameters
+        try:
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 10))
+            status_filter = request.args.get('status', 'all')
+            
+            if page < 1:
+                page = 1
+            if per_page < 1 or per_page > 100:
+                per_page = 10
+        except ValueError:
+            return jsonify({
+                "error": "Invalid pagination parameters",
+                "message": "Page and per_page must be valid integers"
+            }), 400
+        
+        # Check if DonationHistory table has any records
+        total_records = db.session.query(DonationHistory).count()
+        
+        if total_records == 0:
+            # Return empty result if no donation history exists
+            return jsonify({
+                "activities": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "pages": 0,
+                "has_next": False,
+                "has_prev": False
+            }), 200
+        
+        # Build query - get donation history with joins
+        query = db.session.query(
+            DonationHistory.id,
+            DonationHistory.units,
+            DonationHistory.donation_date,
+            User.first_name.label('donor_first_name'),
+            User.last_name.label('donor_last_name'),
+            Donor.blood_group,
+            Hospital.name.label('hospital_name'),
+            Request.status.label('request_status'),
+            Request.urgency.label('priority')
+        ).join(
+            Donor, DonationHistory.donor_id == Donor.id
+        ).join(
+            User, Donor.user_id == User.id
+        ).join(
+            Hospital, DonationHistory.hospital_id == Hospital.id
+        ).outerjoin(
+            Request, DonationHistory.request_id == Request.id
+        )
+        
+        # Apply status filter if specified
+        if status_filter != 'all':
+            query = query.filter(Request.status == status_filter)
+        
+        # Order by donation date (most recent first)
+        query = query.order_by(DonationHistory.donation_date.desc())
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        paginated_query = query.limit(per_page).offset((page - 1) * per_page)
+        results = paginated_query.all()
+        
+        # Format response
+        activities = []
+        for row in results:
+            # Calculate time ago
+            time_diff = datetime.utcnow() - row.donation_date
+            if time_diff.days > 0:
+                time_ago = f"{time_diff.days} days ago"
+            elif time_diff.seconds // 3600 > 0:
+                time_ago = f"{time_diff.seconds // 3600} hours ago"
+            else:
+                time_ago = f"{time_diff.seconds // 60} minutes ago"
+            
+            # Format donor name
+            donor_name = f"{row.donor_first_name}"
+            if row.donor_last_name:
+                donor_name += f" {row.donor_last_name}"
+            
+            activities.append({
+                "id": row.id,
+                "donor": donor_name,
+                "hospital": row.hospital_name,
+                "bloodType": row.blood_group,
+                "units": row.units,
+                "status": row.request_status or "completed",
+                "priority": row.priority or "medium",
+                "time": time_ago
+            })
+        
+        # Calculate pagination metadata
+        pages = (total + per_page - 1) // per_page if total > 0 else 0
+        
+        return jsonify({
+            "activities": activities,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+            "has_next": page < pages,
+            "has_prev": page > 1
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error fetching activity table: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to fetch activity table",
+            "message": "An error occurred while retrieving activity data"
+        }), 500

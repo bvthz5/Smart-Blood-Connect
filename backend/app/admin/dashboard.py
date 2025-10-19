@@ -3,10 +3,12 @@ Simple Admin Dashboard Routes
 """
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import User, Donor, Hospital, Request
+from app.models import User, Donor, Hospital, Request, DonationHistory
 from app.extensions import db
+from sqlalchemy import func, and_, or_
+from datetime import datetime, timedelta
 
-admin_dashboard_bp = Blueprint("admin_dashboard", __name__, url_prefix="/admin/dashboard")
+admin_dashboard_bp = Blueprint("admin_dashboard", __name__, url_prefix="/api/admin/dashboard")
 
 @admin_dashboard_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -166,43 +168,119 @@ def get_dashboard_data():
         active_donors = Donor.query.filter_by(is_available=True).count()
         total_hospitals = Hospital.query.count()
         
-        # Return mock data for now
+        # Get request statistics
+        pending_requests = Request.query.filter_by(status='pending').count()
+        urgent_requests = Request.query.filter(
+            Request.status == 'pending',
+            Request.urgency == 'high'
+        ).count()
+        
+        # Get donation statistics
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        donations_today = DonationHistory.query.filter(
+            DonationHistory.donation_date >= today_start
+        ).count()
+        
+        # Get completed donations for this quarter
+        quarter_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Calculate quarter start (Jan 1, Apr 1, Jul 1, Oct 1)
+        current_month = quarter_start.month
+        quarter_month = ((current_month - 1) // 3) * 3 + 1
+        quarter_start = quarter_start.replace(month=quarter_month)
+        
+        completed_donations = DonationHistory.query.filter(
+            DonationHistory.donation_date >= quarter_start
+        ).count()
+        
+        # Get critical alerts (urgent pending requests + low inventory alerts)
+        critical_alerts = urgent_requests
+        
+        # Calculate inventory units (sum of available blood units from donation history)
+        # This is a simplified calculation - you may need to adjust based on your business logic
+        inventory_units = db.session.query(func.sum(DonationHistory.units)).scalar() or 0
+        
+        # Get blood group distribution from donors
+        blood_group_data = db.session.query(
+            Donor.blood_group,
+            func.count(Donor.id).label('count')
+        ).group_by(Donor.blood_group).all()
+        
+        blood_group_distribution = [
+            {"group": bg, "count": count} 
+            for bg, count in blood_group_data
+        ] if blood_group_data else []
+        
+        # Get requests over time (last 7 days)
+        requests_over_time = []
+        for i in range(6, -1, -1):
+            date = datetime.utcnow() - timedelta(days=i)
+            date_start = date.replace(hour=0, minute=0, second=0, microsecond=0)
+            date_end = date_start + timedelta(days=1)
+            
+            count = Request.query.filter(
+                Request.created_at >= date_start,
+                Request.created_at < date_end
+            ).count()
+            
+            requests_over_time.append({
+                "date": date_start.strftime("%Y-%m-%d"),
+                "count": count
+            })
+        
+        # Get requests by district
+        requests_by_district = db.session.query(
+            Hospital.district,
+            func.count(Request.id).label('count')
+        ).join(Request, Hospital.id == Request.hospital_id).filter(
+            Hospital.district.isnot(None)
+        ).group_by(Hospital.district).order_by(func.count(Request.id).desc()).limit(5).all()
+        
+        district_data = [
+            {"district": district, "count": count}
+            for district, count in requests_by_district
+        ] if requests_by_district else []
+        
+        # Get request status analysis
+        request_status_data = db.session.query(
+            Request.status,
+            func.count(Request.id).label('count')
+        ).group_by(Request.status).all()
+        
+        # Define colors for each status
+        status_colors = {
+            'completed': '#10B981',
+            'pending': '#F59E0B',
+            'cancelled': '#EF4444',
+            'in_progress': '#3B82F6',
+            'rejected': '#6B7280'
+        }
+        
+        request_analysis = [
+            {
+                "status": status.capitalize(),
+                "count": count,
+                "color": status_colors.get(status, '#6B7280')
+            }
+            for status, count in request_status_data
+        ] if request_status_data else []
+        
         dashboard_data = {
             "stats": {
                 "totalDonors": total_donors,
                 "activeDonors": active_donors,
                 "hospitals": total_hospitals,
-                "openRequests": 45,
-                "urgentRequests": 12,
-                "donationsToday": 15
+                "openRequests": pending_requests,
+                "urgentRequests": urgent_requests,
+                "donationsToday": donations_today,
+                "completedDonations": completed_donations,
+                "criticalAlerts": critical_alerts,
+                "inventoryUnits": inventory_units
             },
             "charts": {
-                "requestsOverTime": [
-                    {"date": "2024-01-01", "count": 5},
-                    {"date": "2024-01-02", "count": 8},
-                    {"date": "2024-01-03", "count": 12},
-                    {"date": "2024-01-04", "count": 7},
-                    {"date": "2024-01-05", "count": 15},
-                    {"date": "2024-01-06", "count": 9},
-                    {"date": "2024-01-07", "count": 11}
-                ],
-                "bloodGroupDistribution": [
-                    {"group": "A+", "count": 150},
-                    {"group": "A-", "count": 45},
-                    {"group": "B+", "count": 120},
-                    {"group": "B-", "count": 35},
-                    {"group": "AB+", "count": 25},
-                    {"group": "AB-", "count": 8},
-                    {"group": "O+", "count": 200},
-                    {"group": "O-", "count": 60}
-                ],
-                "requestsByDistrict": [
-                    {"district": "Ernakulam", "count": 25},
-                    {"district": "Thiruvananthapuram", "count": 20},
-                    {"district": "Kozhikode", "count": 15},
-                    {"district": "Thrissur", "count": 12},
-                    {"district": "Kollam", "count": 10}
-                ]
+                "requestsOverTime": requests_over_time,
+                "bloodGroupDistribution": blood_group_distribution,
+                "requestsByDistrict": district_data,
+                "requestStatusAnalysis": request_analysis
             },
             "recentEmergencies": [
                 {
