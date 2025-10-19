@@ -135,9 +135,15 @@
 /* Stats Cards */
 .donor-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .donor-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .stat-card {
@@ -305,6 +311,10 @@
   border: 1px solid var(--color-border);
   border-radius: 12px;
   overflow: hidden;
+  min-height: 600px;
+  height: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .table-header {
@@ -333,6 +343,9 @@
 
 .table-wrapper {
   overflow-x: auto;
+  flex: 1;
+  min-height: 450px;
+  position: relative;
 }
 
 /* Inline Filters near the table */
@@ -356,6 +369,7 @@
 .donor-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .donor-table th {
@@ -376,12 +390,27 @@
   vertical-align: top;
 }
 
+.donor-table tbody {
+  min-height: 400px;
+  display: table-row-group;
+}
+
 .donor-table tbody tr {
   transition: all 0.2s ease;
 }
 
 .donor-table tbody tr:hover {
   background: var(--color-surfaceVariant);
+}
+
+/* Empty state row - ensure it takes full height */
+.donor-table tbody tr.empty-state-row {
+  height: 400px;
+}
+
+.donor-table tbody tr.empty-state-row td {
+  vertical-align: middle;
+  height: 400px;
 }
 
 /* Donor Info */
@@ -681,6 +710,7 @@
   gap: 1rem;
   margin-top: 2rem;
   padding: 1rem;
+  min-height: 60px;
 }
 
 .pagination-btn {

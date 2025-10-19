@@ -26,6 +26,8 @@
   padding: var(--spacing-lg);
   overflow-y: auto;
   background: var(--color-background);
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Responsive Design */
@@ -40,6 +42,12 @@
   
   .content-area {
     padding: var(--spacing-md);
+  }
+}
+
+@media (min-width: 1440px) {
+  .content-area {
+    padding: var(--spacing-xl);
   }
 }
 

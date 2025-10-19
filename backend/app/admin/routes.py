@@ -145,6 +145,45 @@ def get_all_users():
 def get_all_donors():
     """
     Get All Donors with search, filter, and pagination
+    ---
+    tags:
+      - Admin
+    summary: Get list of all donors with filters
+    description: Retrieve paginated list of donors with search and filter capabilities
+    security:
+      - Bearer: []
+    parameters:
+      - in: query
+        name: search
+        type: string
+        description: Search by name, email, or phone
+      - in: query
+        name: blood_group
+        type: string
+        description: Filter by blood group (A+, A-, B+, B-, AB+, AB-, O+, O-)
+      - in: query
+        name: status
+        type: string
+        description: Filter by status (active, inactive, blocked, deleted)
+      - in: query
+        name: availability
+        type: string
+        description: Filter by availability (available, unavailable)
+      - in: query
+        name: page
+        type: integer
+        default: 1
+      - in: query
+        name: per_page
+        type: integer
+        default: 20
+    responses:
+      200:
+        description: Donors retrieved successfully
+      401:
+        description: Unauthorized - Admin access required
+      500:
+        description: Server error
     """
     try:
         # Verify admin user
@@ -152,15 +191,47 @@ def get_all_donors():
         admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
         
         if not admin_user:
-            return jsonify({"error": "Unauthorized"}), 401
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
         
-        # Get query parameters
+        # Get and validate query parameters
         search = request.args.get('search', '').strip()
-        blood_group = request.args.get('blood_group', '')
-        status = request.args.get('status', '')
-        availability = request.args.get('availability', '')
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        blood_group = request.args.get('blood_group', '').strip()
+        status = request.args.get('status', '').strip()
+        availability = request.args.get('availability', '').strip()
+        
+        try:
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 10))
+            
+            # Validate pagination parameters
+            if page < 1:
+                page = 1
+            if per_page < 1 or per_page > 100:
+                per_page = 10
+        except ValueError:
+            return jsonify({
+                "error": "Invalid pagination parameters",
+                "message": "Page and per_page must be valid integers"
+            }), 400
+        
+        # Validate blood group if provided
+        valid_blood_groups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+        if blood_group and blood_group not in valid_blood_groups:
+            return jsonify({
+                "error": "Invalid blood group",
+                "message": f"Blood group must be one of: {', '.join(valid_blood_groups)}"
+            }), 400
+        
+        # Validate status if provided
+        valid_statuses = ['active', 'inactive', 'blocked', 'deleted']
+        if status and status not in valid_statuses:
+            return jsonify({
+                "error": "Invalid status",
+                "message": f"Status must be one of: {', '.join(valid_statuses)}"
+            }), 400
         
         # Build query with joins
         query = db.session.query(User, Donor).join(Donor, User.id == Donor.user_id)
@@ -194,6 +265,7 @@ def get_all_donors():
             error_out=False
         )
         
+        # Build response data
         donors_data = []
         for user, donor in donors_pagination.items:
             donors_data.append({
@@ -215,16 +287,33 @@ def get_all_donors():
                 "last_login": user.last_login.isoformat() if user.last_login else None
             })
         
-        return jsonify({
+        # Return response with metadata
+        response_data = {
             "donors": donors_data,
             "total": donors_pagination.total,
             "page": page,
             "per_page": per_page,
-            "pages": donors_pagination.pages
-        }), 200
+            "pages": donors_pagination.pages,
+            "has_next": donors_pagination.has_next,
+            "has_prev": donors_pagination.has_prev
+        }
+        
+        # Add message if no records found
+        if donors_pagination.total == 0:
+            response_data["message"] = "No records found"
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
-        return jsonify({"error": "Failed to fetch donors"}), 500
+        # Log the error for debugging
+        import traceback
+        print(f"Error fetching donors: {str(e)}")
+        print(traceback.format_exc())
+        
+        return jsonify({
+            "error": "Failed to fetch donors",
+            "message": "An error occurred while retrieving donor data. Please try again."
+        }), 500
 
 
 @admin_bp.route("/donors/<int:donor_id>", methods=["PUT"])
@@ -239,18 +328,33 @@ def update_donor(donor_id):
         admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
         
         if not admin_user:
-            return jsonify({"error": "Unauthorized"}), 401
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
         
         # Get donor and user
         donor = Donor.query.get(donor_id)
         if not donor:
-            return jsonify({"error": "Donor not found"}), 404
+            return jsonify({
+                "error": "Donor not found",
+                "message": f"No donor found with ID {donor_id}"
+            }), 404
         
         user = User.query.get(donor.user_id)
         if not user:
-            return jsonify({"error": "User not found"}), 404
+            return jsonify({
+                "error": "User not found",
+                "message": "Associated user account not found"
+            }), 404
         
         data = request.get_json() or {}
+        
+        if not data:
+            return jsonify({
+                "error": "No data provided",
+                "message": "Request body cannot be empty"
+            }), 400
         
         # Update user fields
         if 'first_name' in data:
@@ -282,11 +386,20 @@ def update_donor(donor_id):
         
         db.session.commit()
         
-        return jsonify({"message": "Donor updated successfully"}), 200
+        return jsonify({
+            "message": "Donor updated successfully",
+            "donor_id": donor_id
+        }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to update donor"}), 500
+        import traceback
+        print(f"Error updating donor: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to update donor",
+            "message": "An error occurred while updating donor information"
+        }), 500
 
 
 @admin_bp.route("/donors/<int:donor_id>", methods=["DELETE"])
@@ -301,26 +414,44 @@ def delete_donor(donor_id):
         admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
         
         if not admin_user:
-            return jsonify({"error": "Unauthorized"}), 401
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
         
         # Get donor and user
         donor = Donor.query.get(donor_id)
         if not donor:
-            return jsonify({"error": "Donor not found"}), 404
+            return jsonify({
+                "error": "Donor not found",
+                "message": f"No donor found with ID {donor_id}"
+            }), 404
         
         user = User.query.get(donor.user_id)
         if not user:
-            return jsonify({"error": "User not found"}), 404
+            return jsonify({
+                "error": "User not found",
+                "message": "Associated user account not found"
+            }), 404
         
         # Soft delete by setting status to 'deleted'
         user.status = 'deleted'
         db.session.commit()
         
-        return jsonify({"message": "Donor deleted successfully"}), 200
+        return jsonify({
+            "message": "Donor deleted successfully",
+            "donor_id": donor_id
+        }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to delete donor"}), 500
+        import traceback
+        print(f"Error deleting donor: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to delete donor",
+            "message": "An error occurred while deleting the donor"
+        }), 500
 
 
 @admin_bp.route("/donors/<int:donor_id>/block", methods=["POST"])
@@ -335,19 +466,34 @@ def block_donor(donor_id):
         admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
         
         if not admin_user:
-            return jsonify({"error": "Unauthorized"}), 401
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
         
         # Get donor and user
         donor = Donor.query.get(donor_id)
         if not donor:
-            return jsonify({"error": "Donor not found"}), 404
+            return jsonify({
+                "error": "Donor not found",
+                "message": f"No donor found with ID {donor_id}"
+            }), 404
         
         user = User.query.get(donor.user_id)
         if not user:
-            return jsonify({"error": "User not found"}), 404
+            return jsonify({
+                "error": "User not found",
+                "message": "Associated user account not found"
+            }), 404
         
         data = request.get_json() or {}
         action = data.get('action', 'block')  # 'block' or 'unblock'
+        
+        if action not in ['block', 'unblock']:
+            return jsonify({
+                "error": "Invalid action",
+                "message": "Action must be either 'block' or 'unblock'"
+            }), 400
         
         if action == 'block':
             user.status = 'blocked'
@@ -358,11 +504,73 @@ def block_donor(donor_id):
         
         db.session.commit()
         
-        return jsonify({"message": message}), 200
+        return jsonify({
+            "message": message,
+            "donor_id": donor_id,
+            "status": user.status
+        }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to update donor status"}), 500
+        import traceback
+        print(f"Error updating donor status: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to update donor status",
+            "message": "An error occurred while updating donor status"
+        }), 500
+
+
+@admin_bp.route("/donors/stats", methods=["GET"])
+@jwt_required()
+def get_donor_stats():
+    """
+    Get donor statistics (total, available, active, blocked)
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
+        
+        # Get total donors count
+        total_donors = db.session.query(User, Donor).join(Donor, User.id == Donor.user_id).count()
+        
+        # Get available donors count
+        available_donors = db.session.query(User, Donor).join(
+            Donor, User.id == Donor.user_id
+        ).filter(Donor.is_available == True).count()
+        
+        # Get active donors count
+        active_donors = db.session.query(User, Donor).join(
+            Donor, User.id == Donor.user_id
+        ).filter(User.status == 'active').count()
+        
+        # Get blocked donors count
+        blocked_donors = db.session.query(User, Donor).join(
+            Donor, User.id == Donor.user_id
+        ).filter(User.status == 'blocked').count()
+        
+        return jsonify({
+            "total": total_donors,
+            "available": available_donors,
+            "active": active_donors,
+            "blocked": blocked_donors
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error fetching donor stats: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to fetch donor statistics",
+            "message": "An error occurred while retrieving statistics"
+        }), 500
 
 
 @admin_bp.route("/hospitals", methods=["GET"])

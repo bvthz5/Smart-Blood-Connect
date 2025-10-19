@@ -23,6 +23,14 @@ const AdminDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [activities, setActivities] = useState([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activitiesPagination, setActivitiesPagination] = useState({
+    page: 1,
+    per_page: 10,
+    total: 0,
+    pages: 0
+  });
 
   // Memoized dashboard data
   const mockDashboardData = useMemo(() => ({
@@ -94,7 +102,40 @@ const AdminDashboard = () => {
     ]
   }), []);
 
-  // Simulate API call
+  // Fetch activities from backend
+  const fetchActivities = async () => {
+    setActivitiesLoading(true);
+    try {
+      const response = await fetch(
+        `/api/admin/activities?page=${activitiesPagination.page}&per_page=${activitiesPagination.per_page}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setActivities(data.activities || []);
+        setActivitiesPagination(prev => ({
+          ...prev,
+          total: data.total || 0,
+          pages: data.pages || 0
+        }));
+      } else {
+        console.error('Failed to fetch activities');
+        setActivities([]);
+      }
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      setActivities([]);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
+
+  // Simulate API call for dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
@@ -111,6 +152,11 @@ const AdminDashboard = () => {
 
     fetchDashboardData();
   }, [mockDashboardData]);
+
+  // Fetch activities when pagination changes
+  useEffect(() => {
+    fetchActivities();
+  }, [activitiesPagination.page]);
 
   // Optimized sidebar toggle
   const toggleSidebar = useCallback(() => {
@@ -325,13 +371,81 @@ const AdminDashboard = () => {
               <h3 className="chart-title">Recent Activities</h3>
             </div>
             <div className="activities-list">
-              {dashboardData.recent_activities.map((activity) => (
-                <ActivityItem
-                  key={activity.id}
-                  activity={activity}
-                />
-              ))}
+              {activitiesLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                  Loading activities...
+                </div>
+              ) : activities.length > 0 ? (
+                activities.map((activity) => (
+                  <ActivityItem
+                    key={activity.id}
+                    activity={activity}
+                  />
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                  No activities found
+                </div>
+              )}
             </div>
+            
+            {/* Pagination Controls */}
+            {activitiesPagination.pages > 1 && (
+              <div className="activities-pagination" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '1rem',
+                marginTop: '1.5rem',
+                padding: '1rem'
+              }}>
+                <button
+                  onClick={() => setActivitiesPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                  disabled={activitiesPagination.page === 1}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    background: activitiesPagination.page === 1 ? '#e5e7eb' : '#fff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    cursor: activitiesPagination.page === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: activitiesPagination.page === 1 ? '#9ca3af' : '#374151'
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  Previous
+                </button>
+                
+                <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                  Page {activitiesPagination.page} of {activitiesPagination.pages}
+                </div>
+                
+                <button
+                  onClick={() => setActivitiesPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                  disabled={activitiesPagination.page === activitiesPagination.pages}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    background: activitiesPagination.page === activitiesPagination.pages ? '#e5e7eb' : '#fff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    cursor: activitiesPagination.page === activitiesPagination.pages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: activitiesPagination.page === activitiesPagination.pages ? '#9ca3af' : '#374151'
+                  }}
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </section>
       </main>
     </div>

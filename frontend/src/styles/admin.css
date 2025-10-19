@@ -48,9 +48,10 @@
 
 /* Admin Dashboard */
 .admin-dashboard {
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 0;
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
 }
 
 /* Loading States */

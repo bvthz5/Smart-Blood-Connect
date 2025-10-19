@@ -43,6 +43,12 @@ const DonorManagementContent = () => {
     total: 0,
     pages: 0
   });
+  const [stats, setStats] = useState({
+    total: 0,
+    available: 0,
+    active: 0,
+    blocked: 0
+  });
   const [selectedDonor, setSelectedDonor] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -120,6 +126,25 @@ const DonorManagementContent = () => {
     fetchDonors();
   }, [pagination.page, searchTerm, filters]);
 
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const statsData = await donorManagementService.getDonorStats();
+      setStats({
+        total: statsData.total || 0,
+        available: statsData.available || 0,
+        active: statsData.active || 0,
+        blocked: statsData.blocked || 0
+      });
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      // Keep stats at 0 if fetch fails
+    }
+  };
+
   const fetchDonors = async () => {
     setLoading(true);
     setError(null);
@@ -143,39 +168,18 @@ const DonorManagementContent = () => {
       }));
       
     } catch (err) {
-      setError('Failed to fetch donors');
+      // Extract error message from backend response
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to fetch donors. Please try again.';
+      setError(errorMessage);
       console.error('Error fetching donors:', err);
-      
-      // Fallback to mock data
-      let filteredDonors = [...mockDonors];
-      
-      if (searchTerm) {
-        filteredDonors = filteredDonors.filter(donor =>
-          donor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          donor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          donor.phone.includes(searchTerm)
-        );
-      }
-      
-      if (filters.blood_group) {
-        filteredDonors = filteredDonors.filter(donor => donor.blood_group === filters.blood_group);
-      }
-      
-      if (filters.status) {
-        filteredDonors = filteredDonors.filter(donor => donor.status === filters.status);
-      }
-      
-      if (filters.availability) {
-        const isAvailable = filters.availability === 'available';
-        filteredDonors = filteredDonors.filter(donor => donor.is_available === isAvailable);
-      }
-      
-      setDonors(filteredDonors);
+      // On error, clear data to reflect no records and reset counts
+      setDonors([]);
       setPagination(prev => ({
         ...prev,
-        total: filteredDonors.length,
-        pages: Math.ceil(filteredDonors.length / prev.per_page)
+        total: 0,
+        pages: 0
       }));
+      // Don't reset stats on error to maintain layout
     } finally {
       setLoading(false);
     }
@@ -195,6 +199,7 @@ const DonorManagementContent = () => {
     setFilters({ blood_group: '', status: '', availability: '' });
     setSearchTerm('');
     setPagination(prev => ({ ...prev, page: 1 }));
+    setError(null);
   };
 
   const handleEdit = (donor) => {
@@ -312,9 +317,7 @@ const DonorManagementContent = () => {
     URL.revokeObjectURL(url);
   };
 
-  const startIndex = (pagination.page - 1) * pagination.per_page;
-  const endIndex = startIndex + pagination.per_page;
-  const pageDonors = donors.slice(startIndex, endIndex);
+  // Using server-side pagination; donors already represent the current page
 
   return (
     <div className="donor-management">
@@ -345,7 +348,7 @@ const DonorManagementContent = () => {
             <Users size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{pagination.total}</div>
+            <div className="stat-value">{stats.total}</div>
             <div className="stat-label">Total Donors</div>
           </div>
         </div>
@@ -354,9 +357,7 @@ const DonorManagementContent = () => {
             <Droplets size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">
-              {donors.filter(d => d.is_available).length}
-            </div>
+            <div className="stat-value">{stats.available}</div>
             <div className="stat-label">Available</div>
           </div>
         </div>
@@ -365,9 +366,7 @@ const DonorManagementContent = () => {
             <Shield size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">
-              {donors.filter(d => d.status === 'active').length}
-            </div>
+            <div className="stat-value">{stats.active}</div>
             <div className="stat-label">Active</div>
           </div>
         </div>
@@ -376,9 +375,7 @@ const DonorManagementContent = () => {
             <ShieldOff size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">
-              {donors.filter(d => d.status === 'blocked').length}
-            </div>
+            <div className="stat-value">{stats.blocked}</div>
             <div className="stat-label">Blocked</div>
           </div>
         </div>
@@ -403,6 +400,18 @@ const DonorManagementContent = () => {
             />
           </div>
         </div>
+
+        {error && (
+          <div style={{
+            padding: '0.75rem 1rem',
+            color: '#991b1b',
+            background: 'rgba(239,68,68,0.08)',
+            borderTop: '1px solid var(--color-border)',
+            borderBottom: '1px solid var(--color-border)'
+          }}>
+            {error}
+          </div>
+        )}
 
         <div className="filters-inline">
           <div className="filters-section">
@@ -467,7 +476,21 @@ const DonorManagementContent = () => {
               </tr>
             </thead>
             <tbody>
-              {pageDonors.map((donor) => (
+              {donors.length === 0 && !loading && (
+                <tr className="empty-state-row">
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--color-textSecondary)' }}>
+                    <div style={{ fontSize: '1.125rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                      No records found
+                    </div>
+                    {(searchTerm || filters.blood_group || filters.status || filters.availability) && (
+                      <div style={{ fontSize: '0.875rem', color: 'var(--color-textSecondary)', opacity: 0.8 }}>
+                        Try adjusting your search or filters
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+              {donors.map((donor) => (
                 <tr key={donor.id}>
                   <td>
                     <div className="donor-info">
