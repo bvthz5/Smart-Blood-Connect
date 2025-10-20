@@ -205,32 +205,35 @@
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
-}
-
-.search-section {
-  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 2rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .search-input {
   position: relative;
+  flex: 0 0 auto;
+  min-width: 350px;
   max-width: 500px;
+  width: 100%;
 }
 
 .search-input input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 3rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  padding: 0.875rem 1.25rem 0.875rem 3rem;
+  border: none;
+  border-radius: 10px;
   background: var(--color-background);
   color: var(--color-text);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   transition: all 0.2s ease;
 }
 
 .search-input input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .search-input svg {
@@ -246,8 +249,9 @@
 .filters-section {
   display: flex;
   gap: 1.5rem;
-  align-items: end;
+  align-items: flex-end;
   flex-wrap: wrap;
+  flex: 1 1 auto;
 }
 
 .filter-group {
@@ -388,14 +392,17 @@
 
 .hospital-name {
   font-weight: 600;
+  font-size: 0.9375rem !important;
   color: var(--color-text);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
+  line-height: 1.4;
 }
 
 .hospital-address {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--color-textSecondary);
-  line-height: 1.3;
+  line-height: 1.4;
+  font-weight: 400;
 }
 
 /* Contact Info */
@@ -501,30 +508,53 @@
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  background: transparent;
 }
 
-.action-btn.edit {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+.action-btn.icon-only {
+  padding: 0;
+  background: transparent !important;
+  box-shadow: none;
 }
 
-.action-btn.edit:hover {
-  background: rgba(59, 130, 246, 0.2);
+.action-btn.icon-only::before {
+  display: none;
 }
 
-.action-btn.delete {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+.action-btn.icon-only:hover {
+  background: var(--color-surfaceVariant, rgba(0,0,0,0.06)) !important;
 }
 
-.action-btn.delete:hover {
-  background: rgba(239, 68, 68, 0.2);
+.action-btn.icon-only:hover svg,
+.action-btn.icon-only:hover img {
+  transform: scale(1.05);
+}
+
+.action-btn.icon-only:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+}
+
+.action-btn img {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.15s ease;
+}
+
+/* Override colored backgrounds for specific classes when icon-only */
+.action-btn.icon-only.view,
+.action-btn.icon-only.edit,
+.action-btn.icon-only.verify,
+.action-btn.icon-only.unverify,
+.action-btn.icon-only.delete {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Pagination */
@@ -707,6 +737,11 @@
     grid-template-columns: repeat(2, 1fr);
   }
   
+  .hospital-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
   .filters-section {
     flex-direction: column;
     align-items: stretch;
@@ -714,6 +749,11 @@
   
   .filter-group {
     min-width: auto;
+  }
+  
+  .search-input {
+    min-width: auto;
+    max-width: none;
   }
   
   .hospital-table {

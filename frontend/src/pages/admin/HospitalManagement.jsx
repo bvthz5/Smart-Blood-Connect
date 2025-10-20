@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
 import DashboardLayout from '../../components/admin/DashboardLayout';
 import {
@@ -19,11 +20,21 @@ import {
   Shield,
   ShieldOff,
   CheckCircle,
-  XCircle
+  XCircle,
+  Eye,
+  Check,
+  X
 } from 'lucide-react';
+import ViewIcon from '../../assets/icons/view.svg';
+import EditIcon from '../../assets/icons/edit.svg';
+import DeleteIcon from '../../assets/icons/delete.svg';
+import VerifyIcon from '../../assets/icons/verify.svg';
+import UnverifyIcon from '../../assets/icons/unverify.svg';
+import hospitalService from '../../services/hospitalService';
 import './HospitalManagement.css';
 
 const HospitalManagementContent = () => {
+  const navigate = useNavigate();
   const { theme } = useTheme();
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +47,7 @@ const HospitalManagementContent = () => {
   });
   const [pagination, setPagination] = useState({
     page: 1,
-    per_page: 20,
+    per_page: 10,
     total: 0,
     pages: 0
   });
@@ -108,49 +119,27 @@ const HospitalManagementContent = () => {
 
   const fetchHospitals = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
+      const response = await hospitalService.getAllHospitals({
+        page: pagination.page,
+        per_page: pagination.per_page,
+        search: searchTerm,
+        district: filters.district,
+        city: filters.city,
+        is_verified: filters.is_verified
       });
       
-      // Filter mock data based on search and filters
-      let filteredHospitals = [...mockHospitals];
-      
-      if (searchTerm) {
-        filteredHospitals = filteredHospitals.filter(hospital =>
-          hospital.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          hospital.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          hospital.phone.includes(searchTerm) ||
-          hospital.license_number.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      
-      if (filters.district) {
-        filteredHospitals = filteredHospitals.filter(hospital => hospital.district === filters.district);
-      }
-      
-      if (filters.city) {
-        filteredHospitals = filteredHospitals.filter(hospital => hospital.city === filters.city);
-      }
-      
-      if (filters.is_verified) {
-        const isVerified = filters.is_verified === 'verified';
-        filteredHospitals = filteredHospitals.filter(hospital => hospital.is_verified === isVerified);
-      }
-      
-      setHospitals(filteredHospitals);
+      setHospitals(response.hospitals || []);
       setPagination(prev => ({
         ...prev,
-        total: filteredHospitals.length,
-        pages: Math.ceil(filteredHospitals.length / prev.per_page)
+        total: response.total || 0,
+        pages: response.pages || 0
       }));
     } catch (err) {
-      setError('Failed to fetch hospitals');
+      console.error('Error fetching hospitals:', err);
+      setError(err.response?.data?.error || 'Failed to fetch hospitals');
+      setHospitals([]);
     } finally {
       setLoading(false);
     }
@@ -173,17 +162,7 @@ const HospitalManagementContent = () => {
   };
 
   const handleAddHospital = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      district: '',
-      city: '',
-      license_number: '',
-      is_verified: false
-    });
-    setShowAddModal(true);
+    navigate('/admin/hospitals/add');
   };
 
   const handleEdit = (hospital) => {
@@ -201,9 +180,26 @@ const HospitalManagementContent = () => {
     setShowEditModal(true);
   };
 
+  const handleView = (hospital) => {
+    navigate(`/admin/hospitals/${hospital.id}`);
+  };
+
   const handleDelete = (hospital) => {
     setSelectedHospital(hospital);
     setShowDeleteModal(true);
+  };
+
+  const handleToggleVerification = async (hospital) => {
+    const action = hospital.is_verified ? 'unverify' : 'verify';
+    if (window.confirm(`Are you sure you want to ${action} ${hospital.name}?`)) {
+      try {
+        await hospitalService.toggleVerification(hospital.id, !hospital.is_verified);
+        await fetchHospitals();
+        alert(`Hospital ${action}ed successfully!`);
+      } catch (err) {
+        alert(`Failed to ${action} hospital`);
+      }
+    }
   };
 
   const handleFormSubmit = async (e) => {
@@ -321,13 +317,13 @@ const HospitalManagementContent = () => {
             <h1>Hospital Management</h1>
           </div>
           <div className="header-actions">
-            <button className="btn-secondary">
-              <Download size={16} />
-              Export
-            </button>
             <button className="btn-primary" onClick={handleAddHospital}>
               <Plus size={16} />
               Add Hospital
+            </button>
+            <button className="btn-secondary">
+              <Download size={16} />
+              Export
             </button>
           </div>
         </div>
@@ -381,18 +377,6 @@ const HospitalManagementContent = () => {
 
       {/* Search and Filters */}
       <div className="hospital-controls">
-        <div className="search-section">
-          <div className="search-input">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search hospitals by name, email, phone, or license..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-          </div>
-        </div>
-        
         <div className="filters-section">
           <div className="filter-group">
             <label>District</label>
@@ -436,6 +420,16 @@ const HospitalManagementContent = () => {
             <RefreshCw size={16} />
             Clear Filters
           </button>
+        </div>
+
+        <div className="search-input">
+          <Search size={20} />
+          <input
+            type="text"
+            placeholder="Search hospitals by name, email, phone, or license..."
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -510,18 +504,35 @@ const HospitalManagementContent = () => {
                   <td>
                     <div className="action-buttons">
                       <button 
-                        className="action-btn edit"
+                        className="action-btn icon-only view"
+                        onClick={() => handleView(hospital)}
+                        title="View Details"
+                      >
+                        <img src={ViewIcon} alt="View" />
+                      </button>
+                      <button 
+                        className="action-btn icon-only edit"
                         onClick={() => handleEdit(hospital)}
                         title="Edit Hospital"
                       >
-                        <Edit size={16} />
+                        <img src={EditIcon} alt="Edit" />
                       </button>
                       <button 
-                        className="action-btn delete"
+                        className={`action-btn icon-only ${hospital.is_verified ? 'unverify' : 'verify'}`}
+                        onClick={() => handleToggleVerification(hospital)}
+                        title={hospital.is_verified ? 'Unverify Hospital' : 'Verify Hospital'}
+                      >
+                        <img 
+                          src={hospital.is_verified ? UnverifyIcon : VerifyIcon} 
+                          alt={hospital.is_verified ? 'Unverify' : 'Verify'} 
+                        />
+                      </button>
+                      <button 
+                        className="action-btn icon-only delete"
                         onClick={() => handleDelete(hospital)}
                         title="Delete Hospital"
                       >
-                        <Trash2 size={16} />
+                        <img src={DeleteIcon} alt="Delete" />
                       </button>
                     </div>
                   </td>

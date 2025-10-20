@@ -108,6 +108,7 @@ def register_blueprints(app):
     from .api.health import health_bp
     from .homepage.routes import homepage_bp
     from .ml.routes import ml_bp
+    from .staff import staff_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(donor_bp)
@@ -119,6 +120,7 @@ def register_blueprints(app):
     app.register_blueprint(health_bp)
     app.register_blueprint(homepage_bp)
     app.register_blueprint(ml_bp)
+    app.register_blueprint(staff_bp, url_prefix='/api/staff')
 
 def initialize_ml_models(app):
     """Initialize ML model client"""

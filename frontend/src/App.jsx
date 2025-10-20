@@ -39,6 +39,8 @@ import DonorManagement from './pages/admin/DonorManagement';
 import DonorDetails from './pages/admin/DonorDetails';
 import DonorEdit from './pages/admin/DonorEdit';
 import HospitalManagement from './pages/admin/HospitalManagement';
+import HospitalDetails from './pages/admin/HospitalDetails';
+import AddHospital from './pages/admin/AddHospital';
 import BloodMatching from './pages/admin/BloodMatching';
 import DonationRequests from './pages/admin/DonationRequests';
 import DonationHistory from './pages/admin/DonationHistory';
@@ -145,6 +147,16 @@ function App() {
           <Route path="/admin/hospitals" element={
             <AdminRouteGuard>
               <HospitalManagement />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/hospitals/add" element={
+            <AdminRouteGuard>
+              <AddHospital />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/hospitals/:id" element={
+            <AdminRouteGuard>
+              <HospitalDetails />
             </AdminRouteGuard>
           } />
           <Route path="/admin/inventory" element={

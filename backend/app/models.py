@@ -27,6 +27,16 @@ class User(db.Model):
 
     # donor = db.relationship("Donor", uselist=False, back_populates="user")  # Commented out - using separate models
     staff = db.relationship("HospitalStaff", uselist=False, back_populates="user", foreign_keys="[HospitalStaff.user_id]")
+    
+    def set_password(self, password):
+        """Hash and set password"""
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Verify password"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
 
 
 class Donor(db.Model):
@@ -72,20 +82,41 @@ class Hospital(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     requests = db.relationship("Request", back_populates="hospital")
+    staff_relation = db.relationship("HospitalStaff", back_populates="hospital", uselist=False, cascade="all, delete-orphan")
+    
+    def get_staff_status(self):
+        """Get the status of the hospital's staff member"""
+        if not self.staff_relation:
+            return {"has_staff": False, "status": None, "user_status": None}
+        
+        staff_user = self.staff_relation.user
+        return {
+            "has_staff": True,
+            "staff_id": self.staff_relation.user_id,
+            "staff_status": self.staff_relation.status,
+            "user_status": staff_user.status if staff_user else "deleted",
+            "user_exists": staff_user is not None,
+            "is_active": staff_user and staff_user.status == "active" and self.staff_relation.status == "active"
+        }
+    
+    def should_be_verified(self):
+        """Check if hospital should be verified (has active staff)"""
+        staff_status = self.get_staff_status()
+        return staff_status["has_staff"] and staff_status["is_active"]
 
 
 class HospitalStaff(db.Model):
     __tablename__ = "hospital_staff"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True)
-    hospital_id = db.Column(db.Integer, db.ForeignKey("hospitals.id", ondelete="CASCADE"))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True)  # One user can only be staff for one hospital
+    hospital_id = db.Column(db.Integer, db.ForeignKey("hospitals.id", ondelete="CASCADE"), unique=True)  # One hospital can only have one staff
     invited_by = db.Column(db.Integer, db.ForeignKey("users.id"))  # admin
     status = db.Column(db.String(20), default="pending")  # pending, active, rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship("User", back_populates="staff", foreign_keys=[user_id])
-    # hospital = db.relationship("Hospital", back_populates="staff")  # Commented out - no staff relationship in Hospital
+    hospital = db.relationship("Hospital", back_populates="staff_relation")
 
 
 class Request(db.Model):
