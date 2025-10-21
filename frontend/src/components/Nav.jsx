@@ -172,7 +172,7 @@ export default function Nav() {
               </button>
               <div className="header__dropdown-menu">
                 <NavLink 
-                  to="/seeker/login" 
+                  to="/donor/login" 
                   className="header__dropdown-item"
                   onClick={() => setLoginDropdownOpen(false)}
                 >
@@ -308,7 +308,7 @@ export default function Nav() {
             </button>
             <div className="header__dropdown-menu">
               <NavLink 
-                to="/seeker/login" 
+                to="/donor/login" 
                 className="header__dropdown-item"
                 onClick={() => setLoginDropdownOpen(false)}
               >

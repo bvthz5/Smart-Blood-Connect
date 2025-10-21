@@ -7,11 +7,14 @@ import KpiCard from "../../components/seeker/KpiCard";
 import { DemandByGroup, MonthlyTrend } from "../../components/seeker/Charts";
 import ActivityFeed from "../../components/seeker/ActivityFeed";
 import seekerService from "../../services/seekerService";
-import "./SeekerDashboard.css";
 import { redirectToLogin } from '../../utils/authRedirect';
-  const onLogout = () => { localStorage.removeItem('seeker_token'); redirectToLogin(); };
+import "./SeekerDashboard.css";
 
 export default function SeekerDashboard() {
+  const onLogout = () => {
+    localStorage.removeItem('seeker_token');
+    redirectToLogin();
+  };
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({ urgent: 0, total: 0, matched: 0, lastWeek: 0 });
   const [pie, setPie] = useState([]);
@@ -34,8 +37,6 @@ export default function SeekerDashboard() {
       } finally { setLoading(false); }
     })();
   }, []);
-
-  const onLogout = () => { localStorage.removeItem('seeker_token'); window.location.href = '/seeker/login'; };
 
   if (loading) {
     return (

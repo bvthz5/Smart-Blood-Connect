@@ -1447,36 +1447,62 @@ def assign_hospital_staff(hospital_id):
             email=data.get('email'),
             phone=data['phone'],
             role="staff",
-            status="active"
+            status="inactive",  # Staff remains inactive until they accept invitation
+            is_phone_verified=True,
+            is_email_verified=True
         )
         new_user.set_password(data['password'])
-        
+
         db.session.add(new_user)
         db.session.flush()  # Get the user ID
-        
+
         # Create HospitalStaff relationship
         hospital_staff = HospitalStaff(
             user_id=new_user.id,
             hospital_id=hospital_id,
             invited_by=current_user_id,
-            status="active"
+            status="pending"  # Waiting for staff to accept invitation
         )
         
         db.session.add(hospital_staff)
-        
-        # Auto-verify hospital when new active staff is assigned
-        hospital.is_verified = True
-        hospital.is_active = True
-        
+
+        # Don't auto-verify hospital yet - wait for staff to accept invitation
+        # Hospital will be verified when staff accepts the invitation
+
         db.session.commit()
-        
-        message = "New staff member assigned successfully. Hospital is now verified and active."
+
+        # Send invitation email
+        try:
+            from app.utils.email_sender import send_email
+            from app.utils.email_templates import get_staff_invitation_email
+
+            staff_name = f"{new_user.first_name} {new_user.last_name}".strip()
+            accept_url = f"{request.host_url}api/staff/accept-invitation/{new_user.id}"
+            reject_url = f"{request.host_url}api/staff/reject-invitation/{new_user.id}"
+
+            invitation_email = get_staff_invitation_email(
+                staff_name=staff_name,
+                hospital_name=hospital.name,
+                accept_url=accept_url,
+                reject_url=reject_url
+            )
+
+            send_email(
+                to_email=new_user.email,
+                subject=f"Invitation to Join {hospital.name} - Smart Blood Connect",
+                html_content=invitation_email
+            )
+            print(f"SUCCESS: Invitation email sent to {new_user.email}")
+        except Exception as e:
+            print(f"WARNING: Failed to send invitation email: {str(e)}")
+
+        message = "New staff member invited successfully. Invitation email has been sent. Staff will be active once they accept the invitation."
         if old_staff_info:
-            message = f"Staff reassigned successfully. Previous staff ({old_staff_info['name']}) marked as deleted. Hospital is now verified and active."
-        
-        print(f"SUCCESS: New staff {new_user.email} assigned to {hospital.name}")
-        print(f"SUCCESS: Hospital {hospital.name} auto-verified and activated")
-        
+            message = f"Staff reassigned successfully. Previous staff ({old_staff_info['name']}) marked as deleted. New invitation email has been sent."
+
+        print(f"SUCCESS: New staff {new_user.email} invited to {hospital.name}")
+        print(f"SUCCESS: Invitation pending acceptance from staff")
+
         return jsonify({
             "message": message,
             "old_staff": old_staff_info,
@@ -1484,10 +1510,12 @@ def assign_hospital_staff(hospital_id):
                 "id": new_user.id,
                 "name": f"{new_user.first_name} {new_user.last_name or ''}".strip(),
                 "email": new_user.email or 'N/A',
-                "phone": new_user.phone
+                "phone": new_user.phone,
+                "status": "pending"
             },
-            "hospital_verified": True,
-            "hospital_active": True
+            "hospital_verified": hospital.is_verified,
+            "hospital_active": hospital.is_active,
+            "invitation_status": "pending"
         }), 201
         
     except Exception as e:
@@ -1799,7 +1827,9 @@ def create_hospital_with_staff():
             email=staff_data['email'],
             phone=staff_data['phone'],
             role="staff",
-            status="inactive"  # Will be active after accepting invitation
+            status="inactive",  # Will be active after accepting invitation
+            is_phone_verified=True,
+            is_email_verified=True
         )
         new_user.set_password(temp_password)
         

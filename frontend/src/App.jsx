@@ -12,7 +12,13 @@ import FAQ from './pages/FAQ';
 import Policies from './pages/Policies';
 import NotFound from './pages/NotFound';
 
-// Donor Pages - Removed (not ready to start)
+// Donor Pages
+import DonorLogin from './pages/donor/Login';
+import DonorRegister from './pages/donor/Register';
+import DonorForgotPassword from './pages/donor/ForgotPassword';
+import DonorRouteGuard from './components/donor/DonorRouteGuard';
+import DonorDashboard from './pages/donor/DonorDashboard';
+
 
 // Seeker Pages
 import SeekerRequest from './pages/seeker/SeekerRequest';
@@ -71,9 +77,19 @@ function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/policies" element={<Policies />} />
-          
-          {/* Donor Routes - Removed (not ready to start) */}
-          
+
+          {/* Donor Routes */}
+          <Route path="/donor/login" element={<DonorLogin />} />
+          <Route path="/donor/register" element={<DonorRegister />} />
+          <Route path="/donor/forgot-password" element={<DonorForgotPassword />} />
+
+
+          <Route path="/donor/dashboard" element={
+            <DonorRouteGuard>
+              <DonorDashboard />
+            </DonorRouteGuard>
+          } />
+
           {/* Seeker Routes */}
           <Route path="/seeker/login" element={<SeekerLogin />} />
           <Route path="/seeker/forgot-password" element={<SeekerForgotPassword />} />
@@ -119,7 +135,7 @@ function App() {
               <SeekerSettings />
             </SeekerRouteGuard>
           } />
-          
+
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/reset-password" element={<AdminResetPassword />} />
@@ -190,7 +206,7 @@ function App() {
               <AdminSettings />
             </AdminRouteGuard>
           } />
-          
+
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>

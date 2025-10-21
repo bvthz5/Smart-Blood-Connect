@@ -63,13 +63,13 @@ export default function AuthDropdown() {
       </button>
       
       {isOpen && (
-        <div 
-          className="auth-dropdown__menu" 
+        <div
+          className="auth-dropdown__menu"
           role="menu"
           onKeyDown={handleKeyDown}
         >
           <Link
-            to="/seeker/login"
+            to="/donor/login"
             className="auth-dropdown__item"
             role="menuitem"
             onClick={handleMenuItemClick}

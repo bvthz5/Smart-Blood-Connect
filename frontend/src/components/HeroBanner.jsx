@@ -322,7 +322,7 @@ export default function HeroBanner({ language }) {
 
           <div
             className="hero-ctas"
-            style={{ 
+            style={{
               display: "flex",
               gap: "1rem",
               justifyContent: "flex-start",
@@ -330,9 +330,9 @@ export default function HeroBanner({ language }) {
             }}
           >
             <Link
-              to="/seeker/login"
+              to="/donor/login"
               className="btn btn--primary btn--large"
-              style={{ 
+              style={{
                 boxShadow: "none",
                 border: "2px solid transparent"
               }}
@@ -343,7 +343,7 @@ export default function HeroBanner({ language }) {
             <Link
               to="/seeker/login"
               className="btn btn--outline btn--large"
-              style={{ 
+              style={{
                 background: "rgba(255, 255, 255, 0.1)",
                 backdropFilter: "blur(10px)",
                 border: "2px solid rgba(230, 57, 70, 0.5)",

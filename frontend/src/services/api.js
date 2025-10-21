@@ -76,10 +76,20 @@ api.interceptors.request.use(
           delete config.headers.Authorization;
         }
       } else {
-        // Non-admin modules: use their own tokens ONLY
+        // Donor vs Seeker routing based on current URL or request path
+        const path = window.location?.pathname || '';
+        const isDonorContext = path.startsWith('/donor') || url.startsWith('/api/donors');
+
+        const donorToken = localStorage.getItem('access_token');
         const seekerToken = localStorage.getItem('seeker_token') || localStorage.getItem('token');
-        if (seekerToken) {
+
+        if (isDonorContext && donorToken) {
+          config.headers.Authorization = `Bearer ${donorToken}`;
+        } else if (!isDonorContext && seekerToken) {
           config.headers.Authorization = `Bearer ${seekerToken}`;
+        } else if (donorToken) {
+          // Fallback: if donor token exists and no seeker token, use donor token
+          config.headers.Authorization = `Bearer ${donorToken}`;
         } else if (config.headers && config.headers.Authorization) {
           delete config.headers.Authorization;
         }
@@ -98,36 +108,73 @@ api.interceptors.response.use(
   (error) => {
     if (typeof window !== 'undefined') {
       const isAdminRoute = window.location.pathname.startsWith('/admin');
-      
+
       // Handle blocked user (403 with blocked flag)
       if (error.response?.status === 403 && error.response?.data?.blocked) {
         if (!isAdminRoute) {
+          const isDonorRoute = window.location.pathname.startsWith('/donor') || error.config?.url?.startsWith('/api/donors');
           // Clear user tokens
           localStorage.removeItem('seeker_token');
           localStorage.removeItem('token');
           localStorage.removeItem('seeker_refresh_token');
-          localStorage.removeItem('donor_token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
 
           // Non-blocking handling: log and redirect to login
           // eslint-disable-next-line no-console
-          console.warn('User blocked by admin; redirecting to /seeker/login');
-          window.location.href = '/seeker/login';
+          console.warn('User blocked; redirecting to login');
+          window.location.href = isDonorRoute ? '/donor/login' : '/seeker/login';
         }
       }
-      
+
       // Handle unauthorized (401)
       if (error.response?.status === 401) {
+        const isDonorRoute = window.location.pathname.startsWith('/donor') || error.config?.url?.startsWith('/api/donors');
         if (isAdminRoute) {
           // Clear only admin tokens
           localStorage.removeItem('admin_access_token');
           localStorage.removeItem('admin_refresh_token');
+          localStorage.setItem('toast_message', 'Your admin session expired. Please login again.');
           window.location.href = '/admin/login';
+        } else if (isDonorRoute) {
+          // Clear donor tokens and redirect to donor login
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.setItem('toast_message', 'Your session expired. Please login again.');
+          window.location.href = '/donor/login';
         } else {
-          // Clear only non-admin tokens
+          // Clear seeker tokens and redirect to seeker login
           localStorage.removeItem('seeker_token');
           localStorage.removeItem('token');
           localStorage.removeItem('seeker_refresh_token');
+          localStorage.setItem('toast_message', 'Your session expired. Please login again.');
           window.location.href = '/seeker/login';
+        }
+      }
+
+      // Handle malformed/invalid JWTs returned as 422 by Flask-JWT-Extended
+      if (error.response?.status === 422) {
+        const isDonorRoute = window.location.pathname.startsWith('/donor') || error.config?.url?.startsWith('/api/donors');
+        const msg = (error.response?.data?.msg || error.response?.data?.message || error.response?.data?.error || '').toString().toLowerCase();
+        const looksLikeJwtIssue = msg.includes('subject must be a string') || msg.includes('bad authorization header') || msg.includes('not enough segments') || msg.includes('signature verification failed') || msg.includes('jwt');
+        if (looksLikeJwtIssue) {
+          if (isAdminRoute) {
+            localStorage.removeItem('admin_access_token');
+            localStorage.removeItem('admin_refresh_token');
+            localStorage.setItem('toast_message', 'Your admin session is invalid. Please login again.');
+            window.location.href = '/admin/login';
+          } else if (isDonorRoute) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.setItem('toast_message', 'Your session is invalid. Please login again.');
+            window.location.href = '/donor/login';
+          } else {
+            localStorage.removeItem('seeker_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('seeker_refresh_token');
+            localStorage.setItem('toast_message', 'Your session is invalid. Please login again.');
+            window.location.href = '/seeker/login';
+          }
         }
       }
     }
@@ -140,9 +187,23 @@ export async function registerDonor(payload) {
   return api.post("/api/auth/register", payload);
 }
 
+export async function checkAvailability(payload) {
+  return api.post("/api/auth/check-availability", payload);
+}
+
 export async function verifyOtp(payload) {
   return api.post("/api/auth/verify-otp", payload);
 }
+
+// Contact verification
+export async function sendContactOtp(payload) {
+  return api.post("/api/auth/send-contact-otp", payload);
+}
+
+export async function verifyEmailOtp(payload) {
+  return api.post("/api/auth/verify-email-otp", payload);
+}
+
 
 export async function login(payload) {
   return api.post("/api/auth/login", payload);
@@ -213,6 +274,10 @@ export async function setAvailability(status) {
 
 export async function getDonorMatches() {
   return api.get("/api/donors/matches");
+}
+
+export async function getDonorDashboard() {
+  return api.get("/api/donors/dashboard");
 }
 
 export async function respondToMatch(matchId, action) {

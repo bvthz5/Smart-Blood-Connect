@@ -6,6 +6,11 @@ from .utils import generate_otp, otp_hash, verify_otp, hash_password, verify_pas
 from flask_jwt_extended import create_access_token, create_refresh_token, decode_token
 import logging
 from app.config.email_config import EmailConfig
+from app.services.email_service import email_service
+from app.services.sms_service import sms_service
+
+import re
+from sqlalchemy import func
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = logging.getLogger(__name__)
@@ -15,9 +20,22 @@ def register():
     data = request.get_json() or {}
     phone = data.get("phone")
     password = data.get("password")
-    name = data.get("name")
+    name = (data.get("name") or "").strip()
     email = data.get("email")
     blood_group = data.get("blood_group")
+    dob_str = data.get("date_of_birth")
+
+    # Validate DOB: must be at least 18 years old
+    if not dob_str:
+        return jsonify({"error": "date_of_birth is required"}), 400
+    try:
+        dob = datetime.fromisoformat(dob_str).date() if isinstance(dob_str, str) else dob_str
+    except Exception:
+        return jsonify({"error": "Invalid date_of_birth format. Use YYYY-MM-DD."}), 400
+    today = datetime.utcnow().date()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    if age < 18:
+        return jsonify({"error": "You must be at least 18 years old to register as a donor."}), 400
 
     if not phone or not password:
         return jsonify({"error":"phone and password required"}), 400
@@ -26,13 +44,16 @@ def register():
     if User.query.filter((User.phone==phone)|(User.email==email)).first():
         return jsonify({"error":"user with phone/email exists"}), 409
 
+    # Split name into first/last
+    first_name, last_name = (name.split(" ", 1) + [""])[:2] if name else ("Donor", "")
+
     pw_hash = hash_password(password)
-    user = User(name=name, email=email, phone=phone, password_hash=pw_hash, role="donor", is_verified=False)
+    user = User(first_name=first_name, last_name=last_name, email=email, phone=phone, password_hash=pw_hash, role="donor", status="active")
     db.session.add(user)
     db.session.commit()
 
     # donor profile
-    donor = Donor(user_id=user.id, blood_group=blood_group)
+    donor = Donor(user_id=user.id, blood_group=blood_group, date_of_birth=dob)
     db.session.add(donor)
     db.session.commit()
 
@@ -44,11 +65,17 @@ def register():
     db.session.add(otp_sess)
     db.session.commit()
 
-    # Only log OTP in development environment for debugging
-    if current_app.config.get('DEBUG', False):
-        logger.info(f"DEV OTP for {phone}: {otp}")
-    else:
-        logger.info(f"OTP sent to {phone}")
+    # Attempt to send initial OTP via SMS if Twilio is configured; otherwise log in DEBUG
+    sent_initial = False
+    try:
+        ttl_min = int(current_app.config.get("ACCESS_EXPIRES_MINUTES", 5))
+        sent_initial = sms_service.send_sms(phone, f"SmartBlood OTP: {otp}. Valid {ttl_min} min. Do not share.")
+    except Exception as e:
+        current_app.logger.error(f"Initial SMS send error: {e}")
+        sent_initial = False
+
+    if not sent_initial and current_app.config.get('DEBUG', False):
+        logger.info(f"[DEV ONLY] Initial OTP for {phone}: {otp}")
 
     return jsonify({"user_id": user.id, "pending_otp": True, "masked_phone": (phone[:-4].replace(phone[:-4], "*"*max(0, len(phone[:-4]))) + phone[-4:])}), 201
 
@@ -82,35 +109,64 @@ def login():
     data = request.get_json() or {}
     ident = data.get("email_or_phone")
     password = data.get("password")
-    user = None
-    if "@" in (ident or ""):
+
+    if not ident or not password:
+        return jsonify({"error": "email_or_phone and password required"}), 400
+
+    # Find user by email or phone
+    if "@" in ident:
         user = User.query.filter_by(email=ident).first()
     else:
         user = User.query.filter_by(phone=ident).first()
+
+    # Validate credentials
     if not user or not verify_password(password, user.password_hash):
-        return jsonify({"error":"invalid credentials"}), 401
-    
-    # Check if user is deleted
+        return jsonify({"error": "invalid credentials"}), 401
+
+    # Enforce donor role for this endpoint
+    if user.role != "donor":
+        return jsonify({"error": "not a donor account"}), 403
+
+    # Account status checks
     if user.status == 'deleted':
         return jsonify({
             "error": "account deleted",
             "message": "This account has been permanently deleted. Please contact support or create a new account."
         }), 403
-    
-    # Check if user is blocked
     if user.status == 'blocked':
         return jsonify({
             "error": "account blocked",
             "message": "Your account has been blocked. Please contact support for assistance."
         }), 403
-    
-    if not user.is_phone_verified:
-        return jsonify({"error":"not verified"}), 403
 
-    access = create_access_token(identity=user.id, expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
-    refresh = create_refresh_token(identity=user.id, expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
-    # TODO: Implement refresh token storage with new schema
-    return jsonify({"access_token": access, "refresh_token": refresh, "user": {"id": user.id, "name": user.first_name}})
+    # Require active accounts only
+    if user.status != 'active':
+        return jsonify({"error": "account not active"}), 403
+
+    # Phone verification is mandatory
+    if not user.is_phone_verified:
+        return jsonify({"error": "phone not verified"}), 403
+
+    # If logging in with email, require email verification
+    if "@" in ident and not user.is_email_verified:
+        return jsonify({"error": "email not verified"}), 403
+
+    # Issue tokens
+    access = create_access_token(identity=str(user.id), expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
+    refresh = create_refresh_token(identity=str(user.id), expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
+
+    # Basic user info in response
+    return jsonify({
+        "access_token": access,
+        "refresh_token": refresh,
+        "user": {
+            "id": user.id,
+            "name": user.first_name,
+            "role": user.role,
+            "email": user.email,
+            "phone": user.phone
+        }
+    })
 
 @auth_bp.route("/seeker-login", methods=["POST"])
 def seeker_login():
@@ -118,33 +174,33 @@ def seeker_login():
     data = request.get_json() or {}
     ident = data.get("email_or_phone")
     password = data.get("password")
-    
+
     if not ident or not password:
         return jsonify({"error": "email_or_phone and password required"}), 400
-    
+
     user = None
     if "@" in ident:
         user = User.query.filter_by(email=ident).first()
     else:
         user = User.query.filter_by(phone=ident).first()
-    
+
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "invalid credentials"}), 401
-    
+
     # Check if user is deleted
     if user.status == 'deleted':
         return jsonify({
             "error": "account deleted",
             "message": "This account has been permanently deleted. Please contact support or create a new account."
         }), 403
-    
+
     # Check if user is blocked
     if user.status == 'blocked':
         return jsonify({
             "error": "account blocked",
             "message": "Your account has been blocked. Please contact support for assistance."
         }), 403
-    
+
     if not user.is_phone_verified:
         return jsonify({"error": "account not verified"}), 403
 
@@ -157,11 +213,11 @@ def seeker_login():
         return jsonify({"error": "staff profile not found"}), 403
     if staff.status != "active":
         return jsonify({"error": "staff account is not active"}), 403
-    
+
     # Create tokens
-    access = create_access_token(identity=user.id, expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
-    refresh = create_refresh_token(identity=user.id, expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
-    
+    access = create_access_token(identity=str(user.id), expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15)))
+    refresh = create_refresh_token(identity=str(user.id), expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7)))
+
     # Update last login timestamp
     try:
         user.last_login = datetime.utcnow()
@@ -170,10 +226,10 @@ def seeker_login():
         db.session.rollback()
 
     return jsonify({
-        "access_token": access, 
-        "refresh_token": refresh, 
+        "access_token": access,
+        "refresh_token": refresh,
         "user": {
-            "id": user.id, 
+            "id": user.id,
             "name": user.first_name,
             "role": user.role,
             "email": user.email,
@@ -197,7 +253,7 @@ def forgot_password():
         user = User.query.filter_by(email=ident).first()
     else:
         user = User.query.filter_by(phone=ident).first()
-    
+
     if user:
         # Email-based reset: send a time-limited reset link
         if "@" in ident:
@@ -215,7 +271,7 @@ def forgot_password():
         else:
             # For phone numbers, log the request (SMS not implemented)
             logger.info(f"Password reset requested for phone {ident}")
-    
+
     # Always return generic response for security
     return jsonify({"message": "If account exists, password reset instructions have been sent"}), 200
 
@@ -233,11 +289,11 @@ def reset_password():
         return jsonify({"error": "invalid or expired token"}), 400
     if decoded.get("type") != "access":
         return jsonify({"error": "invalid token type"}), 400
-    
+
     # Check for 'pr' claim in both claims object and main token body
     claims = decoded.get("claims") or {}
     pr_claim = claims.get("pr") or decoded.get("pr")
-    
+
     if pr_claim != "reset":
         return jsonify({"error": "invalid reset token"}), 400
     user_id = decoded.get("sub")
@@ -292,5 +348,136 @@ def change_password():
     return jsonify({"message":"password changed"}), 200
 
 @auth_bp.route("/change-password", methods=["OPTIONS"])
+
+@auth_bp.route("/send-contact-otp", methods=["POST"])
+def send_contact_otp():
+    """Send OTP to a user's email or phone for verification.
+    Body: { user_id, channel: "email"|"phone", destination? }
+    If destination not provided, uses user's current email/phone.
+    """
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    channel = (data.get("channel") or "").lower()
+    destination = data.get("destination")
+
+    if channel not in ("email", "phone"):
+        return jsonify({"error": "invalid channel"}), 400
+    try:
+        user_id = int(user_id)
+    except Exception:
+        return jsonify({"error": "invalid user_id"}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "user not found"}), 404
+
+    if channel == "email":
+        dest = destination or user.email
+        if not dest:
+            return jsonify({"error": "email not set"}), 400
+    else:
+        dest = destination or user.phone
+        if not dest:
+            return jsonify({"error": "phone not set"}), 400
+
+    # Generate and persist OTP session
+    code = generate_otp()
+    code_h = otp_hash(code)
+    expires = datetime.utcnow() + timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15))
+    sess = OTPSession(user_id=user.id, channel=channel, destination=dest, otp_hash=code_h, expires_at=expires)
+    db.session.add(sess)
+    db.session.commit()
+
+    # Send via channel: try real send first; if it fails and DEBUG is on, log and succeed with debug_code
+    sent = False
+    try:
+        if channel == "email":
+            sent = email_service.send_verification_code_email(dest, code, getattr(user, 'first_name', 'User'))
+        else:
+            ttl_min = int(current_app.config.get("RESET_EXPIRES_MINUTES", 15))
+            sent = sms_service.send_sms(dest, f"SmartBlood OTP: {code}. Valid {ttl_min} min. Do not share.")
+    except Exception as e:
+        current_app.logger.error(f"OTP send error via {channel} to {dest}: {e}")
+        sent = False
+
+    if not sent:
+        if current_app.config.get('DEBUG', False):
+            current_app.logger.info(f"[DEV ONLY] OTP for {channel}:{dest} -> {code}")
+        else:
+            return jsonify({"error": "failed to send otp"}), 500
+
+    # Mask destination in response
+    def mask_email(e):
+        try:
+            name, domain = e.split("@", 1)
+            return f"{name[0]}***@{domain}"
+        except Exception:
+            return "***"
+    def mask_phone(p):
+        return (p[:-4].replace(p[:-4], "*"*max(0, len(p[:-4]))) + p[-4:]) if isinstance(p, str) and len(p) >= 4 else "****"
+
+    masked = mask_email(dest) if channel == "email" else mask_phone(dest)
+    resp = {"message": "otp sent", "channel": channel, "masked": masked, "expires_in": int((expires - datetime.utcnow()).total_seconds())}
+    if current_app.config.get('DEBUG', False):
+        resp["debug_code"] = code
+        resp["twilio_sent"] = bool(sent)
+    return jsonify(resp), 200
+
+
+@auth_bp.route("/verify-email-otp", methods=["POST"])
+def verify_email_otp():
+    """Verify latest email OTP for a user and mark email verified."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    otp = data.get("otp")
+    try:
+        user_id = int(user_id)
+    except Exception:
+        return jsonify({"error": "invalid user_id"}), 400
+
+    sess = OTPSession.query.filter_by(user_id=user_id, channel="email", used=False).order_by(OTPSession.created_at.desc()).first()
+    if not sess:
+        return jsonify({"error": "no otp session"}), 400
+    if sess.expires_at < datetime.utcnow():
+        return jsonify({"error": "otp expired"}), 400
+    if not verify_otp(otp or "", sess.otp_hash):
+        sess.attempts_left = (sess.attempts_left or 0) + 1
+        db.session.commit()
+        return jsonify({"error": "invalid otp"}), 400
+
+    sess.used = True
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "user not found"}), 404
+    user.is_email_verified = True
+    db.session.commit()
+    return jsonify({"message": "email verified"}), 200
+
 def change_password_options():
     return jsonify({}), 200
+
+
+@auth_bp.route("/check-availability", methods=["POST"])
+def check_availability():
+    """Check if email or phone already exist. Public endpoint for live validation."""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    phone_raw = (data.get("phone") or "").strip()
+
+    email_exists = False
+    phone_exists = False
+
+    # Email check (case-insensitive)
+    if email:
+        existing = db.session.query(User.id).filter(func.lower(User.email) == email).first()
+        email_exists = existing is not None
+
+    # Phone check: accept 10-digit; match common stored variants (+91, 91, 0 prefix)
+    if phone_raw:
+        digits = re.sub(r"\D", "", phone_raw)
+        if digits:
+            candidates = [digits, "+91" + digits, "91" + digits, "0" + digits]
+            existing = db.session.query(User.id).filter(User.phone.in_(candidates)).first()
+            phone_exists = existing is not None
+
+    return jsonify({"email_exists": email_exists, "phone_exists": phone_exists}), 200

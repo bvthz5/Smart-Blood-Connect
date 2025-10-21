@@ -1,11 +1,34 @@
 from flask import Blueprint, jsonify, request, current_app
 from app.extensions import db
-from app.models import User, Donor, Match, DonationHistory
+from app.models import User, Donor, Match, DonationHistory, Hospital
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.utils.id_encoder import encode_id, decode_id, IDEncodingError
 
 donor_bp = Blueprint("donor", __name__, url_prefix="/api/donors")
+
+
+# Helper to validate current donor identity (role=donor, status=active) and fetch user+donor
+from flask import jsonify
+
+def _get_current_donor():
+    uid = get_jwt_identity()
+    try:
+        uid = int(uid)
+    except Exception:
+        return None, None, (jsonify({"error": "invalid token"}), 401)
+
+    user = User.query.get(uid)
+    if not user:
+        return None, None, (jsonify({"error": "user not found"}), 404)
+    if user.role != "donor" or user.status != "active":
+        return None, None, (jsonify({"error": "forbidden"}), 403)
+
+    donor = Donor.query.filter_by(user_id=uid).first()
+    if not donor:
+        return None, None, (jsonify({"error": "donor profile not found"}), 404)
+
+    return user, donor, None
 
 
 @donor_bp.route("/profile/<encoded_id>", methods=["GET"])
@@ -15,17 +38,17 @@ def get_profile_by_id(encoded_id):
     try:
         # Decode the ID
         donor_id = decode_id(encoded_id)
-        
+
         # Find the donor
         donor = Donor.query.get(donor_id)
         if not donor:
             return jsonify({"error": "Donor not found"}), 404
-            
+
         # Get user info
         user = User.query.get(donor.user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
-            
+
         return jsonify({
             "id": encode_id(user.id),
             "donor_id": encode_id(donor.id),
@@ -37,7 +60,7 @@ def get_profile_by_id(encoded_id):
             "last_donation_date": donor.last_donation_date.isoformat() if donor.last_donation_date else None,
             "reliability_score": donor.reliability_score
         })
-        
+
     except IDEncodingError as e:
         return jsonify({"error": f"Invalid ID format: {str(e)}"}), 400
     except Exception as e:
@@ -48,76 +71,122 @@ def get_profile_by_id(encoded_id):
 @donor_bp.route("/me", methods=["GET"])
 @jwt_required()
 def get_me():
-    uid = get_jwt_identity()
-    user = User.query.get(uid)
-    donor = Donor.query.filter_by(user_id=uid).first()
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
     return jsonify({
-        "id": encode_id(user.id) if user else None,
-        "donor_id": encode_id(donor.id) if donor else None,
+        "id": encode_id(user.id),
+        "donor_id": encode_id(donor.id),
         "name": f"{user.first_name} {user.last_name or ''}".strip(),
         "email": user.email,
         "phone": user.phone,
-        "blood_group": donor.blood_group if donor else None,
-        "availability_status": "available" if donor and donor.is_available else "unavailable",
-        "last_donation_date": donor.last_donation_date.isoformat() if donor and donor.last_donation_date else None
+        "blood_group": donor.blood_group,
+        "availability_status": "available" if donor.is_available else "unavailable",
+        "last_donation_date": donor.last_donation_date.isoformat() if donor.last_donation_date else None
     })
 
 @donor_bp.route("/me", methods=["PUT"])
 @jwt_required()
 def update_me():
-    uid = get_jwt_identity()
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
     data = request.get_json() or {}
-    user = User.query.get(uid)
-    donor = Donor.query.filter_by(user_id=uid).first()
     user.first_name = data.get("name", user.first_name)
     donor.blood_group = data.get("blood_group", donor.blood_group)
     donor.location_lat = data.get("location_lat", donor.location_lat)
     donor.location_lng = data.get("location_lon", donor.location_lng)
+
+    # Optional: allow setting date_of_birth but enforce 18+
+    dob_str = data.get("date_of_birth")
+    if dob_str:
+        try:
+            dob = datetime.fromisoformat(dob_str).date()
+        except Exception:
+            return jsonify({"error": "Invalid date_of_birth format. Use YYYY-MM-DD."}), 400
+        today = datetime.utcnow().date()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        if age < 18:
+            return jsonify({"error": "You must be at least 18 years old to register as a donor."}), 400
+        donor.date_of_birth = dob
+
     db.session.commit()
     return jsonify({"message":"profile updated"})
 
 @donor_bp.route("/availability", methods=["POST"])
 @jwt_required()
 def set_availability():
-    uid = get_jwt_identity()
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
     data = request.get_json() or {}
-    status = data.get("status")
-    donor = Donor.query.filter_by(user_id=uid).first()
-    donor.is_available = status.lower() == "available"
+    status = (data.get("status") or "").lower()
+    donor.is_available = status == "available"
     db.session.commit()
     return jsonify({"status": "available" if donor.is_available else "unavailable"})
 
 @donor_bp.route("/dashboard", methods=["GET"])
 @jwt_required()
 def dashboard():
-    uid = get_jwt_identity()
-    donor = Donor.query.filter_by(user_id=uid).first()
-    active_matches = Match.query.filter_by(donor_id=donor.id, status="notified").count()
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
+
+    # Active matches (pending)
+    active_matches = Match.query.filter_by(donor_id=donor.id, status="pending").count()
+
+    # Donation metrics
+    total_donations = DonationHistory.query.filter_by(donor_id=donor.id).count()
+    last_donation = DonationHistory.query.filter_by(donor_id=donor.id).order_by(DonationHistory.donation_date.desc()).first()
+    last_donation_date = last_donation.donation_date.isoformat() if last_donation else None
+    last_hospital_name = None
+    if last_donation and last_donation.hospital_id:
+        hosp = Hospital.query.get(last_donation.hospital_id)
+        last_hospital_name = hosp.name if hosp else None
+
+    # Eligibility: 56 days after last donation
+    eligible_date = None
+    eligible_in_days = 0
+    if last_donation and last_donation.donation_date:
+        try:
+            next_eligible = last_donation.donation_date + timedelta(days=56)
+            eligible_date = next_eligible.date().isoformat()
+            delta = (next_eligible - datetime.utcnow())
+            eligible_in_days = max(0, (delta.days if delta.days is not None else 0))
+        except Exception:
+            eligible_date = None
+            eligible_in_days = 0
+
     return jsonify({
+        "name": f"{user.first_name} {user.last_name or ''}".strip(),
+        "blood_group": donor.blood_group,
         "availability_status": "available" if donor.is_available else "unavailable",
         "reliability_score": donor.reliability_score,
-        "last_donation_date": donor.last_donation_date.isoformat() if donor.last_donation_date else None,
-        "active_matches_count": active_matches
+        "active_matches_count": active_matches,
+        "total_donations": total_donations,
+        "last_donation_date": last_donation_date,
+        "last_donated_to": last_hospital_name,
+        "eligible_date": eligible_date,
+        "eligible_in_days": eligible_in_days
     })
 
 @donor_bp.route("/matches", methods=["GET"])
 @jwt_required()
 def list_matches():
-    uid = get_jwt_identity()
-    donor = Donor.query.filter_by(user_id=uid).first()
-    if not donor:
-        return jsonify({"error": "donor profile not found"}), 404
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
     # list pending or recent matches
-    q = Match.query.filter_by(donor_id=donor.id).order_by(Match.notified_at.desc()).limit(50)
+    q = Match.query.filter_by(donor_id=donor.id).order_by(Match.matched_at.desc()).limit(50)
     rows = []
     for m in q:
         rows.append({
             "match_id": m.id,
             "request_id": m.request_id,
-            "score": m.match_score,
+            "score": None,
             "response": m.status,
-            "response_at": m.responded_at.isoformat() if m.responded_at else None,
-            "notified_at": m.notified_at.isoformat() if m.notified_at else None
+            "response_at": (m.confirmed_at.isoformat() if m.confirmed_at else (m.completed_at.isoformat() if m.completed_at else None)),
+            "notified_at": m.matched_at.isoformat() if m.matched_at else None
         })
     return jsonify(rows)
 
@@ -129,10 +198,9 @@ def respond_to_match():
     Atomic: update match record, set response and response_at.
     If accepted -> optionally set request.status = 'matched' (first accepted)
     """
-    uid = get_jwt_identity()
-    donor = Donor.query.filter_by(user_id=uid).first()
-    if not donor:
-        return jsonify({"error": "donor profile not found"}), 404
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
 
     data = request.get_json() or {}
     match_id = data.get("match_id")
@@ -143,24 +211,21 @@ def respond_to_match():
     mr = Match.query.with_for_update().filter_by(id=match_id, donor_id=donor.id).first()
     if not mr:
         return jsonify({"error":"match not found"}), 404
-    if mr.status != "notified":
+    if mr.status != "pending":
         return jsonify({"error":"already responded"}), 409
 
     try:
         # atomic update
         mr.status = "accepted" if action == "accept" else "declined"
-        mr.responded_at = datetime.utcnow()
+        mr.confirmed_at = datetime.utcnow()
         db.session.add(mr)
 
         if action == "accept":
             # set request status to 'matched' if not already
             req = mr.request
-            if req.status != "fulfilled" and req.status != "matched":
+            if req and req.status not in ("fulfilled", "matched"):
                 req.status = "matched"
                 db.session.add(req)
-            # optional: create donation_history placeholder
-            dh = DonationHistory(donor_id=donor.id, request_id=req.id, donated_at=None, units=0)
-            db.session.add(dh)
         db.session.commit()
     except Exception as e:
         db.session.rollback()

@@ -22,33 +22,33 @@ class EmailService:
             current_app.logger.info(f"[EMAIL SERVICE] SMTP Server: {self.smtp_server}:{self.smtp_port}")
             current_app.logger.info(f"[EMAIL SERVICE] Sender: {self.sender_email}")
             current_app.logger.info(f"[EMAIL SERVICE] User name: {user_name}")
-            
+
             subject = EmailConfig.RESET_SUBJECT if hasattr(EmailConfig, 'RESET_SUBJECT') else "SmartBlood - Password Reset"
             html_content = self._create_password_reset_html(user_name, reset_link)
             text_content = self._create_password_reset_text(user_name, reset_link)
-            
+
             # Create message
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
             message["From"] = f"{self.sender_name} <{self.sender_email}>"
             message["To"] = recipient_email
-            
+
             # Add both text and HTML parts
             text_part = MIMEText(text_content, "plain")
             html_part = MIMEText(html_content, "html")
-            
+
             message.attach(text_part)
             message.attach(html_part)
-            
+
             current_app.logger.info(f"[EMAIL SERVICE] Message created, preparing to send")
-            
+
             # Send email with proper TLS/SSL handling
             context = ssl.create_default_context()
             use_ssl = getattr(EmailConfig, 'SMTP_USE_SSL', False)
             use_tls = getattr(EmailConfig, 'SMTP_USE_TLS', True)
-            
+
             current_app.logger.info(f"[EMAIL SERVICE] SSL: {use_ssl}, TLS: {use_tls}")
-            
+
             if use_ssl:
                 current_app.logger.info(f"[EMAIL SERVICE] Using SMTP_SSL on port {self.smtp_port}")
                 with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context, timeout=20) as server:
@@ -72,10 +72,10 @@ class EmailService:
                     current_app.logger.info(f"[EMAIL SERVICE] Login successful")
                     server.sendmail(self.sender_email, recipient_email, message.as_string())
                     current_app.logger.info(f"[EMAIL SERVICE] Email sent successfully")
-            
+
             current_app.logger.info(f"Password reset email sent to {recipient_email}")
             return True
-            
+
         except smtplib.SMTPAuthenticationError as e:
             current_app.logger.error(f"[EMAIL SERVICE] SMTP Authentication failed: {str(e)}")
             return False
@@ -155,20 +155,20 @@ class EmailService:
                     <div class="logo">🩸 SmartBlood</div>
                     <div class="subtitle">Password Reset</div>
                 </div>
-                
+
                 <div class="content">
                     <p>Dear {user_name},</p>
                     <p>We received a request to reset your SmartBlood account password. Click the button below to continue.</p>
-                    
+
                     <div style="text-align: left;">
                         <a href="{reset_link}" class="reset-button">Reset Password</a>
                     </div>
-                    
+
                     <p>If the button doesn't work, copy and paste this link in your browser:</p>
                     <div class="reset-link">{reset_link}</div>
                     <p style="color:#666; font-size:12px;">This link expires in {expiry} minutes. If you didn't request this, you can ignore this email.</p>
                 </div>
-                
+
                 <div class="footer"> 2025 SmartBlood</div>
             </div>
         </body>
@@ -194,36 +194,91 @@ If you didn't request this, you can ignore this email.
         """Send OTP via email for password reset"""
         try:
             subject = "Password Reset OTP - SmartBlood Admin"
-            
+
             html_content = self._create_otp_html(user_name, otp)
             text_content = self._create_otp_text(user_name, otp)
-            
+
             # Create message
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
             message["From"] = f"{self.sender_name} <{self.sender_email}>"
             message["To"] = recipient_email
-            
+
             # Add both text and HTML parts
             text_part = MIMEText(text_content, "plain")
             html_part = MIMEText(html_content, "html")
-            
+
             message.attach(text_part)
             message.attach(html_part)
-            
+
             # Send email
             context = ssl.create_default_context()
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 server.starttls(context=context)
                 server.login(self.sender_email, self.sender_password)
                 server.sendmail(self.sender_email, recipient_email, message.as_string())
-            
+
             current_app.logger.info(f"OTP email sent to {recipient_email}")
             return True
-            
+
         except Exception as e:
             current_app.logger.error(f"Failed to send OTP email to {recipient_email}: {str(e)}")
             return False
+
+    def send_verification_code_email(self, recipient_email, otp, user_name="User"):
+        """Send generic email verification code (separate from password reset)"""
+        try:
+            subject = "Verify your email - SmartBlood"
+            html_content = f"""
+            <!DOCTYPE html>
+            <html><body style='font-family:Segoe UI,Tahoma,Arial,sans-serif'>
+            <div style='max-width:560px;margin:auto;background:#ffffff;border-radius:10px;padding:24px;border:1px solid #eee'>
+                <h2 style='margin:0 0 8px;color:#111'>Verify your email</h2>
+                <p style='color:#444;margin:0 0 12px'>Hello {user_name},</p>
+                <p style='color:#444;margin:0 0 12px'>Use the following verification code to confirm your email address:</p>
+                <div style='font-size:28px;letter-spacing:4px;font-weight:700;background:#f4f6ff;border:1px dashed #c7d2fe;color:#374151;padding:16px 20px;text-align:center;border-radius:8px;margin:16px 0'>
+                    {otp}
+                </div>
+                <p style='color:#666;margin:12px 0 0'>This code will expire in {int(current_app.config.get('RESET_EXPIRES_MINUTES', 15))} minutes. Do not share it with anyone.</p>
+            </div>
+            </body></html>
+            """
+            text_content = f"""
+SmartBlood - Email Verification Code
+
+Hello {user_name},
+
+Your verification code is: {otp}
+
+This code expires in {int(current_app.config.get('RESET_EXPIRES_MINUTES', 15))} minutes.
+Do not share it with anyone.
+"""
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = f"{self.sender_name} <{self.sender_email}>"
+            message["To"] = recipient_email
+            text_part = MIMEText(text_content, "plain")
+            html_part = MIMEText(html_content, "html")
+            message.attach(text_part)
+            message.attach(html_part)
+
+            context = ssl.create_default_context()
+            if getattr(EmailConfig, 'SMTP_USE_SSL', False):
+                with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context, timeout=20) as server:
+                    server.login(self.sender_email, self.sender_password)
+                    server.sendmail(self.sender_email, recipient_email, message.as_string())
+            else:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=20) as server:
+                    if getattr(EmailConfig, 'SMTP_USE_TLS', True):
+                        server.starttls(context=context)
+                    server.login(self.sender_email, self.sender_password)
+                    server.sendmail(self.sender_email, recipient_email, message.as_string())
+            current_app.logger.info(f"Verification email sent to {recipient_email}")
+            return True
+        except Exception as e:
+            current_app.logger.error(f"Failed to send verification email to {recipient_email}: {str(e)}")
+            return False
+
 
     def _create_otp_html(self, user_name, otp):
         """Create HTML email template for OTP"""
@@ -289,15 +344,15 @@ If you didn't request this, you can ignore this email.
                 <div class="header">
                     <div class="logo">🩸 SmartBlood Admin</div>
                 </div>
-                
+
                 <div class="content">
                     <h2>Password Reset OTP</h2>
                     <p>Hello {user_name},</p>
-                    
+
                     <p>Use the following OTP to reset your password:</p>
-                    
+
                     <div class="otp-code">{otp}</div>
-                    
+
                     <div class="warning">
                         <strong>⚠️ Important:</strong>
                         <ul>
