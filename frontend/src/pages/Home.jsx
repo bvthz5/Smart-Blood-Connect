@@ -49,12 +49,12 @@ function StatsSection({ language }) {
       } catch (err) {
         console.error('Error fetching stats:', err)
         setError(err)
-        // Fallback to default values
+        // Set to 0 instead of dummy values
         setCounts({
-          donors: 12458,
-          units: 8732,
-          hospitals: 245,
-          districts: 14
+          donors: 0,
+          units: 0,
+          hospitals: 0,
+          districts: 0
         })
       } finally {
         setLoading(false)
@@ -984,31 +984,39 @@ function EmergencyPreparednessSection({ language }) {
 // Component for About Section
 function AboutSection({ language }) {
   const [aboutStats, setAboutStats] = useState({
-    livesSaved: 500,
-    partnerHospitals: 50,
+    livesSaved: 0,
+    partnerHospitals: 0,
     support: '24/7'
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   // Fetch about stats from backend
   useEffect(() => {
     const fetchAboutStats = async () => {
       try {
         setLoading(true)
+        setError(null)
         
         const response = await import('../services/homepageService')
         const stats = await response.getCachedHomepageStats()
         
         if (stats) {
           setAboutStats({
-            livesSaved: stats.lives_saved || 500,
-            partnerHospitals: stats.active_hospitals || 50,
+            livesSaved: stats.lives_saved || 0,
+            partnerHospitals: stats.active_hospitals || 0,
             support: '24/7'
           })
         }
       } catch (err) {
         console.error('Error fetching about stats:', err)
-        // Keep default values
+        setError(err.message)
+        // Set to 0 instead of dummy values
+        setAboutStats({
+          livesSaved: 0,
+          partnerHospitals: 0,
+          support: '24/7'
+        })
       } finally {
         setLoading(false)
       }

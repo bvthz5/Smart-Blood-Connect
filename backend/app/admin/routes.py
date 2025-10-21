@@ -985,8 +985,14 @@ def get_hospital_by_id(hospital_id):
             "address": hospital.address,
             "district": hospital.district,
             "city": hospital.city,
+            "state": hospital.state,
+            "pincode": hospital.pincode,
             "license_number": hospital.license_number,
             "is_verified": hospital.is_verified,
+            "is_active": hospital.is_active,
+            "featured": hospital.featured,
+            "next_camp_date": hospital.next_camp_date.isoformat() if hospital.next_camp_date else None,
+            "image_url": hospital.image_url,
             "created_at": hospital.created_at.isoformat() if hospital.created_at else None,
             "updated_at": hospital.updated_at.isoformat() if hospital.updated_at else None,
             "staff_status": staff_status
@@ -997,6 +1003,7 @@ def get_hospital_by_id(hospital_id):
             staff_user = hospital.staff_relation.user
             hospital_data["staff"] = {
                 "id": staff_user.id,
+                "hospital_staff_id": hospital.staff_relation.id,
                 "first_name": staff_user.first_name,
                 "last_name": staff_user.last_name,
                 "email": staff_user.email,
@@ -1049,6 +1056,8 @@ def create_hospital():
             address=data['address'],
             district=data['district'],
             city=data['city'],
+            state=data.get('state'),
+            pincode=data.get('pincode'),
             license_number=data.get('license_number', ''),
             is_verified=data.get('is_verified', False)
         )
@@ -1110,10 +1119,32 @@ def update_hospital(hospital_id):
             hospital.district = data['district']
         if 'city' in data:
             hospital.city = data['city']
+        if 'state' in data:
+            hospital.state = data['state']
+        if 'pincode' in data:
+            hospital.pincode = data['pincode']
         if 'license_number' in data:
             hospital.license_number = data['license_number']
         if 'is_verified' in data:
             hospital.is_verified = data['is_verified']
+        if 'is_active' in data:
+            hospital.is_active = data['is_active']
+        if 'featured' in data:
+            hospital.featured = data['featured']
+        if 'next_camp_date' in data:
+            from datetime import datetime
+            if data['next_camp_date'] and data['next_camp_date'].strip():
+                try:
+                    # Handle different date formats
+                    date_str = data['next_camp_date'].split('T')[0]  # Get YYYY-MM-DD part
+                    hospital.next_camp_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                except Exception as date_error:
+                    print(f"WARNING: Date parsing error: {str(date_error)}")
+                    hospital.next_camp_date = None
+            else:
+                hospital.next_camp_date = None
+        if 'image_url' in data:
+            hospital.image_url = data['image_url']
         
         db.session.commit()
         
@@ -1121,7 +1152,10 @@ def update_hospital(hospital_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to update hospital"}), 500
+        print(f"ERROR: Error updating hospital: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e) or "Failed to update hospital"}), 500
 
 
 @admin_bp.route("/hospitals/<int:hospital_id>", methods=["DELETE"])
@@ -1181,23 +1215,45 @@ def get_hospital_staff(hospital_id):
         hospital_staff_records = HospitalStaff.query.filter_by(hospital_id=hospital_id).all()
         
         staff_data = []
+        active_staff = None
+        old_staff = []
+        
         for hs_record in hospital_staff_records:
             user = hs_record.user
             if user:
-                staff_data.append({
+                # Determine if this is the active staff or old staff
+                is_active_staff = (user.status == "active" and hs_record.status == "active")
+                
+                staff_info = {
                     "id": user.id,
                     "hospital_staff_id": hs_record.id,
                     "name": f"{user.first_name} {user.last_name or ''}".strip(),
+                    "first_name": user.first_name,
+                    "last_name": user.last_name or '',
                     "email": user.email or 'N/A',
                     "phone": user.phone,
                     "user_status": user.status,  # active, inactive, blocked, deleted
-                    "staff_status": hs_record.status,  # pending, active, rejected
+                    "staff_status": hs_record.status,  # pending, active, rejected, blocked, deleted
+                    "is_active_staff": is_active_staff,  # True for current active staff, False for old staff
                     "invited_by": hs_record.invited_by,
                     "created_at": hs_record.created_at.isoformat() if hs_record.created_at else None,
                     "last_login": user.last_login.isoformat() if user.last_login else None
-                })
+                }
+                
+                staff_data.append(staff_info)
+                
+                # Separate active staff from old staff
+                if is_active_staff:
+                    active_staff = staff_info
+                else:
+                    old_staff.append(staff_info)
         
-        return jsonify({"staff": staff_data, "total": len(staff_data)}), 200
+        return jsonify({
+            "staff": staff_data,
+            "active_staff": active_staff,  # Current active staff (only one)
+            "old_staff": old_staff,  # Previous staff (blocked/deleted)
+            "total": len(staff_data)
+        }), 200
         
     except Exception as e:
         return jsonify({"error": "Failed to fetch hospital staff"}), 500
@@ -1207,7 +1263,9 @@ def get_hospital_staff(hospital_id):
 @jwt_required()
 def block_hospital_staff(hospital_id, staff_id):
     """
-    Block or unblock a hospital staff member (updates user status)
+    Block or unblock a hospital staff member
+    When blocked: Hospital is automatically unverified (no active staff)
+    When unblocked: Hospital is automatically verified (has active staff)
     """
     try:
         # Verify admin user
@@ -1216,6 +1274,11 @@ def block_hospital_staff(hospital_id, staff_id):
         
         if not admin_user:
             return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get hospital
+        hospital = Hospital.query.get(hospital_id)
+        if not hospital:
+            return jsonify({"error": "Hospital not found"}), 404
         
         # Get staff user through HospitalStaff
         from app.models import HospitalStaff
@@ -1227,19 +1290,31 @@ def block_hospital_staff(hospital_id, staff_id):
         
         # Toggle user status
         if user.status == "blocked":
+            # Unblocking staff
             user.status = "active"
+            hs_record.status = "active"
+            hospital.is_verified = True  # Auto-verify hospital when staff is unblocked
+            message = "Staff member unblocked successfully. Hospital is now verified."
+            print(f"SUCCESS: Staff {user.email} unblocked - Hospital {hospital.name} verified")
         else:
+            # Blocking staff
             user.status = "blocked"
+            hs_record.status = "blocked"
+            hospital.is_verified = False  # Auto-unverify hospital when staff is blocked
+            message = "Staff member blocked successfully. Hospital is now unverified."
+            print(f"INFO: Staff {user.email} blocked - Hospital {hospital.name} unverified")
         
         db.session.commit()
         
         return jsonify({
-            "message": f"Staff member {'blocked' if user.status == 'blocked' else 'unblocked'} successfully",
-            "user_status": user.status
+            "message": message,
+            "user_status": user.status,
+            "hospital_verified": hospital.is_verified
         }), 200
         
     except Exception as e:
         db.session.rollback()
+        print(f"ERROR: Error blocking/unblocking staff: {str(e)}")
         return jsonify({"error": "Failed to update staff status"}), 500
 
 
@@ -1247,7 +1322,11 @@ def block_hospital_staff(hospital_id, staff_id):
 @jwt_required()
 def delete_hospital_staff(hospital_id, staff_id):
     """
-    Delete a hospital staff member (removes HospitalStaff record, optionally marks user as deleted)
+    Soft delete a hospital staff member
+    - Marks user as deleted (permanently restricted from system)
+    - Marks HospitalStaff record as deleted
+    - Auto-unverifies hospital (no active staff)
+    - Staff cannot login anymore
     """
     try:
         # Verify admin user
@@ -1257,26 +1336,51 @@ def delete_hospital_staff(hospital_id, staff_id):
         if not admin_user:
             return jsonify({"error": "Unauthorized"}), 401
         
+        # Get hospital
+        hospital = Hospital.query.get(hospital_id)
+        if not hospital:
+            return jsonify({"error": "Hospital not found"}), 404
+        
         # Get HospitalStaff record
         from app.models import HospitalStaff
         hs_record = HospitalStaff.query.filter_by(hospital_id=hospital_id, user_id=staff_id).first()
         if not hs_record:
             return jsonify({"error": "Staff member not found"}), 404
         
-        # Option 1: Just delete the HospitalStaff relationship
-        db.session.delete(hs_record)
+        user = hs_record.user
+        if not user:
+            return jsonify({"error": "User not found"}), 404
         
-        # Option 2: Also mark user as deleted (soft delete)
-        if hs_record.user:
-            hs_record.user.status = "deleted"
+        # Check if already deleted
+        if user.status == "deleted":
+            return jsonify({"error": "Staff member is already deleted"}), 400
+        
+        # Soft delete: Mark user and staff record as deleted
+        user.status = "deleted"
+        hs_record.status = "deleted"
+        
+        # Auto-unverify hospital (no active staff)
+        hospital.is_verified = False
         
         db.session.commit()
         
-        return jsonify({"message": "Staff member removed successfully"}), 200
+        print(f"INFO: Staff {user.email} permanently deleted")
+        print(f"INFO: Hospital {hospital.name} unverified (no active staff)")
+        
+        return jsonify({
+            "message": "Staff member deleted successfully. Hospital is now unverified.",
+            "staff_name": f"{user.first_name} {user.last_name or ''}".strip(),
+            "staff_email": user.email,
+            "hospital_verified": False,
+            "note": "Staff member is permanently restricted from the system and cannot login."
+        }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to delete staff member"}), 500
+        print(f"ERROR: Error deleting staff: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e) or "Failed to delete staff member"}), 500
 
 
 @admin_bp.route("/hospitals/<int:hospital_id>/staff/assign", methods=["POST"])
@@ -1284,6 +1388,7 @@ def delete_hospital_staff(hospital_id, staff_id):
 def assign_hospital_staff(hospital_id):
     """
     Assign a new staff member to a hospital (creates User and HospitalStaff records)
+    If hospital already has staff, marks old staff as deleted and assigns new staff
     """
     try:
         # Verify admin user
@@ -1306,18 +1411,34 @@ def assign_hospital_staff(hospital_id):
             if not data.get(field):
                 return jsonify({"error": f"{field} is required"}), 400
         
-        # Check if phone already exists
+        from app.models import HospitalStaff
+        
+        # Check if hospital already has staff - if yes, mark as deleted
+        existing_staff = HospitalStaff.query.filter_by(hospital_id=hospital_id).first()
+        old_staff_info = None
+        if existing_staff:
+            old_user = existing_staff.user
+            if old_user:
+                old_staff_info = {
+                    "id": old_user.id,
+                    "name": f"{old_user.first_name} {old_user.last_name}".strip(),
+                    "email": old_user.email
+                }
+                # Mark old staff as deleted
+                old_user.status = "deleted"
+                existing_staff.status = "deleted"
+                print(f"INFO: Marking old staff {old_user.email} as deleted")
+        
+        # Check if phone already exists (excluding deleted users)
         existing_user = User.query.filter_by(phone=data['phone']).first()
-        if existing_user:
+        if existing_user and existing_user.status != 'deleted':
             return jsonify({"error": "Phone number already registered"}), 400
         
-        # Check if email exists (if provided)
+        # Check if email exists (if provided, excluding deleted users)
         if data.get('email'):
             existing_email = User.query.filter_by(email=data['email']).first()
-            if existing_email:
+            if existing_email and existing_email.status != 'deleted':
                 return jsonify({"error": "Email already registered"}), 400
-        
-        from app.models import HospitalStaff
         
         # Create new staff user
         new_user = User(
@@ -1338,25 +1459,161 @@ def assign_hospital_staff(hospital_id):
             user_id=new_user.id,
             hospital_id=hospital_id,
             invited_by=current_user_id,
-            status="active"  # Can be set to "pending" if approval needed
+            status="active"
         )
         
         db.session.add(hospital_staff)
+        
+        # Auto-verify hospital when new active staff is assigned
+        hospital.is_verified = True
+        hospital.is_active = True
+        
         db.session.commit()
         
+        message = "New staff member assigned successfully. Hospital is now verified and active."
+        if old_staff_info:
+            message = f"Staff reassigned successfully. Previous staff ({old_staff_info['name']}) marked as deleted. Hospital is now verified and active."
+        
+        print(f"SUCCESS: New staff {new_user.email} assigned to {hospital.name}")
+        print(f"SUCCESS: Hospital {hospital.name} auto-verified and activated")
+        
         return jsonify({
-            "message": "New staff member created and assigned successfully",
-            "staff": {
+            "message": message,
+            "old_staff": old_staff_info,
+            "new_staff": {
                 "id": new_user.id,
                 "name": f"{new_user.first_name} {new_user.last_name or ''}".strip(),
                 "email": new_user.email or 'N/A',
                 "phone": new_user.phone
-            }
+            },
+            "hospital_verified": True,
+            "hospital_active": True
         }), 201
         
     except Exception as e:
         db.session.rollback()
+        print(f"ERROR: Error assigning staff: {str(e)}")
         return jsonify({"error": str(e) or "Failed to assign staff member"}), 500
+
+
+@admin_bp.route("/hospitals/<int:hospital_id>/staff/<int:staff_id>", methods=["PUT"])
+@jwt_required()
+def update_hospital_staff(hospital_id, staff_id):
+    """
+    Update hospital staff user details (first_name, last_name, email, phone)
+    If email or phone changes, generates new password and sends notification email
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get hospital
+        hospital = Hospital.query.get(hospital_id)
+        if not hospital:
+            return jsonify({"error": "Hospital not found"}), 404
+        
+        # Get staff user
+        staff_user = User.query.get(staff_id)
+        if not staff_user or staff_user.role != 'staff':
+            return jsonify({"error": "Staff user not found"}), 404
+        
+        # Verify staff is assigned to this hospital
+        from app.models import HospitalStaff
+        hs_record = HospitalStaff.query.filter_by(hospital_id=hospital_id, user_id=staff_id).first()
+        if not hs_record:
+            return jsonify({"error": "Staff member not assigned to this hospital"}), 404
+        
+        data = request.get_json() or {}
+        
+        # Track if email or phone changed
+        email_changed = 'email' in data and data['email'] != staff_user.email
+        phone_changed = 'phone' in data and data['phone'] != staff_user.phone
+        credentials_changed = email_changed or phone_changed
+        
+        # Check if email is being changed and if it already exists
+        if email_changed:
+            existing_user = User.query.filter_by(email=data['email']).first()
+            if existing_user and existing_user.id != staff_user.id:
+                # Check if it's a deleted user - allow reuse
+                if existing_user.status != 'deleted':
+                    return jsonify({"error": "Email already exists"}), 409
+        
+        # Store old email for notification
+        old_email = staff_user.email
+        
+        # Update user fields
+        if 'first_name' in data:
+            staff_user.first_name = data['first_name']
+        if 'last_name' in data:
+            staff_user.last_name = data['last_name']
+        if 'email' in data:
+            staff_user.email = data['email']
+        if 'phone' in data:
+            staff_user.phone = data['phone']
+        
+        # Generate new password if email or phone changed
+        new_password = None
+        if credentials_changed:
+            from app.utils.password_generator import generate_password
+            new_password = generate_password()
+            staff_user.set_password(new_password)
+            staff_user.status = 'inactive'  # Require re-activation
+            hs_record.status = 'pending'
+        
+        db.session.commit()
+        
+        # Send email notification if credentials changed
+        email_sent = False
+        if credentials_changed and new_password:
+            try:
+                from app.utils.email_sender import send_email
+                from app.utils.email_templates import get_staff_invitation_email
+                
+                staff_name = f"{staff_user.first_name} {staff_user.last_name}".strip()
+                accept_url = f"{request.host_url}api/staff/accept-invitation/{staff_user.id}"
+                reject_url = f"{request.host_url}api/staff/reject-invitation/{staff_user.id}"
+                
+                email_html = get_staff_invitation_email(
+                    staff_name=staff_name,
+                    hospital_name=hospital.name,
+                    email=staff_user.email,
+                    temp_password=new_password,
+                    accept_url=accept_url,
+                    reject_url=reject_url
+                )
+                
+                send_email(
+                    to_email=staff_user.email,
+                    subject=f"Updated Credentials - {hospital.name}",
+                    html_content=email_html
+                )
+                email_sent = True
+                print(f"SUCCESS: Credentials update email sent to {staff_user.email}")
+            except Exception as email_error:
+                print(f"WARNING: Failed to send email: {str(email_error)}")
+        
+        return jsonify({
+            "message": "Staff details updated successfully",
+            "credentials_changed": credentials_changed,
+            "email_sent": email_sent,
+            "staff": {
+                "id": staff_user.id,
+                "first_name": staff_user.first_name,
+                "last_name": staff_user.last_name,
+                "email": staff_user.email,
+                "phone": staff_user.phone,
+                "status": staff_user.status
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERROR: Error updating staff: {str(e)}")
+        return jsonify({"error": str(e) or "Failed to update staff details"}), 500
 
 
 @admin_bp.route("/hospitals/<int:hospital_id>/staff/<int:staff_id>/status", methods=["PUT"])
@@ -1416,13 +1673,13 @@ def create_hospital_with_staff():
         hospital_data = data.get('hospital', {})
         staff_data = data.get('staff', {})
         
-        print(f"📥 Received data:")
+        print(f"INFO: Received data:")
         print(f"   Hospital data: {hospital_data}")
         print(f"   Staff data: {staff_data}")
         
         if not hospital_data or not staff_data:
             error_msg = "Hospital and staff data are required"
-            print(f"❌ Validation error: {error_msg}")
+            print(f"ERROR: Validation error: {error_msg}")
             return jsonify({"error": error_msg}), 400
         
         # Validate required hospital fields
@@ -1430,7 +1687,7 @@ def create_hospital_with_staff():
         for field in required_hospital_fields:
             if not hospital_data.get(field) or not str(hospital_data.get(field)).strip():
                 error_msg = f"Hospital {field} is required"
-                print(f"❌ Validation error: {error_msg}")
+                print(f"ERROR: Validation error: {error_msg}")
                 print(f"   Missing field: {field}")
                 print(f"   Hospital data keys: {list(hospital_data.keys())}")
                 return jsonify({
@@ -1473,7 +1730,7 @@ def create_hospital_with_staff():
         for field in required_staff_fields:
             if not staff_data.get(field) or not str(staff_data.get(field)).strip():
                 error_msg = f"Staff {field.replace('_', ' ')} is required"
-                print(f"❌ Staff validation error: {error_msg}")
+                print(f"ERROR: Staff validation error: {error_msg}")
                 print(f"   Staff data: {staff_data}")
                 return jsonify({
                     "error": error_msg,
@@ -1504,7 +1761,8 @@ def create_hospital_with_staff():
             address=hospital_data['address'],
             city=hospital_data['city'],
             district=hospital_data['district'],
-            contact_number=hospital_data.get('contact_number'),
+            state=hospital_data.get('state'),
+            pincode=hospital_data.get('pincode'),
             license_number=hospital_data.get('license_number'),
             is_verified=False,
             is_active=True
@@ -1579,13 +1837,13 @@ def create_hospital_with_staff():
             
             email_sent = True
             print(f"\n{'='*60}")
-            print(f"✅ INVITATION EMAIL SENT SUCCESSFULLY")
+            print(f"SUCCESS: INVITATION EMAIL SENT SUCCESSFULLY")
             print(f"{'='*60}\n")
             
         except Exception as e:
             email_error = str(e)
             print(f"\n{'='*60}")
-            print(f"⚠️ EMAIL SENDING FAILED")
+            print(f"WARNING: EMAIL SENDING FAILED")
             print(f"{'='*60}")
             print(f"Error: {email_error}")
             print(f"{'='*60}\n")
@@ -1620,7 +1878,7 @@ def create_hospital_with_staff():
         error_details = traceback.format_exc()
         error_message = str(e)
         
-        print(f"❌ Error creating hospital: {error_message}")
+        print(f"ERROR: Error creating hospital: {error_message}")
         print(f"Traceback: {error_details}")
         
         return jsonify({

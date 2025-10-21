@@ -23,7 +23,8 @@ import {
   UserPlus,
   Ban,
   UserCheck,
-  UserX
+  UserX,
+  Droplet
 } from 'lucide-react';
 import hospitalService from '../../services/hospitalService';
 import './HospitalDetails.css';
@@ -34,6 +35,8 @@ const HospitalDetailsContent = () => {
   const { theme } = useTheme();
   const [hospital, setHospital] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [activeStaff, setActiveStaff] = useState(null);
+  const [oldStaff, setOldStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [staffLoading, setStaffLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -117,6 +120,10 @@ const HospitalDetailsContent = () => {
     try {
       const response = await hospitalService.getHospitalStaff(id);
       setStaff(response.staff || []);
+      setActiveStaff(response.active_staff || null);
+      setOldStaff(response.old_staff || []);
+      console.log('Active Staff:', response.active_staff);
+      console.log('Old Staff:', response.old_staff);
     } catch (err) {
       console.error('Error fetching staff:', err);
     } finally {
@@ -128,9 +135,10 @@ const HospitalDetailsContent = () => {
     const action = staffMember.user_status === 'blocked' ? 'unblock' : 'block';
     if (window.confirm(`Are you sure you want to ${action} ${staffMember.name}?`)) {
       try {
-        await hospitalService.toggleStaffBlock(id, staffMember.id);
+        const response = await hospitalService.toggleStaffBlock(id, staffMember.id);
         await fetchStaffMembers();
-        alert(`Staff member ${action}ed successfully!`);
+        await fetchHospitalDetails(); // Reload hospital to get updated verification status
+        alert(response.message || `Staff member ${action}ed successfully!`);
       } catch (err) {
         alert(`Failed to ${action} staff member`);
       }
@@ -162,14 +170,28 @@ const HospitalDetailsContent = () => {
   };
 
   const handleDeleteStaff = async (staffMember) => {
-    if (window.confirm(`Are you sure you want to delete ${staffMember.name}? This action cannot be undone.`)) {
+    const confirmMessage = `⚠️ PERMANENT DELETE WARNING ⚠️\n\nAre you sure you want to delete ${staffMember.name}?\n\n` +
+      `This action will:\n` +
+      `• Permanently restrict ${staffMember.name} from the system\n` +
+      `• Prevent them from logging in\n` +
+      `• Unverify the hospital (no active staff)\n` +
+      `• Move them to staff history\n\n` +
+      `This action CANNOT be undone!\n\n` +
+      `Type "DELETE" to confirm:`;
+    
+    const userInput = window.prompt(confirmMessage);
+    
+    if (userInput === 'DELETE') {
       try {
-        await hospitalService.deleteStaff(id, staffMember.id);
+        const response = await hospitalService.deleteStaff(id, staffMember.id);
         await fetchStaffMembers();
-        alert('Staff member deleted successfully!');
+        await fetchHospitalDetails(); // Reload hospital to get updated verification status
+        alert(response.message || 'Staff member deleted successfully! Hospital is now unverified.');
       } catch (err) {
         alert(err.response?.data?.error || 'Failed to delete staff member');
       }
+    } else if (userInput !== null) {
+      alert('Delete cancelled. You must type "DELETE" to confirm.');
     }
   };
 
@@ -189,8 +211,8 @@ const HospitalDetailsContent = () => {
   };
 
   const handleAssignStaff = () => {
-    setAssignFormData({ first_name: '', last_name: '', email: '', phone: '', password: '' });
-    setShowAssignModal(true);
+    // Navigate to Edit Hospital page
+    navigate(`/admin/hospitals/edit/${id}`);
   };
 
   const handleAssignFormSubmit = async (e) => {
@@ -368,6 +390,43 @@ const HospitalDetailsContent = () => {
                 <span>{hospital.district || 'N/A'}</span>
               </div>
             </div>
+            <div className="info-item">
+              <label>State</label>
+              <div className="info-value">
+                <span>{hospital.state || 'N/A'}</span>
+              </div>
+            </div>
+            <div className="info-item">
+              <label>Pincode</label>
+              <div className="info-value">
+                <span>{hospital.pincode || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Blood Donation Camp Information */}
+        <div className="details-section">
+          <h2 className="section-title">
+            <Calendar size={20} />
+            Blood Donation Camp
+          </h2>
+          <div className="info-grid">
+            <div className="info-item">
+              <label>Next Camp Date</label>
+              <div className="info-value">
+                <Calendar size={16} />
+                <span>
+                  {hospital.next_camp_date 
+                    ? new Date(hospital.next_camp_date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : 'Not Scheduled'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -528,185 +587,210 @@ const HospitalDetailsContent = () => {
               <div className="loading-spinner"></div>
               <p>Loading staff members...</p>
             </div>
-          ) : staff.length === 0 ? (
+          ) : !activeStaff && oldStaff.length === 0 ? (
             <div className="no-staff">
               <Users size={48} />
               <p>No staff members assigned to this hospital</p>
               <p className="no-staff-hint">Staff members can be added when editing the hospital</p>
             </div>
-          ) : (
-            <div className="staff-grid-full">
-              {staff.map((staffMember) => (
-                <div key={staffMember.id} className="staff-card-full">
-                  {/* Card Header */}
-                  <div className="staff-card-header">
-                    <div className="staff-avatar-large">
-                      <UserCheck size={32} />
-                    </div>
-                    <div className="staff-header-info">
-                      <h3 className="staff-name-large">{staffMember.name}</h3>
-                      <p className="staff-id">Staff ID: #{staffMember.id}</p>
-                    </div>
-                  </div>
+          ) : !activeStaff && oldStaff.length > 0 ? (
+            <>
+              {/* Alert: No Active Staff, Only History */}
+              <div className="no-staff-alert">
+                <div className="alert-icon-large">
+                  <ShieldOff size={64} />
+                </div>
+                <h3>No Active Staff Member</h3>
+                <p>All staff members have been blocked or deleted. This hospital is currently unverified and cannot operate.</p>
+                <p className="alert-note">Please assign a new staff member to reactivate this hospital.</p>
+                <button onClick={handleAssignStaff} className="btn-alert-action btn-primary">
+                  <UserPlus size={20} />
+                  Assign New Staff Member
+                </button>
+              </div>
 
-                  {/* Card Body */}
-                  <div className="staff-card-body">
-                    {/* Contact Information */}
-                    <div className="staff-detail-section">
-                      <h4 className="staff-section-title">Contact Information</h4>
-                      <div className="staff-detail-grid">
-                        <div className="staff-detail-item">
-                          <Mail size={16} />
-                          <div>
-                            <span className="detail-label">Email</span>
-                            <span className="detail-value">{staffMember.email}</span>
+              {/* Old Staff History Section */}
+              {oldStaff.length > 0 && (
+                <div className="old-staff-section">
+                  <h3 className="subsection-title">
+                    <Clock size={18} />
+                    Staff History ({oldStaff.length})
+                  </h3>
+                  <div className="old-staff-grid">
+                    {oldStaff.map((oldStaffMember) => (
+                      <div key={oldStaffMember.id} className="old-staff-card">
+                        <div className="old-staff-header">
+                          <div className="old-staff-info">
+                            <h4>{oldStaffMember.name}</h4>
+                            <p className="old-staff-email">{oldStaffMember.email}</p>
                           </div>
-                        </div>
-                        <div className="staff-detail-item">
-                          <Phone size={16} />
-                          <div>
-                            <span className="detail-label">Phone</span>
-                            <span className="detail-value">{staffMember.phone}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Status Information */}
-                    <div className="staff-detail-section">
-                      <h4 className="staff-section-title">Status Information</h4>
-                      <div className="staff-status-grid">
-                        {/* User Account Status */}
-                        <div className="status-block">
-                          <span className="status-label">User Account Status</span>
-                          <span className={`staff-badge user-badge ${staffMember.user_status}`}>
-                            {staffMember.user_status === 'blocked' ? (
-                              <>
-                                <Ban size={16} />
-                                Blocked
-                              </>
-                            ) : staffMember.user_status === 'inactive' ? (
-                              <>
-                                <UserX size={16} />
-                                Inactive
-                              </>
-                            ) : staffMember.user_status === 'deleted' ? (
-                              <>
-                                <Trash2 size={16} />
-                                Deleted
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck size={16} />
-                                Active
-                              </>
-                            )}
+                          <span className={`old-staff-badge ${oldStaffMember.user_status}`}>
+                            {oldStaffMember.user_status === 'blocked' ? 'Blocked' : 'Deleted'}
                           </span>
-                          <p className="status-description">
-                            {staffMember.user_status === 'active' ? 'User can login to the system' :
-                             staffMember.user_status === 'blocked' ? 'User is blocked from logging in' :
-                             staffMember.user_status === 'inactive' ? 'User account not activated' :
-                             'User account has been deleted'}
-                          </p>
                         </div>
-
-                        {/* Hospital Staff Status */}
-                        <div className="status-block">
-                          <span className="status-label">Hospital Staff Status</span>
-                          <span className={`staff-badge hospital-badge ${staffMember.staff_status}`}>
-                            {staffMember.staff_status === 'pending' ? (
-                              <>
-                                <Clock size={16} />
-                                Pending Acceptance
-                              </>
-                            ) : staffMember.staff_status === 'rejected' ? (
-                              <>
-                                <X size={16} />
-                                Rejected
-                              </>
-                            ) : (
-                              <>
-                                <Check size={16} />
-                                Approved & Active
-                              </>
-                            )}
-                          </span>
-                          <p className="status-description">
-                            {staffMember.staff_status === 'pending' ? 'Waiting for staff to accept invitation' :
-                             staffMember.staff_status === 'rejected' ? 'Staff rejected the invitation' :
-                             'Staff accepted and password changed'}
-                          </p>
+                        <div className="old-staff-note">
+                          <AlertCircle size={16} />
+                          <p>This staff member is no longer active. View only - no actions available.</p>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Activity Information */}
-                    {staffMember.last_login && (
-                      <div className="staff-detail-section">
-                        <h4 className="staff-section-title">Activity</h4>
-                        <div className="staff-activity">
-                          <Clock size={16} />
-                          <div>
-                            <span className="detail-label">Last Login</span>
-                            <span className="detail-value">{formatDate(staffMember.last_login)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card Footer - Actions */}
-                  <div className="staff-card-footer">
-                    {/* Resend Invitation Button (only for rejected) */}
-                    {staffMember.staff_status === 'rejected' && (
-                      <button
-                        onClick={() => handleResendInvitation(staffMember)}
-                        className="staff-btn-resend"
-                      >
-                        <Mail size={18} />
-                        Resend Invitation
-                      </button>
-                    )}
-                    
-                    {/* Block/Unblock Button */}
-                    <button
-                      onClick={() => handleBlockStaff(staffMember)}
-                      className={`staff-btn ${staffMember.user_status === 'blocked' ? 'btn-unblock' : 'btn-block'}`}
-                    >
-                      {staffMember.user_status === 'blocked' ? (
-                        <>
-                          <UserCheck size={18} />
-                          Unblock User
-                        </>
-                      ) : (
-                        <>
-                          <Ban size={18} />
-                          Block User
-                        </>
-                      )}
-                    </button>
-
-                    {/* Edit Button */}
-                    <button
-                      onClick={() => navigate(`/admin/hospitals/edit/${id}`)}
-                      className="staff-btn btn-edit"
-                    >
-                      <Edit size={18} />
-                      Edit Staff
-                    </button>
-
-                    {/* Delete Button */}
-                    <button
-                      onClick={() => handleDeleteStaff(staffMember)}
-                      className="staff-btn btn-delete"
-                    >
-                      <Trash2 size={18} />
-                      Delete
-                    </button>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Active Staff Section */}
+              {activeStaff && (
+                <div className="active-staff-section">
+                  <h3 className="subsection-title">
+                    <UserCheck size={18} />
+                    Current Active Staff
+                  </h3>
+                  <div className="staff-grid-full">
+                    <div key={activeStaff.id} className="staff-card-full active-staff-card">
+                      {/* Card Header */}
+                      <div className="staff-card-header">
+                        <div className="staff-avatar-large">
+                          <UserCheck size={32} />
+                        </div>
+                        <div className="staff-header-info">
+                          <h3 className="staff-name-large">{activeStaff.name}</h3>
+                          <p className="staff-id">Staff ID: #{activeStaff.id}</p>
+                        </div>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="staff-card-body">
+                        {/* Contact Information */}
+                        <div className="staff-detail-section">
+                          <h4 className="staff-section-title">Contact Information</h4>
+                          <div className="staff-detail-grid">
+                            <div className="staff-detail-item">
+                              <Mail size={16} />
+                              <div>
+                                <span className="detail-label">Email</span>
+                                <span className="detail-value">{activeStaff.email}</span>
+                              </div>
+                            </div>
+                            <div className="staff-detail-item">
+                              <Phone size={16} />
+                              <div>
+                                <span className="detail-label">Phone</span>
+                                <span className="detail-value">{activeStaff.phone}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status Information */}
+                        <div className="staff-detail-section">
+                          <h4 className="staff-section-title">Status Information</h4>
+                          <div className="staff-status-grid">
+                            {/* User Account Status */}
+                            <div className="status-block">
+                              <span className="status-label">User Account Status</span>
+                              <span className={`staff-badge user-badge ${activeStaff.user_status}`}>
+                                <UserCheck size={16} />
+                                Active
+                              </span>
+                              <p className="status-description">
+                                User can login to the system
+                              </p>
+                            </div>
+
+                            {/* Hospital Staff Status */}
+                            <div className="status-block">
+                              <span className="status-label">Hospital Staff Status</span>
+                              <span className={`staff-badge hospital-badge ${activeStaff.staff_status}`}>
+                                <Check size={16} />
+                                Approved & Active
+                              </span>
+                              <p className="status-description">
+                                Staff accepted and active
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Activity Information */}
+                        {activeStaff.last_login && (
+                          <div className="staff-detail-section">
+                            <h4 className="staff-section-title">Activity</h4>
+                            <div className="staff-activity">
+                              <Clock size={16} />
+                              <div>
+                                <span className="detail-label">Last Login</span>
+                                <span className="detail-value">{formatDate(activeStaff.last_login)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Footer - Actions */}
+                      <div className="staff-card-footer">
+                        {/* Block Button */}
+                        <button
+                          onClick={() => handleBlockStaff(activeStaff)}
+                          className="staff-btn btn-block"
+                        >
+                          <Ban size={18} />
+                          Block User
+                        </button>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => navigate(`/admin/hospitals/edit/${id}`)}
+                          className="staff-btn btn-edit"
+                        >
+                          <Edit size={18} />
+                          Edit Staff
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => handleDeleteStaff(activeStaff)}
+                          className="staff-btn btn-delete"
+                        >
+                          <Trash2 size={18} />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Old Staff History Section */}
+              {oldStaff.length > 0 && (
+                <div className="old-staff-section">
+                  <h3 className="subsection-title">
+                    <Clock size={18} />
+                    Staff History ({oldStaff.length})
+                  </h3>
+                  <div className="old-staff-grid">
+                    {oldStaff.map((oldStaffMember) => (
+                      <div key={oldStaffMember.id} className="old-staff-card">
+                        <div className="old-staff-header">
+                          <div className="old-staff-info">
+                            <h4>{oldStaffMember.name}</h4>
+                            <p className="old-staff-email">{oldStaffMember.email}</p>
+                          </div>
+                          <span className={`old-staff-badge ${oldStaffMember.user_status}`}>
+                            {oldStaffMember.user_status === 'blocked' ? 'Blocked' : 'Deleted'}
+                          </span>
+                        </div>
+                        <div className="old-staff-note">
+                          <AlertCircle size={16} />
+                          <p>This staff member is no longer active. View only - no actions available.</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

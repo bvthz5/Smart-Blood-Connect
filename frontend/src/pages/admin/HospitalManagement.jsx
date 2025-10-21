@@ -166,18 +166,8 @@ const HospitalManagementContent = () => {
   };
 
   const handleEdit = (hospital) => {
-    setSelectedHospital(hospital);
-    setFormData({
-      name: hospital.name,
-      email: hospital.email,
-      phone: hospital.phone,
-      address: hospital.address,
-      district: hospital.district,
-      city: hospital.city,
-      license_number: hospital.license_number,
-      is_verified: hospital.is_verified
-    });
-    setShowEditModal(true);
+    // Navigate to dedicated edit page
+    navigate(`/admin/hospitals/edit/${hospital.id}`);
   };
 
   const handleView = (hospital) => {

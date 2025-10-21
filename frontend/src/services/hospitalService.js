@@ -75,6 +75,12 @@ const hospitalService = {
     return response.data;
   },
 
+  // Update hospital staff details (first_name, last_name, email, phone)
+  updateHospitalStaff: async (hospitalId, staffId, staffData) => {
+    const response = await api.put(`/api/admin/hospitals/${hospitalId}/staff/${staffId}`, staffData);
+    return response.data;
+  },
+
   // Update staff status (pending/active/rejected)
   updateStaffStatus: async (hospitalId, staffId, staffStatus) => {
     const response = await api.put(`/api/admin/hospitals/${hospitalId}/staff/${staffId}/status`, {

@@ -36,8 +36,9 @@ const AddHospitalContent = () => {
     address: '',
     city: '',
     district: '',
-    license_number: '',
-    contact_number: ''
+    state: '',
+    pincode: '',
+    license_number: ''
   });
 
   // Single staff member (one per hospital)
@@ -381,6 +382,33 @@ const AddHospitalContent = () => {
                 <option value="Kasaragod">Kasaragod</option>
               </select>
               {renderFieldError('hospital_district')}
+            </div>
+
+            <div className="form-group">
+              <label>State</label>
+              <input
+                type="text"
+                name="state"
+                value={hospitalData.state}
+                onChange={handleHospitalChange}
+                placeholder="Enter state"
+                className={fieldErrors.hospital_state ? 'error' : ''}
+              />
+              {renderFieldError('hospital_state')}
+            </div>
+
+            <div className="form-group">
+              <label>Pincode</label>
+              <input
+                type="text"
+                name="pincode"
+                value={hospitalData.pincode}
+                onChange={handleHospitalChange}
+                placeholder="Enter pincode"
+                maxLength="10"
+                className={fieldErrors.hospital_pincode ? 'error' : ''}
+              />
+              {renderFieldError('hospital_pincode')}
             </div>
           </div>
         </div>

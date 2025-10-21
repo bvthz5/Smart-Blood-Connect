@@ -64,7 +64,7 @@ const AdminDashboard = () => {
           metrics: [
             {
               title: 'Total Donors',
-              value: stats.totalDonors ?? mockData.metrics[0].value,
+              value: stats.totalDonors ?? 0,
               subtitle: 'Active this month',
               trend: 'up',
               trendValue: '+12%',
@@ -73,7 +73,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Partner Hospitals',
-              value: stats.hospitals ?? mockData.metrics[1].value,
+              value: stats.hospitals ?? 0,
               subtitle: 'Active partnerships',
               trend: 'up',
               trendValue: '+5%',
@@ -82,7 +82,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Blood Units',
-              value: stats.inventoryUnits ?? mockData.metrics[2].value,
+              value: stats.inventoryUnits ?? 0,
               subtitle: 'Available stock',
               trend: 'down',
               trendValue: '-3%',
@@ -91,7 +91,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Pending Requests',
-              value: stats.openRequests ?? mockData.metrics[3].value,
+              value: stats.openRequests ?? 0,
               subtitle: `Urgent: ${stats.urgentRequests ?? 0} critical`,
               trend: 'up',
               trendValue: '+8%',
@@ -100,7 +100,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Completed Donations',
-              value: stats.completedDonations ?? mockData.metrics[4].value,
+              value: stats.completedDonations ?? 0,
               subtitle: 'This quarter',
               trend: 'up',
               trendValue: '+15%',
@@ -109,7 +109,7 @@ const AdminDashboard = () => {
             },
             {
               title: 'Critical Alerts',
-              value: stats.criticalAlerts ?? mockData.metrics[5].value,
+              value: stats.criticalAlerts ?? 0,
               subtitle: 'Require immediate action',
               trend: 'up',
               trendValue: '+3',
@@ -119,38 +119,50 @@ const AdminDashboard = () => {
           ],
           charts: {
             // Blood groups - transform backend data to include colors
-            bloodGroups: (charts.bloodGroupDistribution || []).map((item, index) => ({
-              group: item.group,
-              count: item.count,
-              color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][index % 8]
-            })).length > 0 ? (charts.bloodGroupDistribution || []).map((item, index) => ({
-              group: item.group,
-              count: item.count,
-              color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][index % 8]
-            })) : mockData.charts.bloodGroups,
+            bloodGroups: (() => {
+              const apiData = charts.bloodGroupDistribution;
+              if (apiData && Array.isArray(apiData) && apiData.length > 0) {
+                return apiData.map((item, index) => ({
+                  group: item.group,
+                  count: item.count,
+                  color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'][index % 8]
+                }));
+              }
+              return [];
+            })(),
             
             // Donation trends - transform requestsOverTime to month format
-            donationTrends: (charts.requestsOverTime || []).map(item => ({
-              month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
-              donations: item.count
-            })).length > 0 ? (charts.requestsOverTime || []).map(item => ({
-              month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
-              donations: item.count
-            })) : mockData.charts.donationTrends,
+            donationTrends: (() => {
+              const apiData = charts.requestsOverTime;
+              if (apiData && Array.isArray(apiData) && apiData.length > 0) {
+                return apiData.map(item => ({
+                  month: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+                  donations: item.count
+                }));
+              }
+              return [];
+            })(),
             
             // Hospital donations - transform requestsByDistrict
-            hospitalDonations: (charts.requestsByDistrict || []).map(item => ({
-              hospital: item.district,
-              donations: item.count
-            })).length > 0 ? (charts.requestsByDistrict || []).map(item => ({
-              hospital: item.district,
-              donations: item.count
-            })) : mockData.charts.hospitalDonations,
+            hospitalDonations: (() => {
+              const apiData = charts.requestsByDistrict;
+              if (apiData && Array.isArray(apiData) && apiData.length > 0) {
+                return apiData.map(item => ({
+                  hospital: item.district,
+                  donations: item.count
+                }));
+              }
+              return [];
+            })(),
             
             // Request analysis - transform backend data
-            requestAnalysis: (charts.requestStatusAnalysis || []).length > 0 
-              ? charts.requestStatusAnalysis 
-              : mockData.charts.requestAnalysis
+            requestAnalysis: (() => {
+              const apiData = charts.requestStatusAnalysis;
+              if (apiData && Array.isArray(apiData) && apiData.length > 0) {
+                return apiData;
+              }
+              return [];
+            })()
           },
           activities: payload?.activities ?? [],
           welcome: {
@@ -164,7 +176,8 @@ const AdminDashboard = () => {
         }
       } catch (e) {
         if (mounted) {
-          setDashboardData(mockData);
+          console.error('Failed to fetch dashboard data:', e);
+          setError(e.message);
           setLoading(false);
         }
       }
@@ -172,100 +185,13 @@ const AdminDashboard = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Mock dashboard data (fallback)
-  const mockData = {
-    metrics: [
-      {
-        title: 'Total Donors',
-        value: 1247,
-        subtitle: 'Active this month',
-        trend: 'up',
-        trendValue: '+12%',
-        icon: '👥',
-        type: 'donors'
-      },
-      {
-        title: 'Partner Hospitals',
-        value: 45,
-        subtitle: 'Active partnerships',
-        trend: 'up',
-        trendValue: '+5%',
-        icon: '🏥',
-        type: 'hospitals'
-      },
-      {
-        title: 'Blood Units',
-        value: 256,
-        subtitle: 'Available stock',
-        trend: 'down',
-        trendValue: '-8%',
-        icon: '🩸',
-        type: 'inventory'
-      },
-      {
-        title: 'Pending Requests',
-        value: 18,
-        subtitle: 'Urgent: 5 critical',
-        trend: 'up',
-        trendValue: '+23%',
-        icon: '📋',
-        type: 'requests'
-      },
-      {
-        title: 'Completed Donations',
-        value: 892,
-        subtitle: 'This quarter',
-        trend: 'up',
-        trendValue: '+15%',
-        icon: '💚',
-        type: 'donations'
-      },
-      {
-        title: 'Critical Alerts',
-        value: 7,
-        subtitle: 'Require immediate action',
-        trend: 'up',
-        trendValue: '+3',
-        icon: '🚨',
-        type: 'alerts'
-      }
-    ],
-    charts: {
-      bloodGroups: [
-        { group: 'A+', count: 312, color: '#FF6B6B' },
-        { group: 'B+', count: 249, color: '#4ECDC4' },
-        { group: 'O+', count: 374, color: '#45B7D1' },
-        { group: 'AB+', count: 62, color: '#96CEB4' },
-        { group: 'A-', count: 89, color: '#FECA57' },
-        { group: 'B-', count: 67, color: '#FF9FF3' },
-        { group: 'O-', count: 45, color: '#54A0FF' },
-        { group: 'AB-', count: 23, color: '#5F27CD' }
-      ],
-      donationTrends: [
-        { month: 'Jan', donations: 120 },
-        { month: 'Feb', donations: 135 },
-        { month: 'Mar', donations: 142 },
-        { month: 'Apr', donations: 158 },
-        { month: 'May', donations: 167 },
-        { month: 'Jun', donations: 189 }
-      ],
-      hospitalDonations: [
-        { hospital: 'City General', donations: 45 },
-        { hospital: 'Metro Medical', donations: 38 },
-        { hospital: 'Regional Hospital', donations: 32 },
-        { hospital: 'University Hospital', donations: 28 },
-        { hospital: 'Community Health', donations: 22 }
-      ],
-      requestAnalysis: [
-        { status: 'Completed', count: 65, color: '#10B981' },
-        { status: 'Pending', count: 23, color: '#F59E0B' },
-        { status: 'Cancelled', count: 12, color: '#EF4444' }
-      ]
-    }
+  // Derived datasets for charts with empty defaults
+  const activeCharts = dashboardData?.charts ?? {
+    bloodGroups: [],
+    donationTrends: [],
+    hospitalDonations: [],
+    requestAnalysis: []
   };
-
-  // Derived datasets for charts
-  const activeCharts = dashboardData?.charts ?? mockData.charts;
   const recentActivities = dashboardData?.activities ?? [];
   const bloodGroupLabels = activeCharts.bloodGroups.map(b => b.group);
   const bloodGroupValues = activeCharts.bloodGroups.map(b => b.count);

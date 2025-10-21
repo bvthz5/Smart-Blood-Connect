@@ -1,0 +1,953 @@
+/* ============================================
+   Edit Hospital Page - Professional Design
+   All classes prefixed with 'edit-hospital-'
+   Perfect alignment and sizing
+   ============================================ */
+
+.edit-hospital-page *,
+.edit-hospital-page *::before,
+.edit-hospital-page *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.edit-hospital-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 1.25rem;
+  overflow-x: hidden;
+}
+
+.edit-hospital-wrapper {
+  max-width: 1100px;
+  margin: 0 auto;
+  animation: editHospitalFadeIn 0.5s ease-out;
+  width: 100%;
+}
+
+@keyframes editHospitalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   Loading State
+   ============================================ */
+.edit-hospital-page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  gap: 2rem;
+}
+
+.edit-hospital-spinner {
+  animation: editHospitalSpin 1s linear infinite;
+  color: #e74c3c;
+}
+
+@keyframes editHospitalSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.edit-hospital-page-loading p {
+  font-size: 1.2rem;
+  color: #555;
+  font-weight: 600;
+}
+
+/* ============================================
+   Header Section
+   ============================================ */
+.edit-hospital-page-header {
+  margin-bottom: 1.5rem;
+}
+
+.edit-hospital-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  color: #333;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.edit-hospital-back-btn:hover {
+  background: #e74c3c;
+  color: white;
+  border-color: #e74c3c;
+  transform: translateX(-8px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.edit-hospital-title-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.75rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  color: white;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.edit-hospital-title-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+
+.edit-hospital-title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1;
+}
+
+.edit-hospital-title-text h1 {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  line-height: 1.2;
+}
+
+.edit-hospital-title-text p {
+  font-size: 0.9rem;
+  opacity: 0.95;
+  margin: 0.35rem 0 0 0;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+/* ============================================
+   Alert Messages
+   ============================================ */
+.edit-hospital-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  animation: editHospitalSlideDown 0.4s ease-out;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes editHospitalSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.edit-hospital-alert-error {
+  background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+  color: #c33;
+  border: 2px solid #fcc;
+}
+
+.edit-hospital-alert-success {
+  background: linear-gradient(135deg, #efe 0%, #dfd 100%);
+  color: #2d7a2d;
+  border: 2px solid #cfc;
+}
+
+.edit-hospital-alert button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.edit-hospital-alert button:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: rotate(90deg);
+}
+
+/* ============================================
+   Form Container
+   ============================================ */
+.edit-hospital-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ============================================
+   Cards
+   ============================================ */
+.edit-hospital-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.edit-hospital-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+}
+
+.edit-hospital-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.edit-hospital-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.edit-hospital-card-icon::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+}
+
+.edit-hospital-card-icon.hospital-icon {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+
+.edit-hospital-card-icon.staff-icon {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+}
+
+.edit-hospital-card-title h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0;
+  color: #2c3e50;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+}
+
+.edit-hospital-card-title p {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  margin: 0.3rem 0 0 0;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* ============================================
+   Form Grid
+   ============================================ */
+.edit-hospital-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.edit-hospital-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.edit-hospital-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.edit-hospital-field label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #2c3e50;
+  display: block;
+  margin-bottom: 0;
+  letter-spacing: 0.2px;
+}
+
+.edit-hospital-required {
+  color: #e74c3c;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+/* ============================================
+   Input Groups
+   ============================================ */
+.edit-hospital-input-group {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.edit-hospital-input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #95a5a6;
+  pointer-events: none;
+  z-index: 2;
+  transition: color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Special positioning for textarea icon */
+.edit-hospital-input-group:has(textarea) .edit-hospital-input-icon {
+  top: 1rem;
+  transform: none;
+}
+
+.edit-hospital-input-group:focus-within .edit-hospital-input-icon {
+  color: #667eea;
+}
+
+.edit-hospital-input-group input,
+.edit-hospital-input-group select,
+.edit-hospital-input-group textarea {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.8rem 0.875rem 0.8rem 0.875rem;
+  padding-left: 3.5rem !important;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fafafa;
+  color: #2c3e50;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  display: block;
+  box-sizing: border-box;
+  line-height: 1.4;
+  text-indent: 0;
+}
+
+.edit-hospital-input-group textarea {
+  resize: vertical;
+  min-height: 90px;
+  padding: 0.875rem;
+  padding-left: 3.5rem !important;
+  line-height: 1.5;
+  text-indent: 0;
+}
+
+.edit-hospital-input-group select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2395a5a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  padding-right: 2.5rem;
+}
+
+.edit-hospital-input-group input::placeholder,
+.edit-hospital-input-group select::placeholder,
+.edit-hospital-input-group textarea::placeholder {
+  color: #95a5a6;
+  opacity: 0.8;
+}
+
+.edit-hospital-input-group input:focus,
+.edit-hospital-input-group select:focus,
+.edit-hospital-input-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Date Input Wrapper */
+.edit-hospital-date-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Hide native date picker icon */
+.edit-hospital-date-input::-webkit-calendar-picker-indicator {
+  display: none;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.edit-hospital-date-input::-webkit-inner-spin-button,
+.edit-hospital-date-input::-webkit-clear-button {
+  display: none;
+}
+
+.edit-hospital-date-input {
+  flex: 1;
+  cursor: pointer;
+  padding-right: 3.5rem !important;
+}
+
+/* Custom Calendar Button */
+.edit-hospital-date-picker-btn {
+  position: absolute;
+  right: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  width: 28px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  z-index: 10;
+}
+
+.edit-hospital-date-picker-btn:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+.edit-hospital-date-picker-btn:active {
+  transform: scale(0.95);
+}
+
+.edit-hospital-date-picker-btn svg {
+  width: 25px;
+  height: 25px;
+  stroke-width: 2.5;
+}
+
+.edit-hospital-input-error {
+  border-color: #e74c3c !important;
+  background: #fff5f5 !important;
+}
+
+.edit-hospital-error-text {
+  font-size: 0.875rem;
+  color: #e74c3c;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: editHospitalShake 0.3s;
+}
+
+@keyframes editHospitalShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.edit-hospital-help-text {
+  font-size: 0.875rem;
+  color: #95a5a6;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ============================================
+   Password Toggle
+   ============================================ */
+.edit-hospital-password-toggle {
+  position: absolute;
+  right: 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: #95a5a6;
+  transition: all 0.3s;
+  z-index: 1;
+  border-radius: 8px;
+}
+
+.edit-hospital-password-toggle:hover {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+}
+
+/* ============================================
+   Toggles (Checkboxes)
+   ============================================ */
+.edit-hospital-toggles {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 10px;
+  border: 2px dashed #dee2e6;
+  align-items: center;
+}
+
+.edit-hospital-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.edit-hospital-toggle-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #667eea;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.edit-hospital-toggle-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 700;
+  color: #2c3e50;
+  user-select: none;
+  font-size: 0.875rem;
+  transition: color 0.3s;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.edit-hospital-toggle-item label:hover {
+  color: #667eea;
+}
+
+.edit-hospital-toggle-item label svg {
+  color: #667eea;
+}
+
+/* ============================================
+   No Staff Section
+   ============================================ */
+.edit-hospital-no-staff {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px dashed #dee2e6;
+}
+
+.edit-hospital-no-staff-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.25rem;
+  text-align: center;
+  gap: 1rem;
+}
+
+.edit-hospital-no-staff-content svg {
+  color: #95a5a6;
+}
+
+.edit-hospital-no-staff-content h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.edit-hospital-no-staff-content p {
+  font-size: 0.9rem;
+  color: #7f8c8d;
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+/* ============================================
+   Action Buttons
+   ============================================ */
+.edit-hospital-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  margin-top: 0.5rem;
+}
+
+.edit-hospital-btn-cancel,
+.edit-hospital-btn-save {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.875rem 1.75rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  letter-spacing: 0.2px;
+}
+
+.edit-hospital-btn-cancel {
+  background: #f8f9fa;
+  color: #495057;
+  border: 2px solid #dee2e6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.edit-hospital-btn-cancel:hover:not(:disabled) {
+  background: #e9ecef;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.edit-hospital-btn-save {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.edit-hospital-btn-save:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+}
+
+.edit-hospital-btn-cancel:disabled,
+.edit-hospital-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   Dark Theme
+   ============================================ */
+.edit-hospital-page.dark {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.edit-hospital-page.dark .edit-hospital-card {
+  background: #1e1e1e;
+  border-color: #3a3a3a;
+}
+
+.edit-hospital-page.dark .edit-hospital-back-btn {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-back-btn:hover {
+  background: #667eea;
+  border-color: #667eea;
+}
+
+.edit-hospital-page.dark .edit-hospital-card-title h2 {
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-card-title p {
+  color: #b0b0b0;
+}
+
+.edit-hospital-page.dark .edit-hospital-field label {
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-input-group input,
+.edit-hospital-page.dark .edit-hospital-input-group select,
+.edit-hospital-page.dark .edit-hospital-input-group textarea {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-input-group input:focus,
+.edit-hospital-page.dark .edit-hospital-input-group select:focus,
+.edit-hospital-page.dark .edit-hospital-input-group textarea:focus {
+  background: #333;
+}
+
+.edit-hospital-page.dark .edit-hospital-toggles {
+  background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+  border-color: #3a3a3a;
+}
+
+.edit-hospital-page.dark .edit-hospital-toggle-item label {
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-actions {
+  background: #1e1e1e;
+  border-color: #3a3a3a;
+}
+
+.edit-hospital-page.dark .edit-hospital-btn-cancel {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-btn-cancel:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.edit-hospital-page.dark .edit-hospital-no-staff-content h3 {
+  color: #ffffff;
+}
+
+.edit-hospital-page.dark .edit-hospital-no-staff-content p {
+  color: #b0b0b0;
+}
+
+/* ============================================
+   Staff Information Display
+   ============================================ */
+.edit-hospital-staff-info {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 2px solid #dee2e6;
+}
+
+.staff-info-row {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.staff-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.staff-info-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.staff-info-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.staff-info-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.staff-info-badge.staff-role {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.staff-info-badge.status-active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.staff-info-badge.status-inactive {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 1024px) {
+  .edit-hospital-page {
+    padding: 1.25rem;
+  }
+
+  .edit-hospital-title-section {
+    padding: 1.5rem 1.75rem;
+  }
+
+  .edit-hospital-card {
+    padding: 1.75rem;
+  }
+  
+  .edit-hospital-form-grid {
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .edit-hospital-page {
+    padding: 1rem;
+  }
+
+  .edit-hospital-form-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .edit-hospital-field.full-width {
+    grid-column: 1;
+  }
+
+  .edit-hospital-title-section {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .edit-hospital-title-text h1 {
+    font-size: 1.5rem;
+  }
+
+  .edit-hospital-title-text p {
+    font-size: 0.9rem;
+  }
+
+  .edit-hospital-card {
+    padding: 1.5rem;
+  }
+
+  .edit-hospital-card-header {
+    flex-direction: column;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .edit-hospital-toggles {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .edit-hospital-actions {
+    flex-direction: column-reverse;
+    margin-top: 0.5rem;
+    padding: 1.25rem;
+  }
+
+  .edit-hospital-btn-cancel,
+  .edit-hospital-btn-save {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .edit-hospital-page {
+    padding: 0.75rem;
+  }
+
+  .edit-hospital-title-text h1 {
+    font-size: 1.35rem;
+  }
+
+  .edit-hospital-title-text p {
+    font-size: 0.85rem;
+  }
+
+  .edit-hospital-card {
+    padding: 1.25rem;
+  }
+
+  .edit-hospital-card-title h2 {
+    font-size: 1.25rem;
+  }
+
+  .edit-hospital-card-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .edit-hospital-title-icon {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .edit-hospital-form-grid {
+    gap: 1rem;
+  }
+  
+  .edit-hospital-input-group input,
+  .edit-hospital-input-group select,
+  .edit-hospital-input-group textarea {
+    padding: 0.75rem 0.875rem 0.75rem 3rem;
+    font-size: 0.9rem;
+  }
+  
+  .edit-hospital-no-staff-content {
+    padding: 2rem;
+  }
+}
