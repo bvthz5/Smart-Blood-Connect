@@ -100,21 +100,35 @@ def get_homepage_alerts():
         
         alerts = []
         
-        # Convert urgent requests to alerts
-        for request in urgent_requests:
-            alert = {
-                'id': request.id,
-                'type': 'alert',
-                'title': f'Urgent Need: {request.blood_group} in {request.hospital.location if request.hospital else "Unknown Location"}',
-                'message': f'({request.units_required} units needed) - Click to Help',
-                'blood_type': request.blood_group,
-                'location': request.hospital.location if request.hospital else "Unknown Location",
-                'quantity': request.units_required,
-                'created_at': request.created_at.isoformat(),
-                'priority': request.urgency,
-                'action_url': f'/seeker/request/{request.id}'
-            }
-            alerts.append(alert)
+        # Convert urgent requests to alerts (defensively)
+        for req in urgent_requests:
+            try:
+                hospital = getattr(req, 'hospital', None)
+                hospital_location = getattr(hospital, 'location', None) if hospital else None
+                blood_group = getattr(req, 'blood_group', None) or 'Unknown'
+                units_required = getattr(req, 'units_required', None) or 0
+                created_at = getattr(req, 'created_at', None)
+                created_at_iso = created_at.isoformat() if created_at is not None else datetime.now().isoformat()
+                priority_val = getattr(req, 'urgency', None) or 'normal'
+                # Normalize priority semantics (map 'high'->'urgent' to keep UI consistent)
+                priority = 'urgent' if str(priority_val).lower() in ('high', 'urgent') else str(priority_val)
+
+                alert = {
+                    'id': getattr(req, 'id', None),
+                    'type': 'alert',
+                    'title': f'Urgent Need: {blood_group} in {hospital_location or "Unknown Location"}',
+                    'message': f'({units_required} units needed) - Click to Help',
+                    'blood_type': blood_group,
+                    'location': hospital_location or getattr(hospital, 'address', 'Unknown Location') if hospital else 'Unknown Location',
+                    'quantity': units_required,
+                    'created_at': created_at_iso,
+                    'priority': priority,
+                    'action_url': f'/seeker/request/{getattr(req, "id", "")}'
+                }
+                alerts.append(alert)
+            except Exception:
+                # Log the specific request conversion error but continue processing other items
+                logger.exception('Failed to convert urgent request to alert; skipping this entry.')
         
         # Get upcoming blood camps
         upcoming_camps = db.session.query(Hospital).filter(
@@ -123,21 +137,33 @@ def get_homepage_alerts():
         ).limit(3).all()
         
         for camp in upcoming_camps:
-            alert = {
-                'id': f'camp_{camp.id}',
-                'type': 'camp',
-                'title': f'Blood Donation Camp at {camp.name}',
-                'message': f'{camp.next_camp_date.strftime("%B %d, %Y")} - {camp.location}',
-                'hospital_name': camp.name,
-                'location': camp.location or camp.address,
-                'date': camp.next_camp_date.isoformat(),
-                'created_at': datetime.now().isoformat(),
-                'action_url': f'/camps/{camp.id}'
-            }
-            alerts.append(alert)
+            try:
+                camp_location = getattr(camp, 'location', None) or getattr(camp, 'address', None) or 'Unknown Location'
+                next_date = getattr(camp, 'next_camp_date', None)
+                date_iso = next_date.isoformat() if next_date is not None else datetime.now().isoformat()
+                alert = {
+                    'id': f'camp_{getattr(camp, "id", "")}',
+                    'type': 'camp',
+                    'title': f'Blood Donation Camp at {getattr(camp, "name", "Hospital")}',
+                    'message': f'{next_date.strftime("%B %d, %Y") if next_date is not None else "TBA"} - {camp_location}',
+                    'hospital_name': getattr(camp, 'name', None),
+                    'location': camp_location,
+                    'date': date_iso,
+                    'created_at': datetime.now().isoformat(),
+                    'action_url': f'/camps/{getattr(camp, "id", "")}'
+                }
+                alerts.append(alert)
+            except Exception:
+                logger.exception('Failed to convert camp to alert; skipping this entry.')
         
-        # Sort alerts by priority and date
-        alerts.sort(key=lambda x: (x.get('priority') == 'urgent', x['created_at']), reverse=True)
+        # Sort alerts by priority (urgent first) and then by created_at (newest first)
+        def sort_key(a):
+            is_urgent = 1 if str(a.get('priority', '')).lower() == 'urgent' else 0
+            # parse created_at safely; if not parseable keep as minimal value
+            created = a.get('created_at')
+            return (is_urgent, created)
+
+        alerts.sort(key=sort_key, reverse=True)
         
         logger.info(f"Retrieved {len(alerts)} homepage alerts")
         return jsonify({
@@ -146,7 +172,8 @@ def get_homepage_alerts():
         })
         
     except Exception as e:
-        logger.error(f"Error fetching homepage alerts: {str(e)}")
+        # Log full traceback for easier debugging
+        logger.exception("Error fetching homepage alerts")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch alerts'

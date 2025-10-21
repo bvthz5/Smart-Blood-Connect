@@ -8,6 +8,8 @@ import { DemandByGroup, MonthlyTrend } from "../../components/seeker/Charts";
 import ActivityFeed from "../../components/seeker/ActivityFeed";
 import seekerService from "../../services/seekerService";
 import "./SeekerDashboard.css";
+import { redirectToLogin } from '../../utils/authRedirect';
+  const onLogout = () => { localStorage.removeItem('seeker_token'); redirectToLogin(); };
 
 export default function SeekerDashboard() {
   const [loading, setLoading] = useState(true);

@@ -4,6 +4,8 @@ import SeekerNavbar from '../../components/seeker/SeekerNavbar';
 import SeekerSidebar from '../../components/seeker/SeekerSidebar';
 import { DemandByGroup, MonthlyTrend } from '../../components/seeker/Charts';
 import './Analytics.css';
+ import { redirectToLogin } from '../../utils/authRedirect';
+  const onLogout = () => { localStorage.removeItem('seeker_token'); redirectToLogin(); };
 
 const Analytics = () => {
   const onLogout = () => { localStorage.removeItem('seeker_token'); window.location.href = '/seeker/login'; };

@@ -31,6 +31,7 @@ import DeleteIcon from '../../assets/icons/delete.svg';
 import VerifyIcon from '../../assets/icons/verify.svg';
 import UnverifyIcon from '../../assets/icons/unverify.svg';
 import hospitalService from '../../services/hospitalService';
+import { scheduleTask } from '../../utils/taskScheduler';
 import './HospitalManagement.css';
 
 const HospitalManagementContent = () => {
@@ -52,6 +53,33 @@ const HospitalManagementContent = () => {
     pages: 0
   });
   const [selectedHospital, setSelectedHospital] = useState(null);
+  // Confirm modal and toast state to avoid blocking dialogs
+  const [confirmModal, setConfirmModal] = useState({ show: false, message: '', onConfirm: null, confirmLabel: 'Confirm', processing: false });
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info', duration = 3000) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), duration);
+  };
+
+  const showConfirm = (message, onConfirm, confirmLabel = 'Confirm') => {
+    setConfirmModal({ show: true, message, onConfirm, confirmLabel, processing: false });
+  };
+
+  const handleConfirmCancel = () => setConfirmModal(prev => ({ ...prev, show: false, onConfirm: null, processing: false }));
+
+  const handleConfirmOk = () => {
+    const onConfirm = confirmModal.onConfirm;
+    setConfirmModal({ show: false, message: '', onConfirm: null, confirmLabel: 'Confirm', processing: false });
+    if (!onConfirm) return;
+    scheduleTask(async () => {
+      try {
+        await onConfirm();
+      } catch (err) {
+        console.error('Confirm action failed', err);
+      }
+    }, 'normal');
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -181,15 +209,15 @@ const HospitalManagementContent = () => {
 
   const handleToggleVerification = async (hospital) => {
     const action = hospital.is_verified ? 'unverify' : 'verify';
-    if (window.confirm(`Are you sure you want to ${action} ${hospital.name}?`)) {
+    showConfirm(`Are you sure you want to ${action} ${hospital.name}?`, async () => {
       try {
         await hospitalService.toggleVerification(hospital.id, !hospital.is_verified);
         await fetchHospitals();
-        alert(`Hospital ${action}ed successfully!`);
+        showToast(`Hospital ${action}ed successfully!`, 'success');
       } catch (err) {
-        alert(`Failed to ${action} hospital`);
+        showToast(`Failed to ${action} hospital`, 'error');
       }
-    }
+    }, action.charAt(0).toUpperCase() + action.slice(1));
   };
 
   const handleFormSubmit = async (e) => {

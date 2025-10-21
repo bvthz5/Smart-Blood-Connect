@@ -259,13 +259,23 @@ const EditHospitalContent = () => {
       
       let errorMessage = 'Failed to update hospital. Please try again.';
       
-      if (err.response?.data?.error) {
+      // If backend returned a 409, it is likely a uniqueness conflict (e.g. email already exists)
+      if (err.response?.status === 409 && err.response?.data?.error) {
+        const serverMsg = err.response.data.error;
+        // If it's an email conflict, show inline validation on the staff email field
+        if (/email/i.test(serverMsg)) {
+          setValidationErrors(prev => ({ ...prev, staff_email: serverMsg }));
+          setError(serverMsg);
+        } else {
+          setError(serverMsg);
+        }
+      } else if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
+        setError(errorMessage);
       } else if (err.message) {
         errorMessage = err.message;
+        setError(errorMessage);
       }
-      
-      setError(errorMessage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);

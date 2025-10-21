@@ -1641,13 +1641,31 @@ def update_staff_status(hospital_id, staff_id):
         hs_record = HospitalStaff.query.filter_by(hospital_id=hospital_id, user_id=staff_id).first()
         if not hs_record:
             return jsonify({"error": "Staff member not found"}), 404
-        
+
+        # Update hospital staff record
         hs_record.status = new_status
+
+        # Also update the associated user status and hospital verification
+        user = User.query.get(staff_id)
+        hospital = Hospital.query.get(hospital_id)
+
+        if user:
+            if new_status == 'active':
+                user.status = 'active'
+            else:
+                # pending or rejected -> keep user inactive
+                user.status = 'inactive'
+
+        if hospital:
+            # Since each hospital has at most one staff, we can derive verification from this staff record
+            hospital.is_verified = True if new_status == 'active' else False
+
         db.session.commit()
-        
+
         return jsonify({
             "message": f"Staff status updated to {new_status}",
-            "staff_status": new_status
+            "staff_status": new_status,
+            "hospital_verified": hospital.is_verified if hospital else None
         }), 200
         
     except Exception as e:

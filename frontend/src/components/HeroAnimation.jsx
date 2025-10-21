@@ -240,23 +240,53 @@ const HeroAnimation = () => {
 
     animate();
 
-    // Handle resize
-    const handleResize = () => {
+    // Handle resize - use RAF + debounce to avoid forced reflows during continuous resize
+    const resizeRafRef = { id: null };
+    let resizeTimeoutId = null;
+
+    const performResize = () => {
       if (!containerRef.current) return;
-      
       const width = containerRef.current.clientWidth;
       const height = containerRef.current.clientHeight;
-      
+
+      // Only update if size changed to avoid extra layout work
+      if (rendererRef.current) {
+        const prevSize = rendererRef.current.getSize(new THREE.Vector2());
+        if (prevSize.x === width && prevSize.y === height) return;
+      }
+
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+    };
+
+    const handleResize = () => {
+      // Schedule via rAF if not already scheduled
+      if (!resizeRafRef.id) {
+        resizeRafRef.id = requestAnimationFrame(() => {
+          performResize();
+          resizeRafRef.id = null;
+        });
+      }
+
+      // Ensure we do a final resize after the user stops resizing
+      if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
+      resizeTimeoutId = setTimeout(() => {
+        if (resizeRafRef.id) {
+          cancelAnimationFrame(resizeRafRef.id);
+          resizeRafRef.id = null;
+        }
+        requestAnimationFrame(performResize);
+      }, 250);
     };
 
     window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize);
+  window.removeEventListener('resize', handleResize);
+  if (resizeRafRef.id) cancelAnimationFrame(resizeRafRef.id);
+  if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
       
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);

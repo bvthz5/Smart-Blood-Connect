@@ -61,12 +61,13 @@ export function syncHeaderAlertHeights() {
         
         const endTime = performance.now();
         const duration = endTime - startTime;
-        
-        // Log performance if operation took too long
+
+        // Log performance if operation took longer than a frame; use info rather than warn
         if (duration > 16) {
-          console.warn(`Layout sync took ${duration}ms - potential long task`);
+          // eslint-disable-next-line no-console
+          console.info(`Layout sync took ${duration.toFixed(2)}ms`);
         }
-        
+
         isUpdating = false;
         
       } catch (error) {
@@ -89,22 +90,29 @@ let resizeTimeout;
 let isResizing = false;
 
 function debouncedSync() {
-  if (isResizing) return; // Prevent multiple calls during resize
-  
+  // Use RAF-based debounce to avoid heavy work in the resize event handler
+  if (isResizing) return;
   isResizing = true;
   clearTimeout(resizeTimeout);
-  
+
   resizeTimeout = setTimeout(() => {
-    syncHeaderAlertHeights();
-    isResizing = false;
-  }, 150); // Increased debounce time for better performance
+    // Defer the sync to the scheduler/RAF
+    scheduleLowPriorityTask(() => {
+      requestAnimationFrame(() => {
+        syncHeaderAlertHeights();
+        isResizing = false;
+      });
+    });
+  }, 150);
 }
 
-// Initialize on DOM ready
+// Initialize on DOM ready - defer initial sync via scheduler to avoid blocking
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', syncHeaderAlertHeights);
+  document.addEventListener('DOMContentLoaded', () => {
+    scheduleLowPriorityTask(syncHeaderAlertHeights);
+  });
 } else {
-  syncHeaderAlertHeights();
+  scheduleLowPriorityTask(syncHeaderAlertHeights);
 }
 
 // Re-sync on window resize (debounced)

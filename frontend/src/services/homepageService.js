@@ -3,41 +3,7 @@
  * Handles statistics, alerts, testimonials, and other homepage content
  */
 
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor for adding auth tokens
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for handling errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
+import api from './api';
 
 /**
  * Get homepage statistics
@@ -48,7 +14,8 @@ export const getHomepageStats = async () => {
     const response = await api.get('/api/homepage/stats');
     return response.data;
   } catch (error) {
-    console.error('Error fetching homepage stats:', error);
+    // eslint-disable-next-line no-console
+    console.error('[homepageService] Error fetching homepage stats:', error?.message || error);
     throw error;
   }
 };
@@ -62,7 +29,8 @@ export const getHomepageAlerts = async () => {
     const response = await api.get('/api/homepage/alerts');
     return response.data;
   } catch (error) {
-    console.error('Error fetching homepage alerts:', error);
+    // eslint-disable-next-line no-console
+    console.error('[homepageService] Error fetching homepage alerts:', error?.message || error);
     throw error;
   }
 };
@@ -76,7 +44,8 @@ export const getHomepageTestimonials = async () => {
     const response = await api.get('/api/homepage/testimonials');
     return response.data;
   } catch (error) {
-    console.error('Error fetching testimonials:', error);
+    // eslint-disable-next-line no-console
+    console.error('[homepageService] Error fetching testimonials:', error?.message || error);
     throw error;
   }
 };
@@ -129,7 +98,7 @@ export const getDashboardSummary = async () => {
  */
 export const getAllHomepageData = async () => {
   try {
-    const [stats, alerts, testimonials, bloodAvailability, featuredHospitals] = await Promise.all([
+    const [statsResp, alertsResp, testimonialsResp, bloodAvailabilityResp, featuredHospitalsResp] = await Promise.all([
       getHomepageStats(),
       getHomepageAlerts(),
       getHomepageTestimonials(),
@@ -138,15 +107,16 @@ export const getAllHomepageData = async () => {
     ]);
 
     return {
-      stats: stats.data,
-      alerts: alerts.data,
-      testimonials: testimonials.data,
-      bloodAvailability: bloodAvailability.data,
-      featuredHospitals: featuredHospitals.data,
+      stats: statsResp.data,
+      alerts: alertsResp.data,
+      testimonials: testimonialsResp.data,
+      bloodAvailability: bloodAvailabilityResp.data,
+      featuredHospitals: featuredHospitalsResp.data,
       lastUpdated: new Date().toISOString()
     };
   } catch (error) {
-    console.error('Error fetching all homepage data:', error);
+    // eslint-disable-next-line no-console
+    console.error('[homepageService] Error fetching all homepage data:', error?.message || error);
     throw error;
   }
 };

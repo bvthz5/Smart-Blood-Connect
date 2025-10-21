@@ -1,10 +1,30 @@
 import axios from 'axios';
 
 // Configure API base URL
-// Prefer environment variable; fall back to same-origin (Vite proxy handles /api)
-const API_BASE_URL =
-  (import.meta?.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
-  (import.meta?.env?.DEV ? 'http://127.0.0.1:5000' : '');
+// Prefer environment variable only if it's set and doesn't point to a known-bad port (1408).
+// Otherwise default to relative '' so Vite dev proxy forwards '/api' to backend.
+const rawEnvUrl = import.meta?.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim();
+let API_BASE_URL = '';
+if (rawEnvUrl) {
+  if (rawEnvUrl.includes(':1408')) {
+    // Prefer a quieter informational message in dev so logs aren't noisy.
+    API_BASE_URL = '';
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.info(`[api] Detected legacy VITE_API_URL=${rawEnvUrl}; using relative '/api' so Vite dev proxy forwards requests to the backend. To remove this message, unset VITE_API_URL in your .env or set it to the backend host (e.g. http://localhost:5000) if appropriate.`);
+    }
+  } else {
+    API_BASE_URL = rawEnvUrl;
+  }
+} else {
+  // Keep default as relative to allow Vite proxy. If you want to force backend host, set VITE_API_URL.
+  API_BASE_URL = '';
+}
+
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.info(`[api] Resolved API base: '${API_BASE_URL || '(relative /api via dev proxy)'}'`);
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,6 +32,30 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Defensive request interceptor: rewrite accidental absolute URLs (e.g. http://127.0.0.1:1408/...) to relative path
+api.interceptors.request.use((config) => {
+  try {
+    if (typeof window !== 'undefined' && typeof config.url === 'string') {
+      const url = config.url;
+      if (/^https?:\/\//i.test(url)) {
+        // If absolute URL contains port 1408, or origin differs from current, rewrite to relative
+        const a = document.createElement('a');
+        a.href = url;
+        const origin = a.origin;
+        if (origin.includes(':1408') || (window.location && origin !== window.location.origin)) {
+          // eslint-disable-next-line no-console
+          console.warn('[api] Rewriting absolute URL to relative for dev proxy:', url);
+          config.url = a.pathname + (a.search || '') + (a.hash || '');
+          config.baseURL = '';
+        }
+      }
+    }
+  } catch (e) {
+    // ignore parsing errors
+  }
+  return config;
+}, (err) => Promise.reject(err));
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -63,9 +107,10 @@ api.interceptors.response.use(
           localStorage.removeItem('token');
           localStorage.removeItem('seeker_refresh_token');
           localStorage.removeItem('donor_token');
-          
-          // Show alert and redirect
-          alert('Your account has been blocked by an administrator. Please contact support for assistance.');
+
+          // Non-blocking handling: log and redirect to login
+          // eslint-disable-next-line no-console
+          console.warn('User blocked by admin; redirecting to /seeker/login');
           window.location.href = '/seeker/login';
         }
       }

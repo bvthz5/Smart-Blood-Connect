@@ -31,6 +31,13 @@ def accept_invitation(user_id):
         # Update statuses
         hospital_staff.status = "active"
         user.status = "active"  # User can now login
+        # Mark hospital as verified now that staff accepted the invitation
+        try:
+            hospital.is_verified = True
+            hospital.is_active = True
+        except Exception:
+            # be defensive if hospital is not found
+            pass
         
         db.session.commit()
         
@@ -80,6 +87,11 @@ def reject_invitation(user_id):
         # Update status to rejected
         hospital_staff.status = "rejected"
         user.status = "inactive"  # Keep user inactive
+        # If invitation rejected, ensure hospital is not marked verified
+        try:
+            hospital.is_verified = False
+        except Exception:
+            pass
         
         db.session.commit()
         

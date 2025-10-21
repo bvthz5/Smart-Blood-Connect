@@ -27,6 +27,7 @@ import {
   Droplet
 } from 'lucide-react';
 import hospitalService from '../../services/hospitalService';
+import { scheduleTask } from '../../utils/taskScheduler';
 import './HospitalDetails.css';
 
 const HospitalDetailsContent = () => {
@@ -63,13 +64,7 @@ const HospitalDetailsContent = () => {
       const hospitalData = response.hospital || response;
       setHospital(hospitalData);
       
-      // Auto-update verification status based on staff status
-      if (hospitalData.staff_status && !hospitalData.staff_status.is_active) {
-        // Hospital should be unverified if staff is not active
-        if (hospitalData.is_verified) {
-          console.warn('Hospital verification status inconsistent with staff status');
-        }
-      }
+      // Do not modify backend verification here; we'll reconcile verification after staff fetch
     } catch (err) {
       console.error('Error fetching hospital details:', err);
       setError(err.response?.data?.error || 'Failed to fetch hospital details');
@@ -87,43 +82,80 @@ const HospitalDetailsContent = () => {
   };
 
   const handleDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete ${hospital.name}? This action cannot be undone.`)) {
-      try {
-        await hospitalService.deleteHospital(id);
-        alert('Hospital deleted successfully!');
-        navigate('/admin/hospitals');
-      } catch (err) {
-        alert(err.response?.data?.error || 'Failed to delete hospital');
-      }
-    }
+    showConfirm(
+      `Are you sure you want to delete ${hospital.name}? This action cannot be undone.`,
+      async () => {
+        try {
+          await hospitalService.deleteHospital(id);
+          showToast('Hospital deleted successfully!', 'success');
+          navigate('/admin/hospitals');
+        } catch (err) {
+          showToast(err.response?.data?.error || 'Failed to delete hospital', 'error');
+        }
+      },
+      'Delete'
+    );
   };
 
   const handleToggleVerification = async () => {
     const action = hospital.is_verified ? 'unverify' : 'verify';
-    if (window.confirm(`Are you sure you want to ${action} ${hospital.name}?`)) {
-      try {
-        await hospitalService.toggleVerification(id, !hospital.is_verified);
-        await fetchHospitalDetails();
-        alert(`Hospital ${action}ed successfully!`);
-      } catch (err) {
-        alert(`Failed to ${action} hospital`);
-      }
-    }
+    showConfirm(
+      `Are you sure you want to ${action} ${hospital.name}?`,
+      async () => {
+        try {
+          await hospitalService.toggleVerification(id, !hospital.is_verified);
+          await fetchHospitalDetails();
+          showToast(`Hospital ${action}ed successfully!`, 'success');
+        } catch (err) {
+          showToast(`Failed to ${action} hospital`, 'error');
+        }
+      },
+      action.charAt(0).toUpperCase() + action.slice(1)
+    );
   };
 
   const handleDownloadReport = () => {
-    alert('Download report functionality coming soon!');
+    showToast('Download report functionality coming soon!', 'info');
   };
 
   const fetchStaffMembers = async () => {
     setStaffLoading(true);
     try {
       const response = await hospitalService.getHospitalStaff(id);
-      setStaff(response.staff || []);
-      setActiveStaff(response.active_staff || null);
-      setOldStaff(response.old_staff || []);
-      console.log('Active Staff:', response.active_staff);
-      console.log('Old Staff:', response.old_staff);
+      const staffList = response.staff || [];
+
+      // Backend may sometimes return active_staff null for newly created staff
+      // Normalize on the client: consider any staff that is not blocked/deleted as the current assigned staff
+      const backendActive = response.active_staff && Object.keys(response.active_staff).length !== 0 ? response.active_staff : null;
+
+      // Prefer backendActive when provided, otherwise pick the first non-blocked/non-deleted staff
+      const derivedActive = backendActive || staffList.find(s => !s || typeof s !== 'object' ? false : (s.user_status !== 'blocked' && s.user_status !== 'deleted' && s.staff_status !== 'deleted')) || null;
+
+      // Old staff are those who are blocked or deleted (user_status or staff_status indicate removal)
+      const derivedOld = staffList.filter(s => s && (s.user_status === 'blocked' || s.user_status === 'deleted' || s.staff_status === 'deleted'));
+
+      // Remove the derivedActive from old list if present
+      const filteredOld = derivedOld.filter(o => !derivedActive || o.id !== derivedActive.id);
+
+      setStaff(staffList);
+      setActiveStaff(derivedActive);
+      setOldStaff(filteredOld);
+
+      console.log('Active Staff (derived):', derivedActive);
+      console.log('Old Staff (derived):', filteredOld);
+
+      // Reconcile hospital verification locally so UI reflects expected state
+      setHospital((prev) => {
+        if (!prev) return prev;
+        const hasActiveStaff = !!derivedActive;
+        if (hasActiveStaff && !prev.is_verified) {
+          return { ...prev, is_verified: true };
+        }
+        if (!hasActiveStaff && prev.is_verified) {
+          return { ...prev, is_verified: false };
+        }
+        return prev;
+      });
     } catch (err) {
       console.error('Error fetching staff:', err);
     } finally {
@@ -133,81 +165,154 @@ const HospitalDetailsContent = () => {
 
   const handleBlockStaff = async (staffMember) => {
     const action = staffMember.user_status === 'blocked' ? 'unblock' : 'block';
-    if (window.confirm(`Are you sure you want to ${action} ${staffMember.name}?`)) {
-      try {
-        const response = await hospitalService.toggleStaffBlock(id, staffMember.id);
-        await fetchStaffMembers();
-        await fetchHospitalDetails(); // Reload hospital to get updated verification status
-        alert(response.message || `Staff member ${action}ed successfully!`);
-      } catch (err) {
-        alert(`Failed to ${action} staff member`);
-      }
-    }
+    showConfirm(
+      `Are you sure you want to ${action} ${staffMember.name}?`,
+      async () => {
+        try {
+          const response = await hospitalService.toggleStaffBlock(id, staffMember.id);
+          await Promise.all([fetchStaffMembers(), fetchHospitalDetails()]);
+          showToast(response.message || `Staff member ${action}ed successfully!`, 'success');
+        } catch (err) {
+          showToast(`Failed to ${action} staff member`, 'error');
+        }
+      },
+      action.charAt(0).toUpperCase() + action.slice(1)
+    );
   };
 
   const handleUpdateStaffStatus = async (staffMember, newStatus) => {
-    if (window.confirm(`Are you sure you want to change staff status to ${newStatus}?`)) {
-      try {
-        await hospitalService.updateStaffStatus(id, staffMember.id, newStatus);
-        await fetchStaffMembers();
-        alert(`Staff status updated to ${newStatus} successfully!`);
-      } catch (err) {
-        alert(`Failed to update staff status`);
-      }
-    }
+    showConfirm(
+      `Are you sure you want to change staff status to ${newStatus}?`,
+      async () => {
+        try {
+          await hospitalService.updateStaffStatus(id, staffMember.id, newStatus);
+          await fetchStaffMembers();
+          showToast(`Staff status updated to ${newStatus} successfully!`, 'success');
+        } catch (err) {
+          showToast(`Failed to update staff status`, 'error');
+        }
+      },
+      'Update'
+    );
   };
 
   const handleResendInvitation = async (staffMember) => {
-    if (window.confirm(`Resend invitation to ${staffMember.name}?`)) {
-      try {
-        await hospitalService.resendInvitation(id, staffMember.id);
-        await fetchStaffMembers();
-        alert('Invitation resent successfully!');
-      } catch (err) {
-        alert('Failed to resend invitation');
-      }
-    }
+    showConfirm(
+      `Resend invitation to ${staffMember.name}?`,
+      async () => {
+        try {
+          await hospitalService.resendInvitation(id, staffMember.id);
+          await fetchStaffMembers();
+          showToast('Invitation resent successfully!', 'success');
+        } catch (err) {
+          showToast('Failed to resend invitation', 'error');
+        }
+      },
+      'Resend'
+    );
   };
 
-  const handleDeleteStaff = async (staffMember) => {
-    const confirmMessage = `⚠️ PERMANENT DELETE WARNING ⚠️\n\nAre you sure you want to delete ${staffMember.name}?\n\n` +
-      `This action will:\n` +
-      `• Permanently restrict ${staffMember.name} from the system\n` +
-      `• Prevent them from logging in\n` +
-      `• Unverify the hospital (no active staff)\n` +
-      `• Move them to staff history\n\n` +
-      `This action CANNOT be undone!\n\n` +
-      `Type "DELETE" to confirm:`;
-    
-    const userInput = window.prompt(confirmMessage);
-    
-    if (userInput === 'DELETE') {
-      try {
-        const response = await hospitalService.deleteStaff(id, staffMember.id);
-        await fetchStaffMembers();
-        await fetchHospitalDetails(); // Reload hospital to get updated verification status
-        alert(response.message || 'Staff member deleted successfully! Hospital is now unverified.');
-      } catch (err) {
-        alert(err.response?.data?.error || 'Failed to delete staff member');
-      }
-    } else if (userInput !== null) {
-      alert('Delete cancelled. You must type "DELETE" to confirm.');
+  // Non-blocking deletion flow: show a confirmation modal where the admin types DELETE
+  const [showDeleteStaffModal, setShowDeleteStaffModal] = useState(false);
+  const [deleteStaffCandidate, setDeleteStaffCandidate] = useState(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+  // Simple non-blocking toast notification
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'info', duration = 3500) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), duration);
+  };
+
+  const handleDeleteStaff = (staffMember) => {
+    setDeleteStaffCandidate(staffMember);
+    setDeleteConfirmInput('');
+    setShowDeleteStaffModal(true);
+  };
+
+  const confirmDeleteStaff = async () => {
+    if (!deleteStaffCandidate) return;
+    if (deleteConfirmInput !== 'DELETE') {
+      showToast('You must type DELETE to confirm', 'error');
+      return;
     }
+    // Close modal and run delete asynchronously to avoid long click handlers
+    setShowDeleteStaffModal(false);
+    setDeleteProcessing(true);
+    scheduleTask(async () => {
+      try {
+        const response = await hospitalService.deleteStaff(id, deleteStaffCandidate.id);
+        await Promise.all([fetchStaffMembers(), fetchHospitalDetails()]);
+        showToast(response.message || 'Staff member deleted successfully! Hospital verification updated.', 'success');
+      } catch (err) {
+        showToast(err.response?.data?.error || 'Failed to delete staff member', 'error');
+      } finally {
+        setDeleteProcessing(false);
+      }
+    }, 'normal');
+  };
+
+  const cancelDeleteStaff = () => {
+    setShowDeleteStaffModal(false);
+    setDeleteStaffCandidate(null);
+    setDeleteConfirmInput('');
+  };
+
+  // Generic non-blocking confirm modal state
+  const [confirmModal, setConfirmModal] = useState({ show: false, message: '', onConfirm: null, confirmLabel: 'Confirm', processing: false });
+
+  const showConfirm = (message, onConfirm, confirmLabel = 'Confirm') => {
+    setConfirmModal({ show: true, message, onConfirm, confirmLabel, processing: false });
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmModal(prev => ({ ...prev, show: false, onConfirm: null, processing: false }));
+  };
+
+  const handleConfirmOk = async () => {
+    if (!confirmModal.onConfirm) return;
+    const onConfirm = confirmModal.onConfirm;
+    // Close modal immediately so the click handler returns quickly
+    setConfirmModal({ show: false, message: '', onConfirm: null, confirmLabel: 'Confirm', processing: false });
+    // Run the confirm action asynchronously via scheduler to avoid long click handlers
+    scheduleTask(async () => {
+      try {
+        await onConfirm();
+      } catch (err) {
+        console.error('Confirm action failed', err);
+      }
+    }, 'normal');
   };
 
   const handleUnblockStaff = async () => {
-    if (window.confirm('Are you sure you want to unblock this staff member and reactivate the hospital?')) {
-      setUnblockLoading(true);
-      try {
-        await hospitalService.unblockStaff(id);
-        await fetchHospitalDetails();
-        alert('Staff member unblocked successfully! Hospital is now verified.');
-      } catch (err) {
-        alert(err.response?.data?.error || 'Failed to unblock staff member');
-      } finally {
-        setUnblockLoading(false);
-      }
-    }
+    showConfirm(
+      'Are you sure you want to unblock this staff member and reactivate the hospital?',
+      async () => {
+        setUnblockLoading(true);
+        try {
+          await hospitalService.unblockStaff(id);
+          // Refresh both hospital details and staff members so UI reflects the change immediately
+          await Promise.all([fetchHospitalDetails(), fetchStaffMembers()]);
+
+          // Optimistically update activeStaff if present
+          setActiveStaff((prev) => {
+            if (!prev) return prev;
+            return { ...prev, user_status: 'active', staff_status: 'approved' };
+          });
+
+          // Ensure hospital shows verified locally
+          setHospital((prev) => (prev ? { ...prev, is_verified: true } : prev));
+
+          showToast('Staff member unblocked successfully! Hospital is now verified.', 'success');
+        } catch (err) {
+          showToast(err.response?.data?.error || 'Failed to unblock staff member', 'error');
+        } finally {
+          setUnblockLoading(false);
+        }
+      },
+      'Unblock'
+    );
   };
 
   const handleAssignStaff = () => {
@@ -221,9 +326,9 @@ const HospitalDetailsContent = () => {
       await hospitalService.assignStaff(id, assignFormData);
       await fetchStaffMembers();
       setShowAssignModal(false);
-      alert('Staff member assigned successfully!');
+      showToast('Staff member assigned successfully!', 'success');
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to assign staff member');
+      showToast(err.response?.data?.error || 'Failed to assign staff member', 'error');
     }
   };
 
@@ -236,6 +341,17 @@ const HospitalDetailsContent = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Helpers to normalize status fields from backend objects
+  const getUserStatus = (staffObj) => {
+    if (!staffObj) return null;
+    return staffObj.user_status || staffObj.status || staffObj.user?.status || 'inactive';
+  };
+
+  const getHospitalStaffStatus = (staffObj) => {
+    if (!staffObj) return null;
+    return staffObj.staff_status || staffObj.status || staffObj.hs_status || 'pending';
   };
 
   if (loading) {
@@ -337,6 +453,48 @@ const HospitalDetailsContent = () => {
           </div>
         </div>
       </div>
+      {/* Delete Staff Confirmation Modal (non-blocking) */}
+      {showDeleteStaffModal && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-content" style={{ maxWidth: 560 }}>
+            <h3>Confirm Permanent Delete</h3>
+            <p>
+              You are about to permanently delete <strong>{deleteStaffCandidate?.name}</strong>.
+              This action is irreversible and may unverify the hospital if there are no active staff members.
+            </p>
+            <p>Please type <strong>DELETE</strong> to confirm.</p>
+            <input
+              type="text"
+              value={deleteConfirmInput ?? ''}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              style={{ width: '100%', padding: '8px', marginBottom: '12px' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={cancelDeleteStaff} disabled={deleteProcessing}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmDeleteStaff} disabled={deleteProcessing}>
+                {deleteProcessing ? 'Deleting…' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic Confirm Modal (non-blocking) */}
+      {confirmModal.show && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-content" style={{ maxWidth: 560 }}>
+            <h3>Confirm Action</h3>
+            <p>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={handleConfirmCancel} disabled={confirmModal.processing}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleConfirmOk} disabled={confirmModal.processing}>
+                {confirmModal.processing ? 'Working…' : confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="hospital-details-content">
@@ -690,24 +848,98 @@ const HospitalDetailsContent = () => {
                             {/* User Account Status */}
                             <div className="status-block">
                               <span className="status-label">User Account Status</span>
-                              <span className={`staff-badge user-badge ${activeStaff.user_status}`}>
-                                <UserCheck size={16} />
-                                Active
-                              </span>
+                              {(() => {
+                                const us = getUserStatus(activeStaff);
+                                if (us === 'active') {
+                                  return (
+                                    <span className={`staff-badge user-badge active`}>
+                                      <UserCheck size={16} />
+                                      Active
+                                    </span>
+                                  );
+                                }
+                                if (us === 'inactive') {
+                                  return (
+                                    <span className={`staff-badge user-badge inactive`}>
+                                      <UserCheck size={16} />
+                                      Inactive
+                                    </span>
+                                  );
+                                }
+                                if (us === 'blocked') {
+                                  return (
+                                    <span className={`staff-badge user-badge blocked`}>
+                                      <Ban size={16} />
+                                      Blocked
+                                    </span>
+                                  );
+                                }
+                                if (us === 'deleted') {
+                                  return (
+                                    <span className={`staff-badge user-badge deleted`}>
+                                      <UserX size={16} />
+                                      Deleted
+                                    </span>
+                                  );
+                                }
+                                if (us === 'rejected') {
+                                  return (
+                                    <span className={`staff-badge user-badge rejected`}>
+                                      <UserX size={16} />
+                                      Invitation Rejected
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className={`staff-badge user-badge unknown`}>
+                                    <UserCheck size={16} />
+                                    {us}
+                                  </span>
+                                );
+                              })()}
                               <p className="status-description">
-                                User can login to the system
+                                {getUserStatus(activeStaff) === 'active' ? 'User can login to the system' : 'User cannot login until invitation is accepted'}
                               </p>
                             </div>
 
                             {/* Hospital Staff Status */}
                             <div className="status-block">
                               <span className="status-label">Hospital Staff Status</span>
-                              <span className={`staff-badge hospital-badge ${activeStaff.staff_status}`}>
-                                <Check size={16} />
-                                Approved & Active
-                              </span>
+                              {(() => {
+                                const hs = getHospitalStaffStatus(activeStaff);
+                                if (hs === 'active') {
+                                  return (
+                                    <span className={`staff-badge hospital-badge active`}>
+                                      <Check size={16} />
+                                      Approved & Active
+                                    </span>
+                                  );
+                                }
+                                if (hs === 'pending') {
+                                  return (
+                                    <span className={`staff-badge hospital-badge pending`}>
+                                      <Clock size={16} />
+                                      Pending
+                                    </span>
+                                  );
+                                }
+                                if (hs === 'rejected') {
+                                  return (
+                                    <span className={`staff-badge hospital-badge rejected`}>
+                                      <UserX size={16} />
+                                      Rejected
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className={`staff-badge hospital-badge ${hs}`}>
+                                    <Check size={16} />
+                                    {hs}
+                                  </span>
+                                );
+                              })()}
                               <p className="status-description">
-                                Staff accepted and active
+                                {getHospitalStaffStatus(activeStaff) === 'active' ? 'Staff accepted and active' : 'Staff invitation pending or not accepted'}
                               </p>
                             </div>
                           </div>
@@ -795,6 +1027,14 @@ const HospitalDetailsContent = () => {
         </div>
       </div>
 
+      {/* Toast element for non-blocking notifications */}
+      {toast && (
+        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999 }}>
+          <div style={{ background: toast.type === 'success' ? '#2f855a' : toast.type === 'error' ? '#c53030' : '#2b6cb0', color: 'white', padding: '10px 14px', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
