@@ -19,7 +19,8 @@ import DonorRegister from './pages/donor/Register';
 import DonorForgotPassword from './pages/donor/ForgotPassword';
 import DonorRouteGuard from './components/donor/DonorRouteGuard';
 import DonorDashboard from './pages/donor/DonorDashboard';
-
+import DonorProfile from './pages/donor/DonorProfile';
+import DonorSettings from './pages/donor/DonorSettings';
 
 // Seeker Pages
 import SeekerRequest from './pages/seeker/SeekerRequest';
@@ -90,6 +91,18 @@ function App() {
           <Route path="/donor/dashboard" element={
             <DonorRouteGuard>
               <DonorDashboard />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/profile" element={
+            <DonorRouteGuard>
+              <DonorProfile />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/settings" element={
+            <DonorRouteGuard>
+              <DonorSettings />
             </DonorRouteGuard>
           } />
 
