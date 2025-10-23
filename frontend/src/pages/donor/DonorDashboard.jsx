@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { getDonorProfile, getDonorDashboard, getDonorMatches, setAvailability, respondToMatch } from "../../services/api";
 import "./donor-dashboard.css";
 
-// Helper function to get initials from name
 const getInitials = (name) => {
   if (!name) return "?";
   return name
@@ -25,6 +24,7 @@ function DonorDashboard() {
   const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
     try {
       const [pRes, dRes, mRes] = await Promise.all([
         getDonorProfile(),
@@ -42,30 +42,21 @@ function DonorDashboard() {
     } catch (e) {
       setToast("Failed to load dashboard. Please try again.");
       setTimeout(() => setToast(""), 4000);
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => { load(); }, []);
 
-  async function toggle(next) {
+  async function toggleAvailability() {
     try {
-      await setAvailability(next);
-      setAvailable(next === "available");
-      setToast("Status updated");
+      const nextStatus = available ? 'unavailable' : 'available';
+      await setAvailability(nextStatus);
+      setAvailable(!available);
+      setToast(`You are now ${!available ? 'available' : 'unavailable'} for emergencies`);
     } catch (e) {
       setToast("Failed to update status");
-    } finally {
-      setTimeout(() => setToast(""), 3000);
-    }
-  }
-
-  async function respond(id, action) {
-    try {
-      await respondToMatch(id, action);
-      setMatches((prev) => prev.map((x) => (x.match_id === id ? { ...x, response: action } : x)));
-      setToast("Response recorded");
-    } catch (e) {
-      setToast("Failed to submit response");
     } finally {
       setTimeout(() => setToast(""), 3000);
     }
@@ -74,7 +65,7 @@ function DonorDashboard() {
   async function handleMatchResponse(matchId, action) {
     try {
       await respondToMatch(matchId, action);
-      await load(); // Reload data after response
+      await load();
       setToast(`Request ${action === 'accept' ? 'accepted' : 'declined'}`);
       setTimeout(() => setToast(""), 3000);
     } catch (_) {
@@ -84,14 +75,12 @@ function DonorDashboard() {
   }
 
   function handleLogout() {
-    // Add logout logic here
-    nav('/login');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    nav('/donor/login');
   }
 
   // Calculate derived data
-  const isAvailable = profile?.availability_status === "available";
-  const trustScore = typeof metrics?.reliability_score === 'number' ? metrics.reliability_score : 4.5;
-  
   const calculateNextEligibleDate = () => {
     try {
       const today = new Date();
@@ -136,35 +125,17 @@ function DonorDashboard() {
     );
   }
 
-  if (!profile || !metrics) {
-    return (
-      <div className="donor-dashboard error">
-        <div className="error-container">
-          <div className="error-icon">⚠️</div>
-          <h3>Unable to load dashboard</h3>
-          <p>There was an error loading your donor information.</p>
-          <button className="retry-btn" onClick={loadDashboardData}>
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const criticalRequests = matches.filter(match => match.urgency === 'critical').slice(0, 3);
-  const pendingRequests = matches.filter(match => match.status === 'pending').slice(0, 5);
 
   return (
     <div className="donor-dashboard">
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-content">
-          <div className="header-left">
+          <div className="brand-section">
             <div className="brand">
               <div className="brand-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="currentColor"/>
-                </svg>
+                <div className="heart-pulse">❤️</div>
               </div>
               <div className="brand-text">
                 <h1>SmartBlood Connect</h1>
@@ -173,11 +144,13 @@ function DonorDashboard() {
             </div>
           </div>
 
-          <div className="header-actions">
+          <div className="header-center">
             <div className="welcome-text">
-              Welcome, {profile.name?.split(' ')[0] || 'Donor'} 👋
+              Welcome back, <span className="highlight">{profile.name?.split(' ')[0] || 'Donor'}</span>! 👋
             </div>
-            
+          </div>
+
+          <div className="header-actions">
             <button className="icon-btn notification-btn">
               <span className="icon">🔔</span>
               {metrics?.active_matches_count > 0 && (
@@ -205,10 +178,6 @@ function DonorDashboard() {
                     <span className="item-icon">⚙️</span>
                     Settings
                   </button>
-                  <button className="dropdown-item">
-                    <span className="item-icon">💬</span>
-                    Help / Support
-                  </button>
                   <div className="dropdown-divider"></div>
                   <button className="dropdown-item logout" onClick={handleLogout}>
                     <span className="item-icon">🚪</span>
@@ -224,265 +193,303 @@ function DonorDashboard() {
       {/* Main Content */}
       <main className="dashboard-main">
         <div className="dashboard-container">
-          {/* Welcome Section */}
+          {/* Welcome & Status Section */}
           <section className="welcome-section">
             <div className="welcome-content">
-              <h2>Welcome back, {profile.name?.split(' ')[0] || 'Donor'}! 👋</h2>
-              <p>Ready to save lives? Your availability status and recent activity are shown below.</p>
-            </div>
-            <div className="beacon">
-              <label className="switch">
-                <input type="checkbox" checked={available} onChange={() => toggle(available ? 'unavailable' : 'available')} aria-pressed={available} />
-                <span className="slider" />
-              </label>
-              <span className="beacon-label">Available for Emergencies</span>
-            </div>
-          </section>
-
-          {/* Stats Cards */}
-          <section className="stats-grid">
-            <div className="stat-card">
-              <div className="card-icon">💉</div>
-              <div className="card-content">
-                <h3>Total Donations</h3>
-                <div className="metric-value">{metrics.total_donations || 0}</div>
-                <p>Lifetime successful donations</p>
+              <div className="welcome-text-content">
+                <h1>Ready to save lives today? 🩸</h1>
+                <p>Your availability helps hospitals match critical blood requests in real-time.</p>
               </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="card-icon">🏥</div>
-              <div className="card-content">
-                <h3>Last Donation Hospital</h3>
-                <div className="metric-value">{metrics.last_donation_hospital || "Not Available"}</div>
-                <p>{metrics.last_donation_address || "No recent donations"}</p>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="card-icon">📅</div>
-              <div className="card-content">
-                <h3>Last Donation Date</h3>
-                <div className="metric-value">
-                  {metrics.last_donation_date ? 
-                    new Date(metrics.last_donation_date).toLocaleDateString() : "Never"
-                  }
-                </div>
-                <p>Most recent donation</p>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="card-icon">✅</div>
-              <div className="card-content">
-                <h3>Next Eligible Donation</h3>
-                <div className="metric-value">{eligibleData.date}</div>
-                <div className="progress-container">
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill" 
-                      style={{ width: `${eligibilityProgress}%` }}
-                    ></div>
+              <div className="availability-section">
+                <div className="availability-status">
+                  <div className={`status-indicator ${available ? 'available' : 'offline'}`}>
+                    <div className="status-dot"></div>
+                    <span>{available ? 'Available for Emergencies' : 'Currently Offline'}</span>
                   </div>
-                  <span className="progress-text">{eligibleData.daysRemaining} days remaining</span>
                 </div>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="card-icon">📍</div>
-              <div className="card-content">
-                <h3>Current Location</h3>
-                <div className="metric-value">{profile.district || "Not Set"}</div>
-                <p>{profile.city || "Update your location in settings"}</p>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="card-icon">⏳</div>
-              <div className="card-content">
-                <h3>Pending Requests</h3>
-                <div className="metric-value">{pendingRequests.length}</div>
-                <p>Requests awaiting your response</p>
+                <button 
+                  className={`availability-toggle ${available ? 'active' : ''}`}
+                  onClick={toggleAvailability}
+                >
+                  {available ? 'Go Offline' : 'Go Online'}
+                </button>
               </div>
             </div>
           </section>
 
-          {/* Two Column Layout */}
-          <div className="content-columns">
-            {/* Left Column */}
-            <div className="column-left">
-              {/* Critical Requests */}
-              <section className="content-section critical-requests">
-                <div className="section-header">
+          {/* Stats Grid - Perfect 6 Cards in 3 Column Layout */}
+          <section className="stats-section">
+            <div className="stats-grid">
+              {/* Row 1 - Primary Stats */}
+              <div className="stat-card">
+                <div className="stat-icon">🩸</div>
+                <div className="stat-content">
+                  <h3>Total Donations</h3>
+                  <div className="stat-value">{metrics.total_donations || profile.donation_count || 0}</div>
+                  <p className="stat-description">Successful donations</p>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon">🏥</div>
+                <div className="stat-content">
+                  <h3>Last Hospital</h3>
+                  <div className="stat-value-small">
+                    {metrics.last_donated_to || profile.last_hospital || "—"}
+                  </div>
+                  <p className="stat-description">Last donated hospital</p>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon">📅</div>
+                <div className="stat-content">
+                  <h3>Last Donation Date</h3>
+                  <div className="stat-value-small">
+                    {metrics.last_donation_date ? 
+                      new Date(metrics.last_donation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Never"
+                    }
+                  </div>
+                  <p className="stat-description">
+                    {metrics.last_donation_date ? 
+                      `${Math.floor((new Date() - new Date(metrics.last_donation_date)) / (1000 * 60 * 60 * 24))} days ago` : 
+                      "No donations yet"
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Row 2 - Secondary Stats */}
+              <div className="stat-card highlight">
+                <div className="stat-icon">⏳</div>
+                <div className="stat-content">
+                  <h3>Next Eligible Date</h3>
+                  <div className="stat-value-small">{eligibleData.date}</div>
+                  <p className="stat-description">
+                    {eligibleData.daysRemaining > 0 ? 
+                      `${eligibleData.daysRemaining} days remaining` : 
+                      "Eligible now!"
+                    }
+                  </p>
+                  {eligibleData.daysRemaining > 0 && (
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${eligibilityProgress}%` }}
+                      ></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="stat-card ai-card">
+                <div className="stat-icon">🤖</div>
+                <div className="stat-content">
+                  <h3>AI Recommendation</h3>
+                  <div className="stat-value-small">
+                    {metrics.nearest_hospital || "Metro General"}
+                  </div>
+                  <p className="stat-description">
+                    {metrics.nearest_distance ? `${metrics.nearest_distance} km away` : "Nearest hospital needing blood"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="stat-card pending-card">
+                <div className="stat-icon">🔔</div>
+                <div className="stat-content">
+                  <h3>Pending Requests</h3>
+                  <div className="stat-value">
+                    {matches.filter(m => m.status === 'pending').length || metrics.active_matches_count || 0}
+                  </div>
+                  <p className="stat-description">Awaiting your response</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Main Content Area - Perfect 2 Column Layout */}
+          <div className="main-content-area">
+            {/* Left Column - Critical Requests */}
+            <div className="content-column left-column">
+              <section className="content-card critical-requests">
+                <div className="card-header">
                   <h2>🩸 Critical Blood Requests</h2>
-                  <div className="section-badge">
-                    <span className="active-count">{metrics.active_matches_count || 0} Active</span>
+                  <div className="card-badge">
+                    {metrics.active_matches_count || 0} Active
                   </div>
                 </div>
 
-                {criticalRequests.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-icon">🎯</div>
-                    <h3>No Critical Matches</h3>
-                    <p>You'll be notified when urgent blood requests match your profile and location.</p>
-                    <div className="empty-actions">
-                      <button className="btn-secondary" onClick={loadDashboardData}>
+                <div className="card-content">
+                  {criticalRequests.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">🎯</div>
+                      <div className="empty-text">
+                        <h3>No Critical Matches</h3>
+                        <p>You'll be notified when urgent blood requests match your profile.</p>
+                      </div>
+                      <button className="refresh-btn" onClick={load}>
                         Refresh
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="requests-list">
-                    {criticalRequests.map((match, index) => (
-                      <div key={match.match_id} className="request-card urgent">
-                        <div className="request-header">
-                          <div className="urgency-badge">URGENT</div>
-                          <div className="match-score">Match: {match.score || 85}%</div>
-                        </div>
-                        
-                        <div className="request-content">
-                          <h4 className="hospital-name">{match.hospital || "Metro Medical Center"}</h4>
+                  ) : (
+                    <div className="requests-list">
+                      {criticalRequests.map((match) => (
+                        <div key={match.match_id} className="request-item urgent">
+                          <div className="request-header">
+                            <span className="urgency-badge">URGENT</span>
+                            <span className="match-score">{match.score || 85}% Match</span>
+                          </div>
                           <div className="request-details">
-                            <div className="detail-row">
-                              <span className="detail-label">Blood Type:</span>
-                              <span className="detail-value">{match.blood_type || "O+"}</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Distance:</span>
-                              <span className="detail-value">{match.distance_km || "2.3"} km</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Time Left:</span>
-                              <span className="detail-value urgent-time">{match.time_window || "4h 23m"}</span>
+                            <h4>{match.hospital || "Metro Medical Center"}</h4>
+                            <div className="detail-grid">
+                              <div className="detail-item">
+                                <span>Blood Type:</span>
+                                <strong>{match.blood_type || "O+"}</strong>
+                              </div>
+                              <div className="detail-item">
+                                <span>Distance:</span>
+                                <strong>{match.distance_km || "2.3"} km</strong>
+                              </div>
+                              <div className="detail-item">
+                                <span>Time Left:</span>
+                                <strong className="urgent-time">{match.time_window || "4h 23m"}</strong>
+                              </div>
                             </div>
                           </div>
+                          <div className="request-actions">
+                            <button 
+                              className="btn btn-primary"
+                              onClick={() => handleMatchResponse(match.match_id, 'accept')}
+                            >
+                              Accept Request
+                            </button>
+                            <button 
+                              className="btn btn-secondary"
+                              onClick={() => handleMatchResponse(match.match_id, 'reject')}
+                            >
+                              Decline
+                            </button>
+                          </div>
                         </div>
-
-                        <div className="request-actions">
-                          <button 
-                            className="btn-primary"
-                            onClick={() => handleMatchResponse(match.match_id, 'accept')}
-                          >
-                            <span className="btn-icon">✅</span>
-                            Accept Request
-                          </button>
-                          <button 
-                            className="btn-secondary"
-                            onClick={() => handleMatchResponse(match.match_id, 'reject')}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </section>
 
-              {/* AI Match Insights */}
-              <section className="content-section ai-insights">
-                <div className="section-header">
+              {/* AI Match Insights - Below Critical Requests */}
+              <section className="content-card ai-insights">
+                <div className="card-header">
                   <h2>🧠 AI Match Insights</h2>
+                  <div className="card-badge">
+                    Real-time Analysis
+                  </div>
                 </div>
-                <div className="insights-content">
-                  <div className="insight-item">
-                    <div className="insight-icon">🏥</div>
-                    <div className="insight-text">
-                      <h4>Metro General Hospital</h4>
-                      <p>High demand for your blood type (O+) this week</p>
+                <div className="card-content">
+                  <div className="insights-list">
+                    <div className="insight-item">
+                      <div className="insight-icon">🏥</div>
+                      <div className="insight-content">
+                        <h4>Metro General Hospital</h4>
+                        <p>High demand for your blood type (O+) this week</p>
+                      </div>
+                      <div className="insight-match">92% match</div>
                     </div>
-                    <div className="insight-match">92% match</div>
-                  </div>
-                  <div className="insight-item">
-                    <div className="insight-icon">🏥</div>
-                    <div className="insight-text">
-                      <h4>City Medical Center</h4>
-                      <p>Regular donor needed for scheduled procedures</p>
+                    <div className="insight-item">
+                      <div className="insight-icon">🏥</div>
+                      <div className="insight-content">
+                        <h4>City Medical Center</h4>
+                        <p>Regular donor needed for scheduled procedures</p>
+                      </div>
+                      <div className="insight-match">87% match</div>
                     </div>
-                    <div className="insight-match">87% match</div>
-                  </div>
-                  <div className="insight-item">
-                    <div className="insight-icon">🏥</div>
-                    <div className="insight-text">
-                      <h4>Community Health Clinic</h4>
-                      <p>Close to your location with flexible timing</p>
+                    <div className="insight-item">
+                      <div className="insight-icon">🏥</div>
+                      <div className="insight-content">
+                        <h4>Community Health Clinic</h4>
+                        <p>Close to your location with flexible timing</p>
+                      </div>
+                      <div className="insight-match">78% match</div>
                     </div>
-                    <div className="insight-match">78% match</div>
                   </div>
                 </div>
               </section>
             </div>
 
-            {/* Right Column */}
-            <div className="column-right">
-              {/* Health Tips */}
-              <section className="content-section health-tips">
-                <div className="section-header">
+            {/* Right Column - Health Tips & Quick Navigation */}
+            <div className="content-column right-column">
+              {/* Health & Wellness Tips */}
+              <section className="content-card health-tips">
+                <div className="card-header">
                   <h2>💡 Health & Wellness Tips</h2>
                 </div>
-                <div className="tips-content">
-                  <div className="tip-item">
-                    <div className="tip-icon">💧</div>
-                    <div className="tip-text">
-                      <h4>Stay Hydrated</h4>
-                      <p>Drink plenty of water before and after donation</p>
+                <div className="card-content">
+                  <div className="tips-list">
+                    <div className="tip-item">
+                      <div className="tip-icon">💧</div>
+                      <div className="tip-content">
+                        <h4>Stay Hydrated</h4>
+                        <p>Drink plenty of water before and after donation</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="tip-item">
-                    <div className="tip-icon">🍽️</div>
-                    <div className="tip-text">
-                      <h4>Eat Iron-Rich Foods</h4>
-                      <p>Include spinach, lentils, and red meat in your diet</p>
+                    <div className="tip-item">
+                      <div className="tip-icon">🍽️</div>
+                      <div className="tip-content">
+                        <h4>Eat Iron-Rich Foods</h4>
+                        <p>Include spinach, lentils, and red meat in your diet</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="tip-item">
-                    <div className="tip-icon">😴</div>
-                    <div className="tip-text">
-                      <h4>Get Adequate Rest</h4>
-                      <p>Ensure 7-8 hours of sleep before donating blood</p>
+                    <div className="tip-item">
+                      <div className="tip-icon">😴</div>
+                      <div className="tip-content">
+                        <h4>Get Adequate Rest</h4>
+                        <p>Ensure 7-8 hours of sleep before donating blood</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="tip-item">
-                    <div className="tip-icon">🚫</div>
-                    <div className="tip-text">
-                      <h4>Avoid Alcohol</h4>
-                      <p>Refrain from alcohol 24 hours before donation</p>
+                    <div className="tip-item">
+                      <div className="tip-icon">🚫</div>
+                      <div className="tip-content">
+                        <h4>Avoid Alcohol</h4>
+                        <p>Refrain from alcohol 24 hours before donation</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </section>
 
               {/* Quick Navigation */}
-              <section className="content-section quick-nav">
-                <div className="section-header">
+              <section className="content-card quick-nav">
+                <div className="card-header">
                   <h2>🧭 Quick Navigation</h2>
                 </div>
-                <div className="nav-grid">
-                  <button className="nav-card" onClick={() => nav('/donor/donations')}>
-                    <div className="nav-icon">💉</div>
-                    <span>My Donations</span>
-                  </button>
-                  <button className="nav-card" onClick={() => nav('/donor/eligibility')}>
-                    <div className="nav-icon">📅</div>
-                    <span>Next Eligibility</span>
-                  </button>
-                  <button className="nav-card" onClick={() => nav('/donor/requests')}>
-                    <div className="nav-icon">🏥</div>
-                    <span>Manage Requests</span>
-                  </button>
-                  <button className="nav-card" onClick={() => nav('/donor/nearby')}>
-                    <div className="nav-icon">🧭</div>
-                    <span>Nearby Requests</span>
-                  </button>
-                  <button className="nav-card" onClick={() => nav('/donor/notifications')}>
-                    <div className="nav-icon">🔔</div>
-                    <span>Notifications</span>
-                  </button>
-                  <button className="nav-card" onClick={() => nav('/donor/settings')}>
-                    <div className="nav-icon">⚙️</div>
-                    <span>Settings</span>
-                  </button>
+                <div className="card-content">
+                  <div className="nav-grid">
+                    <button className="nav-item" onClick={() => nav('/donor/donations')}>
+                      <div className="nav-icon">💉</div>
+                      <span>My Donations</span>
+                    </button>
+                    <button className="nav-item" onClick={() => nav('/donor/eligibility')}>
+                      <div className="nav-icon">📅</div>
+                      <span>Next Eligibility</span>
+                    </button>
+                    <button className="nav-item" onClick={() => nav('/donor/requests')}>
+                      <div className="nav-icon">🏥</div>
+                      <span>Manage Requests</span>
+                    </button>
+                    <button className="nav-item" onClick={() => nav('/donor/nearby')}>
+                      <div className="nav-icon">🧭</div>
+                      <span>Nearby Requests</span>
+                    </button>
+                    <button className="nav-item" onClick={() => nav('/donor/notifications')}>
+                      <div className="nav-icon">🔔</div>
+                      <span>Notifications</span>
+                    </button>
+                    <button className="nav-item" onClick={() => nav('/donor/settings')}>
+                      <div className="nav-icon">⚙️</div>
+                      <span>Settings</span>
+                    </button>
+                  </div>
                 </div>
               </section>
             </div>
@@ -490,17 +497,17 @@ function DonorDashboard() {
         </div>
       </main>
 
-      {/* Toast */}
+      {/* Toast Notification */}
       {toast && (
-        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999 }}>
-          <div style={{ background: '#1f2937', color: 'white', padding: '10px 14px', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-            {toast}
+        <div className="toast-notification">
+          <div className="toast-content">
+            <span className="toast-message">{toast}</span>
+            <button className="toast-close" onClick={() => setToast("")}>×</button>
           </div>
         </div>
       )}
     </div>
   );
-
 }
 
 export default DonorDashboard;
