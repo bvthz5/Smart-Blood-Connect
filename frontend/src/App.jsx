@@ -21,6 +21,11 @@ import DonorRouteGuard from './components/donor/DonorRouteGuard';
 import DonorDashboard from './pages/donor/DonorDashboard';
 import DonorProfile from './pages/donor/DonorProfile';
 import DonorSettings from './pages/donor/DonorSettings';
+import MyDonations from './pages/donor/MyDonations';
+import NextEligibility from './pages/donor/NextEligibility';
+import ManageRequests from './pages/donor/ManageRequests';
+import NearbyRequests from './pages/donor/NearbyRequests';
+import DonorNotifications from './pages/donor/DonorNotifications';
 
 // Seeker Pages
 import SeekerRequest from './pages/seeker/SeekerRequest';
@@ -103,6 +108,36 @@ function App() {
           <Route path="/donor/settings" element={
             <DonorRouteGuard>
               <DonorSettings />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/donations" element={
+            <DonorRouteGuard>
+              <MyDonations />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/eligibility" element={
+            <DonorRouteGuard>
+              <NextEligibility />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/requests" element={
+            <DonorRouteGuard>
+              <ManageRequests />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/nearby" element={
+            <DonorRouteGuard>
+              <NearbyRequests />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/notifications" element={
+            <DonorRouteGuard>
+              <DonorNotifications />
             </DonorRouteGuard>
           } />
 
