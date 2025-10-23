@@ -5,6 +5,7 @@
 
 const TOKEN_KEY = 'admin_access_token';
 const REFRESH_TOKEN_KEY = 'admin_refresh_token';
+const USER_TYPE_KEY = 'user_type';
 
 export const tokenManager = {
   // Get token from localStorage
@@ -53,11 +54,22 @@ export const tokenManager = {
     }
   },
 
-  // Clear all tokens
+  // Clear ALL tokens for current user type
   clearTokens() {
     try {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      const userType = localStorage.getItem(USER_TYPE_KEY);
+      if (userType === 'admin') {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+      } else if (userType === 'donor') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+      } else if (userType === 'seeker') {
+        localStorage.removeItem('seeker_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('seeker_refresh_token');
+      }
+      localStorage.removeItem(USER_TYPE_KEY);
     } catch (error) {
       console.warn('Failed to clear tokens from localStorage:', error);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDonorProfile, getDonorDashboard, getDonorMatches, setAvailability, respondToMatch } from "../../services/api";
 import "./donor-dashboard.css";
@@ -9,7 +9,6 @@ export default function DonorDashboard() {
   const [matches, setMatches] = useState([]);
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const nav = useNavigate();
 
@@ -70,7 +69,7 @@ export default function DonorDashboard() {
     try {
       await respondToMatch(matchId, action);
       await loadDashboardData();
-      setToast(`Mission ${action === 'accept' ? 'accepted' : 'declined'}`);
+      setToast(`Request ${action === 'accept' ? 'accepted' : 'declined'}`);
       setTimeout(() => setToast(""), 3000);
     } catch (_) {
       setToast("Action failed");
@@ -142,15 +141,8 @@ export default function DonorDashboard() {
     );
   }
 
-  const sidebarItems = [
-    { id: "dashboard", icon: "📊", label: "Dashboard", active: true, badge: null },
-    { id: "history", icon: "🩸", label: "Donation History", active: false, badge: null },
-    { id: "missions", icon: "🎯", label: "Active Missions", active: false, badge: metrics?.active_matches_count || 0 },
-    { id: "achievements", icon: "🏆", label: "Achievements", active: false, badge: null },
-    { id: "resources", icon: "📚", label: "Resources", active: false, badge: null }
-  ];
-
   const criticalRequests = matches.filter(match => match.urgency === 'critical').slice(0, 3);
+  const pendingRequests = matches.filter(match => match.status === 'pending').slice(0, 5);
 
   return (
     <div className="donor-dashboard">
@@ -158,11 +150,6 @@ export default function DonorDashboard() {
       <header className="dashboard-header">
         <div className="header-content">
           <div className="header-left">
-            <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
             <div className="brand">
               <div className="brand-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -176,16 +163,11 @@ export default function DonorDashboard() {
             </div>
           </div>
 
-          <nav className="header-nav">
-            <button className={`nav-btn ${location.pathname === '/donor/dashboard' ? 'active' : ''}`}>
-              Dashboard
-            </button>
-            <button className="nav-btn">History</button>
-            <button className="nav-btn">Achievements</button>
-            <button className="nav-btn">Resources</button>
-          </nav>
-
           <div className="header-actions">
+            <div className="welcome-text">
+              Welcome, {profile.name?.split(' ')[0] || 'Donor'} 👋
+            </div>
+            
             <button className="icon-btn notification-btn">
               <span className="icon">🔔</span>
               {metrics?.active_matches_count > 0 && (
@@ -201,7 +183,6 @@ export default function DonorDashboard() {
                 <div className="avatar">
                   {getInitials(metrics.name || profile.name)}
                 </div>
-                <span className="user-name">{metrics.name || profile.name}</span>
                 <span className={`dropdown-arrow ${menuOpen ? 'open' : ''}`}>▼</span>
               </button>
 
@@ -209,11 +190,15 @@ export default function DonorDashboard() {
                 <div className="user-dropdown">
                   <button className="dropdown-item" onClick={() => nav('/donor/profile')}>
                     <span className="item-icon">👤</span>
-                    My Profile
+                    View Profile
                   </button>
                   <button className="dropdown-item" onClick={() => nav('/donor/settings')}>
                     <span className="item-icon">⚙️</span>
                     Settings
+                  </button>
+                  <button className="dropdown-item">
+                    <span className="item-icon">💬</span>
+                    Help / Support
                   </button>
                   <div className="dropdown-divider"></div>
                   <button className="dropdown-item logout" onClick={handleLogout}>
@@ -227,42 +212,13 @@ export default function DonorDashboard() {
         </div>
       </header>
 
-      {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <nav className="sidebar-nav">
-          {sidebarItems.map(item => (
-            <button
-              key={item.id}
-              className={`sidebar-item ${item.active ? 'active' : ''}`}
-              onClick={() => item.id === 'history' && nav('/donor/history')}
-            >
-              <span className="item-icon">{item.icon}</span>
-              <span className="item-label">{item.label}</span>
-              {item.badge > 0 && (
-                <span className="item-badge">{item.badge}</span>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="support-card">
-            <div className="support-icon">🆘</div>
-            <div className="support-text">
-              <strong>Emergency Support</strong>
-              <span>24/7 Available</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
       {/* Main Content */}
       <main className="dashboard-main">
         <div className="dashboard-container">
           {/* Welcome Section */}
           <section className="welcome-section">
             <div className="welcome-content">
-              <h2>Welcome back, {profile.name?.split(' ')[0] || 'Donor'}!</h2>
+              <h2>Welcome back, {profile.name?.split(' ')[0] || 'Donor'}! 👋</h2>
               <p>Ready to save lives? Your availability status and recent activity are shown below.</p>
             </div>
             <div className="welcome-actions">
@@ -276,53 +232,43 @@ export default function DonorDashboard() {
             </div>
           </section>
 
-          {/* Status Cards */}
-          <section className="status-cards">
-            <div className="status-card primary">
-              <div className="card-header">
-                <div className="card-icon">💉</div>
+          {/* Stats Cards */}
+          <section className="stats-grid">
+            <div className="stat-card">
+              <div className="card-icon">💉</div>
+              <div className="card-content">
                 <h3>Total Donations</h3>
-              </div>
-              <div className="card-content">
                 <div className="metric-value">{metrics.total_donations || 0}</div>
-                <div className="metric-subtitle">Lifetime donations</div>
-                <div className="metric-trend positive">+12% this month</div>
+                <p>Lifetime successful donations</p>
               </div>
             </div>
 
-            <div className="status-card secondary">
-              <div className="card-header">
-                <div className="card-icon">❤️</div>
-                <h3>Lives Impacted</h3>
-              </div>
+            <div className="stat-card">
+              <div className="card-icon">🏥</div>
               <div className="card-content">
-                <div className="metric-value">{livesImpacted}</div>
-                <div className="metric-subtitle">Estimated lives saved</div>
+                <h3>Last Donation Hospital</h3>
+                <div className="metric-value">{metrics.last_donation_hospital || "Not Available"}</div>
+                <p>{metrics.last_donation_address || "No recent donations"}</p>
               </div>
             </div>
 
-            <div className="status-card accent">
-              <div className="card-header">
-                <div className="card-icon">⭐</div>
-                <h3>Trust Rating</h3>
-              </div>
+            <div className="stat-card">
+              <div className="card-icon">📅</div>
               <div className="card-content">
-                <div className="trust-score">
-                  <div className="stars">
-                    {'★'.repeat(Math.floor(trustScore))}
-                    <span className="decimal">.{Math.round((trustScore % 1) * 10)}</span>
-                  </div>
-                  <div className="trust-label">Reliability Score</div>
+                <h3>Last Donation Date</h3>
+                <div className="metric-value">
+                  {metrics.last_donation_date ? 
+                    new Date(metrics.last_donation_date).toLocaleDateString() : "Never"
+                  }
                 </div>
+                <p>Most recent donation</p>
               </div>
             </div>
 
-            <div className="status-card info">
-              <div className="card-header">
-                <div className="card-icon">📅</div>
-                <h3>Next Eligible</h3>
-              </div>
+            <div className="stat-card">
+              <div className="card-icon">✅</div>
               <div className="card-content">
+                <h3>Next Eligible Donation</h3>
                 <div className="metric-value">{eligibleData.date}</div>
                 <div className="progress-container">
                   <div className="progress-bar">
@@ -335,102 +281,205 @@ export default function DonorDashboard() {
                 </div>
               </div>
             </div>
-          </section>
 
-          {/* Critical Requests Section */}
-          <section className="critical-requests">
-            <div className="section-header">
-              <h2>Critical Blood Requests</h2>
-              <div className="section-badge">
-                <span className="active-count">{metrics.active_matches_count || 0} Active</span>
+            <div className="stat-card">
+              <div className="card-icon">📍</div>
+              <div className="card-content">
+                <h3>Current Location</h3>
+                <div className="metric-value">{profile.district || "Not Set"}</div>
+                <p>{profile.city || "Update your location in settings"}</p>
               </div>
             </div>
 
-            {criticalRequests.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">🎯</div>
-                <h3>No Critical Matches</h3>
-                <p>You'll be notified when urgent blood requests match your profile and location.</p>
-                <div className="empty-actions">
-                  <button className="btn-secondary" onClick={loadDashboardData}>
-                    Refresh
-                  </button>
-                </div>
+            <div className="stat-card">
+              <div className="card-icon">⏳</div>
+              <div className="card-content">
+                <h3>Pending Requests</h3>
+                <div className="metric-value">{pendingRequests.length}</div>
+                <p>Requests awaiting your response</p>
               </div>
-            ) : (
-              <div className="requests-grid">
-                {criticalRequests.map((match, index) => (
-                  <div key={match.match_id} className="request-card urgent">
-                    <div className="request-header">
-                      <div className="urgency-badge">URGENT</div>
-                      <div className="match-score">Match: {match.score}%</div>
-                    </div>
-                    
-                    <div className="request-content">
-                      <h4 className="hospital-name">{match.hospital || "Metro Medical Center"}</h4>
-                      <div className="request-details">
-                        <div className="detail-row">
-                          <span className="detail-label">Blood Type:</span>
-                          <span className="detail-value">{match.blood_type || "O+"}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span className="detail-label">Distance:</span>
-                          <span className="detail-value">{match.distance_km || "2.3"} km</span>
-                        </div>
-                        <div className="detail-row">
-                          <span className="detail-label">Time Left:</span>
-                          <span className="detail-value urgent-time">{match.time_window || "4h 23m"}</span>
-                        </div>
-                      </div>
-                    </div>
+            </div>
+          </section>
 
-                    <div className="request-actions">
-                      <button 
-                        className="btn-primary"
-                        onClick={() => handleMatchResponse(match.match_id, 'accept')}
-                      >
-                        <span className="btn-icon">🎯</span>
-                        Accept Mission
-                      </button>
-                      <button 
-                        className="btn-secondary"
-                        onClick={() => handleMatchResponse(match.match_id, 'reject')}
-                      >
-                        Decline
+          {/* Two Column Layout */}
+          <div className="content-columns">
+            {/* Left Column */}
+            <div className="column-left">
+              {/* Critical Requests */}
+              <section className="content-section critical-requests">
+                <div className="section-header">
+                  <h2>🩸 Critical Blood Requests</h2>
+                  <div className="section-badge">
+                    <span className="active-count">{metrics.active_matches_count || 0} Active</span>
+                  </div>
+                </div>
+
+                {criticalRequests.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">🎯</div>
+                    <h3>No Critical Matches</h3>
+                    <p>You'll be notified when urgent blood requests match your profile and location.</p>
+                    <div className="empty-actions">
+                      <button className="btn-secondary" onClick={loadDashboardData}>
+                        Refresh
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                ) : (
+                  <div className="requests-list">
+                    {criticalRequests.map((match, index) => (
+                      <div key={match.match_id} className="request-card urgent">
+                        <div className="request-header">
+                          <div className="urgency-badge">URGENT</div>
+                          <div className="match-score">Match: {match.score || 85}%</div>
+                        </div>
+                        
+                        <div className="request-content">
+                          <h4 className="hospital-name">{match.hospital || "Metro Medical Center"}</h4>
+                          <div className="request-details">
+                            <div className="detail-row">
+                              <span className="detail-label">Blood Type:</span>
+                              <span className="detail-value">{match.blood_type || "O+"}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Distance:</span>
+                              <span className="detail-value">{match.distance_km || "2.3"} km</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Time Left:</span>
+                              <span className="detail-value urgent-time">{match.time_window || "4h 23m"}</span>
+                            </div>
+                          </div>
+                        </div>
 
-          {/* Quick Actions */}
-          <section className="quick-actions">
-            <h2>Quick Actions</h2>
-            <div className="actions-grid">
-              <button className="action-card" onClick={() => nav('/donor/history')}>
-                <div className="action-icon">📊</div>
-                <h3>View History</h3>
-                <p>Check your donation history</p>
-              </button>
-              <button className="action-card" onClick={() => nav('/donor/profile')}>
-                <div className="action-icon">👤</div>
-                <h3>Update Profile</h3>
-                <p>Manage your information</p>
-              </button>
-              <button className="action-card" onClick={() => nav('/donor/settings')}>
-                <div className="action-icon">⚙️</div>
-                <h3>Settings</h3>
-                <p>Configure preferences</p>
-              </button>
-              <button className="action-card" onClick={loadDashboardData}>
-                <div className="action-icon">🔄</div>
-                <h3>Refresh Data</h3>
-                <p>Update dashboard information</p>
-              </button>
+                        <div className="request-actions">
+                          <button 
+                            className="btn-primary"
+                            onClick={() => handleMatchResponse(match.match_id, 'accept')}
+                          >
+                            <span className="btn-icon">✅</span>
+                            Accept Request
+                          </button>
+                          <button 
+                            className="btn-secondary"
+                            onClick={() => handleMatchResponse(match.match_id, 'reject')}
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* AI Match Insights */}
+              <section className="content-section ai-insights">
+                <div className="section-header">
+                  <h2>🧠 AI Match Insights</h2>
+                </div>
+                <div className="insights-content">
+                  <div className="insight-item">
+                    <div className="insight-icon">🏥</div>
+                    <div className="insight-text">
+                      <h4>Metro General Hospital</h4>
+                      <p>High demand for your blood type (O+) this week</p>
+                    </div>
+                    <div className="insight-match">92% match</div>
+                  </div>
+                  <div className="insight-item">
+                    <div className="insight-icon">🏥</div>
+                    <div className="insight-text">
+                      <h4>City Medical Center</h4>
+                      <p>Regular donor needed for scheduled procedures</p>
+                    </div>
+                    <div className="insight-match">87% match</div>
+                  </div>
+                  <div className="insight-item">
+                    <div className="insight-icon">🏥</div>
+                    <div className="insight-text">
+                      <h4>Community Health Clinic</h4>
+                      <p>Close to your location with flexible timing</p>
+                    </div>
+                    <div className="insight-match">78% match</div>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
+
+            {/* Right Column */}
+            <div className="column-right">
+              {/* Health Tips */}
+              <section className="content-section health-tips">
+                <div className="section-header">
+                  <h2>💡 Health & Wellness Tips</h2>
+                </div>
+                <div className="tips-content">
+                  <div className="tip-item">
+                    <div className="tip-icon">💧</div>
+                    <div className="tip-text">
+                      <h4>Stay Hydrated</h4>
+                      <p>Drink plenty of water before and after donation</p>
+                    </div>
+                  </div>
+                  <div className="tip-item">
+                    <div className="tip-icon">🍽️</div>
+                    <div className="tip-text">
+                      <h4>Eat Iron-Rich Foods</h4>
+                      <p>Include spinach, lentils, and red meat in your diet</p>
+                    </div>
+                  </div>
+                  <div className="tip-item">
+                    <div className="tip-icon">😴</div>
+                    <div className="tip-text">
+                      <h4>Get Adequate Rest</h4>
+                      <p>Ensure 7-8 hours of sleep before donating blood</p>
+                    </div>
+                  </div>
+                  <div className="tip-item">
+                    <div className="tip-icon">🚫</div>
+                    <div className="tip-text">
+                      <h4>Avoid Alcohol</h4>
+                      <p>Refrain from alcohol 24 hours before donation</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Quick Navigation */}
+              <section className="content-section quick-nav">
+                <div className="section-header">
+                  <h2>🧭 Quick Navigation</h2>
+                </div>
+                <div className="nav-grid">
+                  <button className="nav-card" onClick={() => nav('/donor/donations')}>
+                    <div className="nav-icon">💉</div>
+                    <span>My Donations</span>
+                  </button>
+                  <button className="nav-card" onClick={() => nav('/donor/eligibility')}>
+                    <div className="nav-icon">📅</div>
+                    <span>Next Eligibility</span>
+                  </button>
+                  <button className="nav-card" onClick={() => nav('/donor/requests')}>
+                    <div className="nav-icon">🏥</div>
+                    <span>Manage Requests</span>
+                  </button>
+                  <button className="nav-card" onClick={() => nav('/donor/nearby')}>
+                    <div className="nav-icon">🧭</div>
+                    <span>Nearby Requests</span>
+                  </button>
+                  <button className="nav-card" onClick={() => nav('/donor/notifications')}>
+                    <div className="nav-icon">🔔</div>
+                    <span>Notifications</span>
+                  </button>
+                  <button className="nav-card" onClick={() => nav('/donor/settings')}>
+                    <div className="nav-icon">⚙️</div>
+                    <span>Settings</span>
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -442,11 +491,6 @@ export default function DonorDashboard() {
             <button className="toast-close" onClick={() => setToast("")}>×</button>
           </div>
         </div>
-      )}
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>
       )}
     </div>
   );

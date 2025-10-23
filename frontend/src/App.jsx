@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import ScrollToTop from './components/ScrollToTop';
+import BlockedUserToast from './components/BlockedUserToast';
 import { initializeAuth } from './store/slices/adminSlice';
 
 // Pages
@@ -70,6 +71,7 @@ function App() {
   return (
       <div className="App">
         <ScrollToTop />
+        <BlockedUserToast />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />

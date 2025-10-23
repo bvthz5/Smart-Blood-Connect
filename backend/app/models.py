@@ -166,34 +166,6 @@ class DonationHistory(db.Model):
     donation_date = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-class RefreshToken(db.Model):
-    __tablename__ = "refresh_tokens"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token = db.Column(db.Text, nullable=False, unique=True)
-    expires_at = db.Column(db.DateTime, nullable=False)
-    revoked = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    revoked_at = db.Column(db.DateTime)
-
-    # Relationships
-    user = db.relationship("User", backref="refresh_tokens")
-
-
-class OTPSession(db.Model):
-    __tablename__ = "otp_sessions"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
-    channel = db.Column(db.String(10), nullable=False)  # phone, email
-    destination = db.Column(db.String(150), nullable=False)
-    otp_hash = db.Column(db.Text, nullable=False)  # store hashed OTP
-    attempts_left = db.Column(db.Integer, default=3)
-    expires_at = db.Column(db.DateTime, nullable=False)
-    used = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 
 # ============================================================================
 # ML Models and Predictions

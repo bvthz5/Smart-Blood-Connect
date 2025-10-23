@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 from app.extensions import db
-from app.models import User, Donor, OTPSession, HospitalStaff, RefreshToken
+from app.models import User, Donor, HospitalStaff
+from .auth_token import TokenStore
+from .otp_store import OTPStore
 from .utils import generate_otp, otp_hash, verify_otp, hash_password, verify_password
 from flask_jwt_extended import create_access_token, create_refresh_token, decode_token
 import logging
@@ -59,11 +61,9 @@ def register():
 
     # create OTP session
     otp = generate_otp()
-    code_h = otp_hash(otp)
     expires = datetime.utcnow() + timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 5))
-    otp_sess = OTPSession(user_id=user.id, otp_hash=code_h, channel="phone", destination=phone, expires_at=expires)
-    db.session.add(otp_sess)
-    db.session.commit()
+    otp_store = OTPStore.get_instance()
+    otp_key = otp_store.add_otp(user.id, "phone", phone, otp, expires)
 
     # Attempt to send initial OTP via SMS if Twilio is configured; otherwise log in DEBUG
     sent_initial = False
@@ -77,24 +77,29 @@ def register():
     if not sent_initial and current_app.config.get('DEBUG', False):
         logger.info(f"[DEV ONLY] Initial OTP for {phone}: {otp}")
 
-    return jsonify({"user_id": user.id, "pending_otp": True, "masked_phone": (phone[:-4].replace(phone[:-4], "*"*max(0, len(phone[:-4]))) + phone[-4:])}), 201
+    return jsonify({
+        "user_id": user.id, 
+        "pending_otp": True, 
+        "masked_phone": (phone[:-4].replace(phone[:-4], "*"*max(0, len(phone[:-4]))) + phone[-4:]),
+        "otp_key": otp_key
+    }), 201
 
 @auth_bp.route("/verify-otp", methods=["POST"])
 def verify_otp_route():
     data = request.get_json() or {}
     user_id = data.get("user_id")
     otp = data.get("otp")
-    sess = OTPSession.query.filter_by(user_id=user_id, channel="phone", used=False).order_by(OTPSession.created_at.desc()).first()
-    if not sess:
-        return jsonify({"error":"no otp session"}), 400
-    if sess.expires_at < datetime.utcnow():
-        return jsonify({"error":"otp expired"}), 400
-    if not verify_otp(otp, sess.otp_hash):
-        sess.attempts_left = (sess.attempts_left or 0) + 1
-        db.session.commit()
-        return jsonify({"error":"invalid otp"}), 400
-    sess.used = True
+    otp_key = data.get("otp_key")
+    if not otp_key:
+        return jsonify({"error": "otp_key required"}), 400
+    
+    otp_store = OTPStore.get_instance()
+    if not otp_store.verify_otp(otp_key, otp):
+        return jsonify({"error":"invalid or expired otp"}), 400
+        
     user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error":"user not found"}), 404
     user.is_phone_verified = True
     db.session.commit()
 
@@ -307,7 +312,7 @@ def reset_password():
     user.password_hash = hash_password(new_password)
     try:
         # Revoke existing refresh tokens on password change
-        RefreshToken.query.filter_by(user_id=user.id).update({"revoked": True})
+        TokenStore.get_instance().revoke_all_user_tokens(user.id)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -343,7 +348,7 @@ def change_password():
     if not verify_password(old, user.password_hash):
         return jsonify({"error":"wrong old password"}), 400
     user.password_hash = hash_password(new)
-    RefreshToken.query.filter_by(user_id=user.id).update({"revoked": True})
+    TokenStore.get_instance().revoke_all_user_tokens(user.id)
     db.session.commit()
     return jsonify({"message":"password changed"}), 200
 
@@ -382,11 +387,9 @@ def send_contact_otp():
 
     # Generate and persist OTP session
     code = generate_otp()
-    code_h = otp_hash(code)
     expires = datetime.utcnow() + timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15))
-    sess = OTPSession(user_id=user.id, channel=channel, destination=dest, otp_hash=code_h, expires_at=expires)
-    db.session.add(sess)
-    db.session.commit()
+    otp_store = OTPStore.get_instance()
+    otp_key = otp_store.add_otp(user.id, channel, dest, code, expires)
 
     # Send via channel: try real send first; if it fails and DEBUG is on, log and succeed with debug_code
     sent = False
@@ -435,17 +438,14 @@ def verify_email_otp():
     except Exception:
         return jsonify({"error": "invalid user_id"}), 400
 
-    sess = OTPSession.query.filter_by(user_id=user_id, channel="email", used=False).order_by(OTPSession.created_at.desc()).first()
-    if not sess:
-        return jsonify({"error": "no otp session"}), 400
-    if sess.expires_at < datetime.utcnow():
-        return jsonify({"error": "otp expired"}), 400
-    if not verify_otp(otp or "", sess.otp_hash):
-        sess.attempts_left = (sess.attempts_left or 0) + 1
-        db.session.commit()
-        return jsonify({"error": "invalid otp"}), 400
+    otp_key = data.get("otp_key")
+    if not otp_key:
+        return jsonify({"error": "otp_key required"}), 400
+        
+    otp_store = OTPStore.get_instance()
+    if not otp_store.verify_otp(otp_key, otp or ""):
+        return jsonify({"error": "invalid or expired otp"}), 400
 
-    sess.used = True
     user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "user not found"}), 404
