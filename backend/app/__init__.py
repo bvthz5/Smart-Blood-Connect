@@ -203,6 +203,39 @@ def create_app(config_name='default'):
     migrate.init_app(app, db)
     jwt.init_app(app)
 
+    # Global error handlers
+    @app.errorhandler(Exception)
+    def handle_error(e):
+        # Log the error
+        app.logger.error(f"Unhandled error: {str(e)}", exc_info=True)
+        
+        # Return JSON response
+        return jsonify({
+            "error": "Internal Server Error",
+            "message": str(e) if app.debug else "An unexpected error occurred"
+        }), 500
+
+    @app.errorhandler(404)
+    def not_found_error(e):
+        return jsonify({
+            "error": "Not Found",
+            "message": str(e) if app.debug else "Resource not found"
+        }), 404
+
+    @app.errorhandler(401)
+    def unauthorized_error(e):
+        return jsonify({
+            "error": "Unauthorized",
+            "message": str(e) if app.debug else "Authentication required"
+        }), 401
+
+    @app.errorhandler(403)
+    def forbidden_error(e):
+        return jsonify({
+            "error": "Forbidden",
+            "message": str(e) if app.debug else "You don't have permission to access this resource"
+        }), 403
+
     # Validate email (SMTP) configuration early and warn if missing
     try:
         print("\n" + "="*60)

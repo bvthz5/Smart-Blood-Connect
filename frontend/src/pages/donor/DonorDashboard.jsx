@@ -3,14 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { getDonorProfile, getDonorDashboard, getDonorMatches, setAvailability, respondToMatch } from "../../services/api";
 import "./donor-dashboard.css";
 
-export default function DonorDashboard() {
-  const [profile, setProfile] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [matches, setMatches] = useState([]);
-  const [toast, setToast] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const nav = useNavigate();
+// Helper function to get initials from name
+const getInitials = (name) => {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map(part => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 function DonorDashboard() {
   const nav = useNavigate();
@@ -20,27 +22,7 @@ function DonorDashboard() {
   const [available, setAvailable] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
-
-  const lastDonation = metrics?.last_donation_date ? new Date(metrics.last_donation_date) : null;
-  let nextEligibleDate = "";
-  if (lastDonation) {
-    const d = new Date(lastDonation);
-    d.setDate(d.getDate() + 56);
-    nextEligibleDate = d.toLocaleDateString();
-  } else if (typeof metrics?.eligible_in_days === "number" && metrics.eligible_in_days > 0) {
-    const d = new Date();
-    d.setDate(d.getDate() + metrics.eligible_in_days);
-    nextEligibleDate = d.toLocaleDateString();
-  }
-
-  let eligibilityProgress = null;
-  if (typeof metrics?.eligible_in_days === 'number') {
-    const remaining = Math.max(0, metrics.eligible_in_days);
-    const total = 56;
-    eligibilityProgress = Math.round(((total - Math.min(total, remaining)) / total) * 100);
-  }
-
-  const livesImpacted = typeof metrics?.total_donations === 'number' ? metrics.total_donations * 3 : '—';
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
@@ -89,10 +71,10 @@ function DonorDashboard() {
     }
   }
 
-  function handleLogout() {
+  async function handleMatchResponse(matchId, action) {
     try {
       await respondToMatch(matchId, action);
-      await loadDashboardData();
+      await load(); // Reload data after response
       setToast(`Request ${action === 'accept' ? 'accepted' : 'declined'}`);
       setTimeout(() => setToast(""), 3000);
     } catch (_) {
@@ -101,9 +83,13 @@ function DonorDashboard() {
     }
   }
 
+  function handleLogout() {
+    // Add logout logic here
+    nav('/login');
+  }
+
   // Calculate derived data
   const isAvailable = profile?.availability_status === "available";
-  const livesImpacted = (metrics?.total_donations || 0) * 3;
   const trustScore = typeof metrics?.reliability_score === 'number' ? metrics.reliability_score : 4.5;
   
   const calculateNextEligibleDate = () => {
