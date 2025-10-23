@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
-const hasFullToken = () => typeof window !== 'undefined' && !!localStorage.getItem('seeker_token');
+const hasFullToken = () => typeof window !== 'undefined' && !!localStorage.getItem('seeker_token') && !!localStorage.getItem('seeker_refresh_token');
 
 const SeekerRouteGuard = ({ children }) => {
   const location = useLocation();

@@ -31,6 +31,7 @@ import MatchedDonors from './pages/seeker/MatchedDonors';
 import SeekerAnalytics from './pages/seeker/Analytics';
 import SeekerSettings from './pages/seeker/Settings';
 import SeekerHospitalProfile from './pages/seeker/HospitalProfile';
+import Notifications from './pages/seeker/Notifications';
 import SeekerRouteGuard from './components/seeker/SeekerRouteGuard';
 import SeekerTempGuard from './components/seeker/SeekerTempGuard';
 import SeekerForgotPassword from './pages/seeker/SeekerForgotPassword';
@@ -120,6 +121,12 @@ function App() {
               <MatchedDonors />
             </SeekerRouteGuard>
           } />
+          <Route path="/seeker/notifications" element={
+            <SeekerRouteGuard>
+              <Notifications />
+            </SeekerRouteGuard>
+          } />
+
           <Route path="/seeker/hospital" element={
             <SeekerRouteGuard>
               <SeekerHospitalProfile />

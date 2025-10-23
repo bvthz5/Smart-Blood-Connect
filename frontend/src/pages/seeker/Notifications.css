@@ -1,0 +1,14 @@
+.notif-card{padding:0}
+.notif-header{padding:16px 16px;border-bottom:1px solid #eef0f3;font-weight:700}
+.notif-list{display:flex;flex-direction:column}
+.notif-item{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9}
+.notif-item:last-child{border-bottom:none}
+.dot{height:10px;width:10px;border-radius:999px;margin-top:6px}
+.dot.info{background:#3b82f6}
+.dot.success{background:#16a34a}
+.dot.warning{background:#f59e0b}
+.dot.danger{background:#ef4444}
+.notif-title{font-weight:600}
+.notif-meta{font-size:12px;color:#6b7280}
+.notif-empty{padding:24px 16px;color:#64748b}
+

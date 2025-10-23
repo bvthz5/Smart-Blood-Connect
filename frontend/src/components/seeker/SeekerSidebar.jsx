@@ -20,16 +20,18 @@ const SeekerSidebar = () => {
       </div>
       <nav className="side-nav">
         <NavLink to="/seeker/dashboard" className="link">🏠 <span>Dashboard</span></NavLink>
-        <div className="group">
-          <div className="group-title">Blood Requests</div>
-          <NavLink to="/seeker/requests/create" className="link">➕ <span>Create Request</span></NavLink>
-          <NavLink to="/seeker/requests" className="link">📋 <span>View All Requests</span></NavLink>
-        </div>
-        <NavLink to="/seeker/matches" className="link">🤝 <span>Donor Matches</span></NavLink>
-        <NavLink to="/seeker/hospital" className="link">🏥 <span>Hospital Info</span></NavLink>
-        <NavLink to="/seeker/analytics" className="link">📈 <span>Analytics</span></NavLink>
+        <NavLink to="/seeker/requests/create" className="link">➕ <span>Create Request</span></NavLink>
+        <NavLink to="/seeker/requests" className="link">📋 <span>All Requests</span></NavLink>
+        <NavLink to="/seeker/matches" className="link">🔍 <span>Donor Matches</span></NavLink>
+        <NavLink to="/seeker/notifications" className="link">🔔 <span>Notifications</span></NavLink>
+        <NavLink to="/seeker/hospital" className="link">🧑‍⚕️ <span>Hospital Staff</span></NavLink>
         <NavLink to="/seeker/settings" className="link">⚙️ <span>Settings</span></NavLink>
       </nav>
+      <div className="side-bottom">
+        <NavLink to="/contact" className="link">❓ <span>Help & Support</span></NavLink>
+        <button className="link" onClick={()=>{ localStorage.removeItem('seeker_token'); window.location.href='/seeker/login'; }}>🚪 <span>Logout</span></button>
+      </div>
+
     </div>
   );
 };

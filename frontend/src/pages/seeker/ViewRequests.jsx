@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import SeekerLayout from '../../components/seeker/SeekerLayout';
 import SeekerNavbar from '../../components/seeker/SeekerNavbar';
 import SeekerSidebar from '../../components/seeker/SeekerSidebar';
@@ -9,6 +10,7 @@ const ViewRequests = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const location = useLocation();
   const [status, setStatus] = useState('');
   const [urgency, setUrgency] = useState('');
   const [blood, setBlood] = useState('');
@@ -23,13 +25,26 @@ const ViewRequests = () => {
     })();
   }, []);
 
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search || '');
+    const s = sp.get('search') || sp.get('q') || '';
+    if (s) setQ(s);
+  }, [location.search]);
+
   const filtered = useMemo(() => {
-    return rows.filter(r => (
-      (!q || (r.patient_ref||'').toLowerCase().includes(q.toLowerCase())) &&
-      (!status || (r.status||'') === status) &&
-      (!urgency || (r.urgency||'') === urgency) &&
-      (!blood || (r.blood_group||'') === blood)
-    ));
+    const QQ = (q||'').toLowerCase();
+    return rows.filter(r => {
+      const name = (r.patient_name||'').toLowerCase();
+      const ref = (r.patient_ref||'').toLowerCase();
+      const idStr = String(r.id||'');
+      const matchText = !QQ || name.includes(QQ) || ref.includes(QQ) || idStr.includes(QQ);
+      return (
+        matchText &&
+        (!status || (r.status||'') === status) &&
+        (!urgency || (r.urgency||'') === urgency) &&
+        (!blood || (r.blood_group||'') === blood)
+      );
+    });
   }, [rows, q, status, urgency, blood]);
 
   const onLogout = () => { localStorage.removeItem('seeker_token'); window.location.href = '/seeker/login'; };

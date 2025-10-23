@@ -1,5 +1,5 @@
 @import '../../styles/seeker-theme.css';
-.seekernav{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--color-bg-card);box-shadow:var(--shadow-subtle)}
+.seekernav{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:linear-gradient(90deg, rgba(198,40,40,0.06), #ffffff);box-shadow:var(--shadow-subtle)}
 .brand{font-weight:700;color:var(--color-text-dark)}
 .brand span{font-weight:500;opacity:.85}
 .seekernav-right{display:flex;align-items:center;gap:12px;position:relative}

@@ -42,7 +42,7 @@ def configure_swagger(app):
         "swagger_ui": True,
         "specs_route": "/apidocs"
     }
-    
+
     swagger_template = {
         "swagger": "2.0",
         "info": {
@@ -93,7 +93,7 @@ def configure_swagger(app):
             }
         ]
     }
-    
+
     Swagger(app, config=swagger_config, template=swagger_template)
 
 def register_blueprints(app):
@@ -109,7 +109,9 @@ def register_blueprints(app):
     from .homepage.routes import homepage_bp
     from .ml.routes import ml_bp
     from .staff import staff_bp
-    
+    from .seeker.routes import seeker_bp
+
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(donor_bp)
     app.register_blueprint(admin_bp)
@@ -119,6 +121,8 @@ def register_blueprints(app):
     app.register_blueprint(admin_match_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(homepage_bp)
+    app.register_blueprint(seeker_bp)
+
     app.register_blueprint(ml_bp)
     app.register_blueprint(staff_bp, url_prefix='/api/staff')
 
@@ -128,15 +132,15 @@ def initialize_ml_models(app):
         try:
             from pathlib import Path
             from app.ml.model_client import model_client
-            
+
             # Get paths
             base_dir = Path(app.root_path).parent
             artifacts_dir = base_dir / 'models_artifacts'
             model_map_path = artifacts_dir / 'model_map.json'
-            
+
             # Initialize model client
             model_client.initialize(str(artifacts_dir), str(model_map_path))
-            
+
             # Optionally preload critical models
             try:
                 model_client.load_model('donor_seeker_match')
@@ -144,7 +148,7 @@ def initialize_ml_models(app):
                 print("[ML] Critical models preloaded successfully")
             except Exception as e:
                 print(f"[ML] Warning: Could not preload models: {e}")
-                
+
         except Exception as e:
             print(f"[ML] Model initialization error: {e}")
             print("[ML] ML features will be unavailable")
@@ -157,7 +161,7 @@ def initialize_database(app):
             from sqlalchemy import inspect
             inspector = inspect(db.engine)
             existing_tables = inspector.get_table_names()
-            
+
             if not existing_tables:
                 print("No tables found. Creating database tables...")
                 # Create all tables
@@ -165,11 +169,11 @@ def initialize_database(app):
                 print("Database tables created successfully")
             else:
                 print(f"Database tables already exist: {len(existing_tables)} tables found")
-            
+
             # Seed admin user
             from app.services.auth import seed_admin_user
             seed_admin_user()
-                
+
         except Exception as e:
             print(f"Database initialization error: {e}")
             # Try to create tables directly if migrations fail
@@ -177,7 +181,7 @@ def initialize_database(app):
                 print("Attempting to create tables directly...")
                 db.create_all()
                 print("Database tables created successfully")
-                
+
                 # Seed admin user
                 from app.services.auth import seed_admin_user
                 seed_admin_user()
@@ -190,7 +194,7 @@ def create_app(config_name='default'):
     """Application factory pattern"""
     # Load environment variables from .env file
     load_dotenv()
-    
+
     app = Flask(__name__, static_folder=None)
     app.config.from_object(config[config_name])
 
@@ -221,10 +225,10 @@ def create_app(config_name='default'):
         if not check_database_connection():
             print("Failed to connect to database. Please check your DATABASE_URL and ensure PostgreSQL is running.")
             sys.exit(1)
-        
+
         # Initialize database and create tables if they don't exist
         initialize_database(app)
-        
+
         # Initialize ML models
         initialize_ml_models(app)
 

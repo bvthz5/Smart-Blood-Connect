@@ -6,7 +6,7 @@
 .feed-item{display:flex;gap:10px;align-items:flex-start;padding:10px 16px;border-bottom:1px solid #f8fafc}
 .dot{width:10px;height:10px;border-radius:50%;margin-top:6px}
 .dot.info{background:var(--color-accent)}
-.dot.success{background:#10b981}
-.dot.warning{background:#f59e0b}
+.dot.success{background:var(--color-success)}
+.dot.warning{background:var(--color-warning)}
 .feed-title{font-size:13px;color:var(--color-text-dark)}
 .feed-meta{font-size:12px;color:#94a3b8}
