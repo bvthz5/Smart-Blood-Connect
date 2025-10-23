@@ -10,6 +10,7 @@ export default function DonorDashboard() {
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const nav = useNavigate();
 
   function getInitials(name) {
@@ -19,6 +20,7 @@ export default function DonorDashboard() {
 
   async function loadDashboardData() {
     try {
+      setLoading(true);
       const [profileData, dashboardData, matchesData] = await Promise.all([
         getDonorProfile(),
         getDonorDashboard(),
@@ -37,6 +39,8 @@ export default function DonorDashboard() {
         localStorage.setItem("toast_message", msg);
         nav("/donor/login", { replace: true });
       }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -108,14 +112,32 @@ export default function DonorDashboard() {
   const eligibilityProgress = eligibleData.daysRemaining > 0 ? 
     Math.round(((56 - Math.min(56, eligibleData.daysRemaining)) / 56) * 100) : 100;
 
-  if (!profile || !metrics) {
+  if (loading) {
     return (
       <div className="donor-dashboard loading">
-        <div className="loading-spinner">
-          <div className="pulse-ring"></div>
-          <div className="blood-drop">💉</div>
+        <div className="loading-container">
+          <div className="loading-spinner">
+            <div className="pulse-ring"></div>
+            <div className="blood-drop">💉</div>
+          </div>
+          <h3>Loading your donor dashboard...</h3>
+          <p>Please wait while we fetch your data</p>
         </div>
-        <p>Loading your donor dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!profile || !metrics) {
+    return (
+      <div className="donor-dashboard error">
+        <div className="error-container">
+          <div className="error-icon">⚠️</div>
+          <h3>Unable to load dashboard</h3>
+          <p>There was an error loading your donor information.</p>
+          <button className="retry-btn" onClick={loadDashboardData}>
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
@@ -142,10 +164,14 @@ export default function DonorDashboard() {
               <span></span>
             </button>
             <div className="brand">
-              <div className="brand-icon">❤️</div>
+              <div className="brand-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="currentColor"/>
+                </svg>
+              </div>
               <div className="brand-text">
-                <h1>VitalLink</h1>
-                <span>Donor Hub</span>
+                <h1>SmartBlood Connect</h1>
+                <span>Donor Portal</span>
               </div>
             </div>
           </div>
@@ -233,103 +259,88 @@ export default function DonorDashboard() {
       {/* Main Content */}
       <main className="dashboard-main">
         <div className="dashboard-container">
-          {/* Status Bar */}
-          <section className="status-section">
-            <div className="status-card">
-              <div className="status-indicators">
-                <div className="status-item">
-                  <div className={`connection-status ${isAvailable ? 'online' : 'offline'}`}>
-                    <div className="status-dot"></div>
-                    <span>{isAvailable ? 'Online' : 'Offline'}</span>
-                  </div>
-                </div>
+          {/* Welcome Section */}
+          <section className="welcome-section">
+            <div className="welcome-content">
+              <h2>Welcome back, {profile.name?.split(' ')[0] || 'Donor'}!</h2>
+              <p>Ready to save lives? Your availability status and recent activity are shown below.</p>
+            </div>
+            <div className="welcome-actions">
+              <button 
+                className={`status-toggle ${isAvailable ? 'available' : 'unavailable'}`}
+                onClick={() => toggleAvailability(isAvailable ? 'unavailable' : 'available')}
+              >
+                <div className="status-indicator"></div>
+                <span>{isAvailable ? 'Available for Donations' : 'Currently Unavailable'}</span>
+              </button>
+            </div>
+          </section>
 
-                <div className="status-item">
-                  <div className="availability-toggle">
-                    <label className="toggle-switch">
-                      <input 
-                        type="checkbox" 
-                        checked={isAvailable}
-                        onChange={() => toggleAvailability(isAvailable ? 'unavailable' : 'available')}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className="toggle-label">Available for Emergencies</span>
-                  </div>
-                </div>
+          {/* Status Cards */}
+          <section className="status-cards">
+            <div className="status-card primary">
+              <div className="card-header">
+                <div className="card-icon">💉</div>
+                <h3>Total Donations</h3>
+              </div>
+              <div className="card-content">
+                <div className="metric-value">{metrics.total_donations || 0}</div>
+                <div className="metric-subtitle">Lifetime donations</div>
+                <div className="metric-trend positive">+12% this month</div>
+              </div>
+            </div>
 
-                <div className="status-item">
-                  <div className="trust-score">
-                    <div className="trust-stars">
-                      {'★'.repeat(Math.floor(trustScore))}
-                      <span className="trust-decimal">.{Math.round((trustScore % 1) * 10)}</span>
-                    </div>
-                    <span className="trust-label">Trust Rating</span>
+            <div className="status-card secondary">
+              <div className="card-header">
+                <div className="card-icon">❤️</div>
+                <h3>Lives Impacted</h3>
+              </div>
+              <div className="card-content">
+                <div className="metric-value">{livesImpacted}</div>
+                <div className="metric-subtitle">Estimated lives saved</div>
+              </div>
+            </div>
+
+            <div className="status-card accent">
+              <div className="card-header">
+                <div className="card-icon">⭐</div>
+                <h3>Trust Rating</h3>
+              </div>
+              <div className="card-content">
+                <div className="trust-score">
+                  <div className="stars">
+                    {'★'.repeat(Math.floor(trustScore))}
+                    <span className="decimal">.{Math.round((trustScore % 1) * 10)}</span>
                   </div>
+                  <div className="trust-label">Reliability Score</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="status-card info">
+              <div className="card-header">
+                <div className="card-icon">📅</div>
+                <h3>Next Eligible</h3>
+              </div>
+              <div className="card-content">
+                <div className="metric-value">{eligibleData.date}</div>
+                <div className="progress-container">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${eligibilityProgress}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{eligibleData.daysRemaining} days remaining</span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Metrics Grid */}
-          <section className="metrics-section">
-            <div className="metrics-grid">
-              <div className="metric-card primary">
-                <div className="metric-icon">💉</div>
-                <div className="metric-content">
-                  <h3 className="metric-title">Total Donations</h3>
-                  <div className="metric-value">{metrics.total_donations || 0}</div>
-                  <div className="metric-trend positive">+12% this month</div>
-                </div>
-              </div>
-
-              <div className="metric-card secondary">
-                <div className="metric-icon">📅</div>
-                <div className="metric-content">
-                  <h3 className="metric-title">Last Donation</h3>
-                  <div className="metric-value">
-                    {metrics.last_donation_date ? 
-                      new Date(metrics.last_donation_date).toLocaleDateString() : 'Never'
-                    }
-                  </div>
-                  {metrics.last_donated_to && (
-                    <div className="metric-subtitle">{metrics.last_donated_to}</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="metric-card accent">
-                <div className="metric-icon">⏳</div>
-                <div className="metric-content">
-                  <h3 className="metric-title">Next Eligible</h3>
-                  <div className="metric-value">{eligibleData.date}</div>
-                  <div className="progress-container">
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${eligibilityProgress}%` }}
-                      ></div>
-                    </div>
-                    <span className="progress-text">{eligibleData.daysRemaining} days remaining</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="metric-card success">
-                <div className="metric-icon">❤️</div>
-                <div className="metric-content">
-                  <h3 className="metric-title">Lives Impacted</h3>
-                  <div className="metric-value">{livesImpacted}</div>
-                  <div className="metric-subtitle">Estimated lives saved</div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Geo-Match Feed */}
-          <section className="matches-section">
+          {/* Critical Requests Section */}
+          <section className="critical-requests">
             <div className="section-header">
-              <h2>Critical Requests Near You</h2>
+              <h2>Critical Blood Requests</h2>
               <div className="section-badge">
                 <span className="active-count">{metrics.active_matches_count || 0} Active</span>
               </div>
@@ -339,41 +350,47 @@ export default function DonorDashboard() {
               <div className="empty-state">
                 <div className="empty-icon">🎯</div>
                 <h3>No Critical Matches</h3>
-                <p>You'll be notified when urgent blood requests match your profile.</p>
+                <p>You'll be notified when urgent blood requests match your profile and location.</p>
+                <div className="empty-actions">
+                  <button className="btn-secondary" onClick={loadDashboardData}>
+                    Refresh
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="matches-grid">
+              <div className="requests-grid">
                 {criticalRequests.map((match, index) => (
-                  <div key={match.match_id} className="match-card urgent">
-                    <div className="match-header">
+                  <div key={match.match_id} className="request-card urgent">
+                    <div className="request-header">
                       <div className="urgency-badge">URGENT</div>
                       <div className="match-score">Match: {match.score}%</div>
                     </div>
                     
-                    <div className="match-content">
+                    <div className="request-content">
                       <h4 className="hospital-name">{match.hospital || "Metro Medical Center"}</h4>
-                      <div className="match-details">
-                        <div className="detail-item">
+                      <div className="request-details">
+                        <div className="detail-row">
                           <span className="detail-label">Blood Type:</span>
                           <span className="detail-value">{match.blood_type || "O+"}</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-row">
                           <span className="detail-label">Distance:</span>
                           <span className="detail-value">{match.distance_km || "2.3"} km</span>
                         </div>
-                        <div className="detail-item">
+                        <div className="detail-row">
                           <span className="detail-label">Time Left:</span>
                           <span className="detail-value urgent-time">{match.time_window || "4h 23m"}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="match-actions">
+                    <div className="request-actions">
                       <button 
                         className="btn-primary"
                         onClick={() => handleMatchResponse(match.match_id, 'accept')}
                       >
-                        🎯 Accept Mission
+                        <span className="btn-icon">🎯</span>
+                        Accept Mission
                       </button>
                       <button 
                         className="btn-secondary"
@@ -386,6 +403,33 @@ export default function DonorDashboard() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* Quick Actions */}
+          <section className="quick-actions">
+            <h2>Quick Actions</h2>
+            <div className="actions-grid">
+              <button className="action-card" onClick={() => nav('/donor/history')}>
+                <div className="action-icon">📊</div>
+                <h3>View History</h3>
+                <p>Check your donation history</p>
+              </button>
+              <button className="action-card" onClick={() => nav('/donor/profile')}>
+                <div className="action-icon">👤</div>
+                <h3>Update Profile</h3>
+                <p>Manage your information</p>
+              </button>
+              <button className="action-card" onClick={() => nav('/donor/settings')}>
+                <div className="action-icon">⚙️</div>
+                <h3>Settings</h3>
+                <p>Configure preferences</p>
+              </button>
+              <button className="action-card" onClick={loadDashboardData}>
+                <div className="action-icon">🔄</div>
+                <h3>Refresh Data</h3>
+                <p>Update dashboard information</p>
+              </button>
+            </div>
           </section>
         </div>
       </main>
