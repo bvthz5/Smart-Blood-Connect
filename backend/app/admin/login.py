@@ -7,7 +7,8 @@ Admin Authentication Routes
 """
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, decode_token
-from app.models import User, RefreshToken
+from app.models import User
+from .admin_token import AdminTokenStore
 from app.extensions import db
 from app.services.auth import verify_password, hash_password
 from app.services.email_service import email_service
@@ -117,8 +118,8 @@ def admin_reset_password():
     logger.info(f"[ADMIN RESET PASSWORD] Updating password for user: {user.email}")
     user.password_hash = hash_password(new_password)
     try:
-        # Revoke admin refresh tokens
-        RefreshToken.query.filter_by(user_id=user.id).update({"revoked": True, "revoked_at": datetime.utcnow()})
+        # Revoke all admin tokens
+        AdminTokenStore.get_instance().revoke_all_user_tokens(user.id)
         db.session.commit()
         logger.info(f"[ADMIN RESET PASSWORD] Password updated successfully for user: {user.email}")
     except Exception as e:
@@ -238,8 +239,15 @@ def admin_login():
         if not verify_password(admin_user.password_hash, password):
             return jsonify({"error": "Invalid email or password"}), 401
             
-        # Check if user is active
-        if admin_user.status != "active":
+        # Check user status
+        if admin_user.status == "blocked":
+            AdminTokenStore.get_instance().block_user(admin_user.id)
+            return jsonify({
+                "error": "Account blocked",
+                "message": "Your account has been blocked. Please contact support.",
+                "blocked": True
+            }), 403
+        elif admin_user.status != "active":
             return jsonify({"error": "Account is deactivated"}), 401
         
         # Create JWT access token using configured expiry
@@ -252,16 +260,10 @@ def admin_login():
         
         # Create refresh token
         refresh_days = int(current_app.config.get("REFRESH_EXPIRES_DAYS", 7))
-        refresh_token_value = secrets.token_urlsafe(32)
-        refresh_token_expires = datetime.utcnow() + timedelta(days=refresh_days)
-        
-        # Store refresh token in database
-        refresh_token = RefreshToken(
+        refresh_token_value = AdminTokenStore.get_instance().create_token(
             user_id=admin_user.id,
-            token=refresh_token_value,
-            expires_at=refresh_token_expires
+            expires_in_days=refresh_days
         )
-        db.session.add(refresh_token)
         
         # Update last login
         admin_user.last_login = datetime.utcnow()
@@ -472,26 +474,13 @@ def refresh_token():
         if not refresh_token_value:
             return jsonify({"error": "Refresh token is required"}), 400
         
-        # Find valid refresh token
-        refresh_token = RefreshToken.query.filter_by(
-            token=refresh_token_value,
-            revoked=False
-        ).first()
-        
-        if not refresh_token:
-            return jsonify({"error": "Invalid refresh token"}), 401
+        # Validate refresh token
+        user_id = AdminTokenStore.get_instance().validate_token(refresh_token_value)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired refresh token"}), 401
             
-        # Check if refresh token is expired
-        if refresh_token.expires_at < datetime.utcnow():
-            # Mark as revoked
-            refresh_token.revoked = True
-            refresh_token.revoked_at = datetime.utcnow()
-            db.session.commit()
-            return jsonify({"error": "Refresh token expired"}), 401
-        
         # Get user
-        user = User.query.filter_by(id=refresh_token.user_id, role="admin").first()
-        
+        user = User.query.filter_by(id=user_id, role="admin").first()
         if not user or user.status != "active":
             return jsonify({"error": "User not found or inactive"}), 401
         
@@ -519,19 +508,14 @@ def list_sessions():
     user = User.query.filter_by(id=current_user_id, role="admin").first()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
-    tokens = (
-        RefreshToken.query
-        .filter_by(user_id=user.id)
-        .order_by(RefreshToken.created_at.desc())
-        .all()
-    )
+    tokens = AdminTokenStore.get_instance().get_user_tokens(user.id)
     items = []
-    for t in tokens:
+    for token in tokens:
         items.append({
-            "id": t.id,
-            "revoked": t.revoked,
-            "created_at": t.created_at.isoformat() if t.created_at else None,
-            "expires_at": t.expires_at.isoformat() if t.expires_at else None
+            "id": token['token'][:8],  # Use first 8 chars of token as ID
+            "revoked": token['revoked'],
+            "created_at": token['created_at'].isoformat(),
+            "expires_at": token['expires_at'].isoformat()
         })
     return jsonify({"sessions": items}), 200
 
@@ -543,11 +527,9 @@ def revoke_all_sessions():
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
     try:
-        RefreshToken.query.filter_by(user_id=user.id, revoked=False).update({"revoked": True, "revoked_at": datetime.utcnow()})
-        db.session.commit()
+        AdminTokenStore.get_instance().revoke_all_user_tokens(user.id)
         return jsonify({"message": "All sessions revoked"}), 200
     except Exception:
-        db.session.rollback()
         return jsonify({"error": "Failed to revoke sessions"}), 500
 
 @admin_auth_bp.route("/sessions/revoke-one", methods=["POST"])
@@ -562,14 +544,16 @@ def revoke_one_session():
     if not session_id:
         return jsonify({"error": "session_id required"}), 400
     try:
-        token_row = RefreshToken.query.filter_by(id=session_id, user_id=user.id).first()
-        if not token_row:
+        # Since we're using token as ID in list_sessions, session_id is actually a token substring
+        tokens = AdminTokenStore.get_instance().get_user_tokens(user.id)
+        matching_token = next((t for t in tokens if t['token'].startswith(session_id)), None)
+        
+        if not matching_token:
             return jsonify({"error": "Session not found"}), 404
-        if not token_row.revoked:
-            token_row.revoked = True
-            token_row.revoked_at = datetime.utcnow()
-            db.session.commit()
+            
+        if not matching_token['revoked']:
+            AdminTokenStore.get_instance().revoke_token(matching_token['token'])
+            
         return jsonify({"message": "Session revoked"}), 200
     except Exception:
-        db.session.rollback()
         return jsonify({"error": "Failed to revoke session"}), 500

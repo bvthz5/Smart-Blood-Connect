@@ -14,14 +14,23 @@ from app import create_app, db
 
 def run_migrations():
     """Run database migrations"""
-    # Load environment variables
-    load_dotenv()
+    # Load environment variables from .env file
+    env_path = os.path.join(os.path.dirname(__file__), '.env')
+    if not os.path.exists(env_path):
+        print("Error: .env file not found at:", env_path)
+        sys.exit(1)
+        
+    load_dotenv(env_path)
+    print("Environment variables loaded from:", env_path)
     
     # Check for required environment variables
-    if not os.environ.get("DATABASE_URL"):
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
         print("Error: DATABASE_URL environment variable is required")
-        print("Please create a .env file with DATABASE_URL configured.")
+        print("Please check .env file contents. Current value:", db_url)
         sys.exit(1)
+    else:
+        print("Found DATABASE_URL:", db_url)
     
     app = create_app()
     
