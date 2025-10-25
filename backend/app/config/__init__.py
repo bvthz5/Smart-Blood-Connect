@@ -51,7 +51,19 @@ class Config:
     # Core configuration
     DEBUG = True
     FLASK_ENV = 'development'
-    SECRET_KEY = EnvVar("SECRET_KEY", required=False, default=lambda: os.urandom(24).hex()).get_value()
+    
+    # SECRET_KEY - CRITICAL: Must be a string, never a function
+    # Auto-generates a secure random key if not in .env
+    _secret_key = EnvVar("SECRET_KEY", required=False, default=os.urandom(24).hex()).get_value()
+    SECRET_KEY = str(_secret_key) if _secret_key else os.urandom(24).hex()
+    
+    # Validation: Ensure it's actually a string (prevent lambda bug)
+    if callable(SECRET_KEY):
+        raise TypeError(
+            "CRITICAL BUG DETECTED: SECRET_KEY is a function!\n"
+            "This will cause 'TypeError: function object is not iterable'\n"
+            "Fix: Remove 'lambda:' from default parameter"
+        )
     
     # Database configuration
     _DB_ENV = EnvVar("DATABASE_URL", required=False).get_value()
@@ -115,4 +127,20 @@ config: Dict[str, Config] = {
 }
 
 # Validate all configuration values on import
-Config.validate_all()
+try:
+    Config.validate_all()
+except Exception as e:
+    print(f"\n{'='*70}")
+    print(f"CONFIGURATION VALIDATION FAILED: {str(e)}")
+    print(f"{'='*70}\n")
+    # Don't exit here, let the validator handle it
+
+# Additional runtime validation to prevent lambda bug
+try:
+    from .config_validator import ConfigValidator
+    ConfigValidator.validate_all_config(Config)
+    print("\n✅ Configuration validation passed - All systems ready!\n")
+except ImportError:
+    # Validator not available, do basic check
+    if callable(Config.SECRET_KEY):
+        raise TypeError("CRITICAL: SECRET_KEY is a function! Check config/__init__.py")

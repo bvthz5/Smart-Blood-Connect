@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDonorProfile, getDonorDashboard, getDonorMatches, setAvailability, respondToMatch } from "../../services/api";
+import { getDonorDashboard, setAvailability, respondToMatch, updateDonorLocation } from "../../services/api";
 import "./donor-dashboard.css";
 
 const getInitials = (name) => {
@@ -15,31 +15,81 @@ const getInitials = (name) => {
 
 function DonorDashboard() {
   const nav = useNavigate();
-  const [profile, setProfile] = useState({});
-  const [metrics, setMetrics] = useState({});
-  const [matches, setMatches] = useState([]);
+  const [dashboardData, setDashboardData] = useState(null);
   const [available, setAvailable] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [locationUpdated, setLocationUpdated] = useState(false);
+
+  // Auto-update donor location with enhanced error handling
+  const updateLocation = async () => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation is not supported by this browser");
+      return;
+    }
+
+    if (locationUpdated) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await updateDonorLocation(
+            position.coords.latitude,
+            position.coords.longitude
+          );
+          setLocationUpdated(true);
+          console.log("✅ Location updated successfully");
+        } catch (err) {
+          console.error("Failed to update location:", err);
+          setToast("Location update failed. Please try again later.");
+          setTimeout(() => setToast(""), 3000);
+        }
+      },
+      (err) => {
+        // Handle geolocation errors gracefully
+        let errorMessage = "Unable to access location.";
+        
+        switch(err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = "Location permission denied. Please enable location access in your browser settings to use nearby features.";
+            console.warn("Geolocation permission denied by user");
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = "Location information unavailable. Please check your device settings.";
+            console.warn("Geolocation position unavailable");
+            break;
+          case err.TIMEOUT:
+            errorMessage = "Location request timed out. Please try again.";
+            console.warn("Geolocation request timeout");
+            break;
+          default:
+            errorMessage = "An unknown error occurred while accessing location.";
+            console.warn("Geolocation unknown error:", err);
+        }
+        
+        // Don't show toast immediately, just log - let user continue using the app
+        console.info("ℹ️ " + errorMessage);
+      },
+      { 
+        enableHighAccuracy: true, 
+        timeout: 10000, 
+        maximumAge: 300000 
+      }
+    );
+  };
 
   async function load() {
     setLoading(true);
     try {
-      const [pRes, dRes, mRes] = await Promise.all([
-        getDonorProfile(),
-        getDonorDashboard(),
-        getDonorMatches(),
-      ]);
-      const p = pRes?.data ?? pRes ?? {};
-      const d = dRes?.data ?? dRes ?? {};
-      const m = mRes?.data?.matches ?? mRes?.data ?? mRes ?? [];
-      setProfile(p || {});
-      setMetrics(d || {});
-      setMatches(Array.isArray(m) ? m : []);
-      const isAvail = (p?.availability_status === 'available') || (p?.is_available === true);
-      setAvailable(!!isAvail);
+      // Single consolidated API call
+      const response = await getDonorDashboard();
+      const data = response?.data ?? response ?? {};
+      
+      setDashboardData(data);
+      setAvailable(data?.donor?.is_available ?? false);
     } catch (e) {
+      console.error("Dashboard load error:", e);
       setToast("Failed to load dashboard. Please try again.");
       setTimeout(() => setToast(""), 4000);
     } finally {
@@ -47,7 +97,10 @@ function DonorDashboard() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    updateLocation(); // Auto-update location on mount
+  }, []);
 
   async function toggleAvailability() {
     try {
@@ -80,20 +133,27 @@ function DonorDashboard() {
     nav('/donor/login');
   }
 
+  // Extract data from consolidated dashboard
+  const user = dashboardData?.user || {};
+  const donor = dashboardData?.donor || {};
+  const stats = dashboardData?.stats || {};
+  const recentDonations = dashboardData?.recent_donations || [];
+  const pendingMatches = dashboardData?.pending_matches || [];
+
   // Calculate derived data
   const calculateNextEligibleDate = () => {
     try {
       const today = new Date();
-      if (typeof metrics?.eligible_in_days === "number") {
+      if (typeof donor?.eligible_in_days === "number") {
         const nextDate = new Date();
-        nextDate.setDate(today.getDate() + Math.max(0, metrics.eligible_in_days));
+        nextDate.setDate(today.getDate() + Math.max(0, donor.eligible_in_days));
         return {
           date: nextDate.toLocaleDateString(),
-          daysRemaining: metrics.eligible_in_days
+          daysRemaining: donor.eligible_in_days
         };
       }
-      if (metrics?.last_donation_date) {
-        const lastDonation = new Date(metrics.last_donation_date);
+      if (donor?.last_donation_date) {
+        const lastDonation = new Date(donor.last_donation_date);
         const nextDate = new Date(lastDonation);
         nextDate.setDate(nextDate.getDate() + 56);
         const daysRemaining = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
@@ -110,7 +170,7 @@ function DonorDashboard() {
   const eligibilityProgress = eligibleData.daysRemaining > 0 ? 
     Math.round(((56 - Math.min(56, eligibleData.daysRemaining)) / 56) * 100) : 100;
 
-  if (loading) {
+  if (loading || !dashboardData) {
     return (
       <div className="donor-dashboard loading">
         <div className="loading-container">
@@ -125,7 +185,8 @@ function DonorDashboard() {
     );
   }
 
-  const criticalRequests = matches.filter(match => match.urgency === 'critical').slice(0, 3);
+  const criticalMatches = pendingMatches.filter(match => match.urgency === 'high').slice(0, 3);
+  const fullName = `${user.first_name} ${user.last_name}`.trim();
 
   return (
     <div className="donor-dashboard">
@@ -146,15 +207,15 @@ function DonorDashboard() {
 
           <div className="header-center">
             <div className="welcome-text">
-              Welcome back, <span className="highlight">{profile.name?.split(' ')[0] || 'Donor'}</span>! 👋
+              Welcome back, <span className="highlight">{user.first_name || 'Donor'}</span>! 👋
             </div>
           </div>
 
           <div className="header-actions">
-            <button className="icon-btn notification-btn">
+            <button className="icon-btn notification-btn" onClick={() => nav('/donor/notifications')}>
               <span className="icon">🔔</span>
-              {metrics?.active_matches_count > 0 && (
-                <span className="notification-badge">{metrics.active_matches_count}</span>
+              {stats?.pending_matches_count > 0 && (
+                <span className="notification-badge">{stats.pending_matches_count}</span>
               )}
             </button>
             
@@ -164,7 +225,7 @@ function DonorDashboard() {
                 onClick={() => setMenuOpen(!menuOpen)}
               >
                 <div className="avatar">
-                  {getInitials(metrics.name || profile.name)}
+                  {getInitials(fullName)}
                 </div>
                 <span className={`dropdown-arrow ${menuOpen ? 'open' : ''}`}>▼</span>
               </button>
@@ -225,7 +286,7 @@ function DonorDashboard() {
                 <div className="stat-icon">🩸</div>
                 <div className="stat-content">
                   <h3>Total Donations</h3>
-                  <div className="stat-value">{metrics.total_donations || profile.donation_count || 0}</div>
+                  <div className="stat-value">{stats.total_donations || 0}</div>
                   <p className="stat-description">Successful donations</p>
                 </div>
               </div>
@@ -235,7 +296,7 @@ function DonorDashboard() {
                 <div className="stat-content">
                   <h3>Last Hospital</h3>
                   <div className="stat-value-small">
-                    {metrics.last_donated_to || profile.last_hospital || "—"}
+                    {stats.last_hospital || "—"}
                   </div>
                   <p className="stat-description">Last donated hospital</p>
                 </div>
@@ -246,13 +307,13 @@ function DonorDashboard() {
                 <div className="stat-content">
                   <h3>Last Donation Date</h3>
                   <div className="stat-value-small">
-                    {metrics.last_donation_date ? 
-                      new Date(metrics.last_donation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Never"
+                    {donor.last_donation_date ? 
+                      new Date(donor.last_donation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Never"
                     }
                   </div>
                   <p className="stat-description">
-                    {metrics.last_donation_date ? 
-                      `${Math.floor((new Date() - new Date(metrics.last_donation_date)) / (1000 * 60 * 60 * 24))} days ago` : 
+                    {donor.last_donation_date ? 
+                      `${Math.floor((new Date() - new Date(donor.last_donation_date)) / (1000 * 60 * 60 * 24))} days ago` : 
                       "No donations yet"
                     }
                   </p>
@@ -285,12 +346,12 @@ function DonorDashboard() {
               <div className="stat-card ai-card">
                 <div className="stat-icon">🤖</div>
                 <div className="stat-content">
-                  <h3>AI Recommendation</h3>
-                  <div className="stat-value-small">
-                    {metrics.nearest_hospital || "Metro General"}
+                  <h3>Blood Group</h3>
+                  <div className="stat-value">
+                    {donor.blood_group || "O+"}
                   </div>
                   <p className="stat-description">
-                    {metrics.nearest_distance ? `${metrics.nearest_distance} km away` : "Nearest hospital needing blood"}
+                    Your blood type
                   </p>
                 </div>
               </div>
@@ -300,7 +361,7 @@ function DonorDashboard() {
                 <div className="stat-content">
                   <h3>Pending Requests</h3>
                   <div className="stat-value">
-                    {matches.filter(m => m.status === 'pending').length || metrics.active_matches_count || 0}
+                    {stats.pending_matches_count || 0}
                   </div>
                   <p className="stat-description">Awaiting your response</p>
                 </div>
@@ -316,12 +377,12 @@ function DonorDashboard() {
                 <div className="card-header">
                   <h2>🩸 Critical Blood Requests</h2>
                   <div className="card-badge">
-                    {metrics.active_matches_count || 0} Active
+                    {stats.pending_matches_count || 0} Active
                   </div>
                 </div>
 
                 <div className="card-content">
-                  {criticalRequests.length === 0 ? (
+                  {criticalMatches.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">🎯</div>
                       <div className="empty-text">
@@ -334,26 +395,26 @@ function DonorDashboard() {
                     </div>
                   ) : (
                     <div className="requests-list">
-                      {criticalRequests.map((match) => (
+                      {criticalMatches.map((match) => (
                         <div key={match.match_id} className="request-item urgent">
                           <div className="request-header">
                             <span className="urgency-badge">URGENT</span>
                             <span className="match-score">{match.score || 85}% Match</span>
                           </div>
                           <div className="request-details">
-                            <h4>{match.hospital || "Metro Medical Center"}</h4>
+                            <h4>{match.hospital}</h4>
                             <div className="detail-grid">
                               <div className="detail-item">
                                 <span>Blood Type:</span>
-                                <strong>{match.blood_type || "O+"}</strong>
+                                <strong>{match.blood_group}</strong>
                               </div>
                               <div className="detail-item">
-                                <span>Distance:</span>
-                                <strong>{match.distance_km || "2.3"} km</strong>
+                                <span>Units:</span>
+                                <strong>{match.units_required} units</strong>
                               </div>
                               <div className="detail-item">
-                                <span>Time Left:</span>
-                                <strong className="urgent-time">{match.time_window || "4h 23m"}</strong>
+                                <span>Urgency:</span>
+                                <strong className="urgent-time">{match.urgency.toUpperCase()}</strong>
                               </div>
                             </div>
                           </div>

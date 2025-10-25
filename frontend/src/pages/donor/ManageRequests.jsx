@@ -1,37 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getDonorDashboard, respondToMatch } from "../../services/api";
 import "./manage-requests.css";
 
 const ManageRequests = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("pending");
-  const [requests, setRequests] = useState({
-    pending: [
-      {
-        id: 1,
-        hospital_name: "Amrita Institute of Medical Sciences",
-        blood_group: "O+",
-        urgency: "high",
-        units_required: 2,
-        contact_person: "Dr. Ramesh Kumar",
-        contact_phone: "+91 9876543210",
-        distance: 3.2,
-        created_at: "2024-01-20T10:30:00"
-      },
-      {
-        id: 2,
-        hospital_name: "Lakeshore Hospital",
-        blood_group: "O+",
-        urgency: "medium",
-        units_required: 1,
-        contact_person: "Nurse Priya",
-        contact_phone: "+91 9876543211",
-        distance: 5.8,
-        created_at: "2024-01-19T15:45:00"
-      }
-    ],
-    completed: []
-  });
+  const [requests, setRequests] = useState({ pending: [], completed: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadMatches();
+  }, []);
+
+  async function loadMatches() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await getDonorDashboard();
+      const data = res?.data ?? res ?? {};
+      const pending = Array.isArray(data.pending_matches) ? data.pending_matches.map((m) => ({
+        id: m.request_id,
+        match_id: m.match_id,
+        hospital_name: m.hospital,
+        blood_group: m.blood_group,
+        urgency: m.urgency,
+        units_required: m.units_required,
+        contact_person: m.contact_person,
+        contact_phone: m.contact_phone,
+        created_at: m.matched_at,
+        distance: m.distance_km
+      })) : [];
+      setRequests({ pending, completed: [] });
+    } catch (e) {
+      console.error("Failed to load matches", e);
+      setError("Failed to load requests. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function getUrgencyBadge(urgency) {
     const badges = {
@@ -42,18 +50,32 @@ const ManageRequests = () => {
     return badges[urgency] || badges.medium;
   }
 
-  async function handleAccept(requestId) {
-    if (window.confirm("Are you sure you want to accept this request? The hospital will be notified.")) {
-      // API call to accept request
-      alert("Request accepted! Hospital has been notified.");
+  async function handleAccept(matchId) {
+    if (!matchId) return;
+    if (!window.confirm("Accept this request? The hospital will be notified.")) return;
+    try {
+      await respondToMatch(matchId, "accept");
+      await loadMatches();
+    } catch (e) {
+      alert("Failed to accept request. Please try again.");
     }
   }
 
-  async function handleReject(requestId) {
-    if (window.confirm("Are you sure you want to reject this request?")) {
-      // API call to reject request
-      alert("Request rejected.");
+  async function handleReject(matchId) {
+    if (!matchId) return;
+    if (!window.confirm("Reject this request?")) return;
+    try {
+      await respondToMatch(matchId, "reject");
+      await loadMatches();
+    } catch (e) {
+      alert("Failed to reject request. Please try again.");
     }
+  }
+
+  function openMapSearch(hospitalName) {
+    if (!hospitalName) return;
+    const q = encodeURIComponent(hospitalName);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, "_blank");
   }
 
   return (
@@ -84,6 +106,21 @@ const ManageRequests = () => {
       </div>
 
       <div className="requests-container">
+        {error && (
+          <div className="error-banner">
+            <span className="error-icon">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+        {loading && (
+          <div className="loading-state">
+            <div className="loading-spinner">
+              <div className="pulse-ring"></div>
+              <div className="blood-drop">🩸</div>
+            </div>
+            <p>Loading requests...</p>
+          </div>
+        )}
         {activeTab === 'pending' && requests.pending.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon">📭</div>
@@ -99,9 +136,9 @@ const ManageRequests = () => {
                 <span>{getUrgencyBadge(req.urgency).icon}</span>
                 <span>{getUrgencyBadge(req.urgency).text}</span>
               </div>
-              <div className="distance-badge">
-                📍 {req.distance} km away
-              </div>
+              {typeof req.distance === 'number' && (
+                <div className="distance-badge">📍 {req.distance} km away</div>
+              )}
             </div>
 
             <h3 className="hospital-name">{req.hospital_name}</h3>
@@ -145,13 +182,13 @@ const ManageRequests = () => {
             </div>
 
             <div className="request-actions">
-              <button className="btn-reject" onClick={() => handleReject(req.id)}>
+              <button className="btn-reject" onClick={() => handleReject(req.match_id)}>
                 ❌ Reject
               </button>
-              <button className="btn-view-map">
+              <button className="btn-view-map" onClick={() => openMapSearch(req.hospital_name)}>
                 🗺️ View on Map
               </button>
-              <button className="btn-accept" onClick={() => handleAccept(req.id)}>
+              <button className="btn-accept" onClick={() => handleAccept(req.match_id)}>
                 ✅ Accept Request
               </button>
             </div>

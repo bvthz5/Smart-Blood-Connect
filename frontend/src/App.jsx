@@ -22,6 +22,7 @@ import DonorDashboard from './pages/donor/DonorDashboard';
 import DonorProfile from './pages/donor/DonorProfile';
 import DonorSettings from './pages/donor/DonorSettings';
 import MyDonations from './pages/donor/MyDonations';
+import DonationDetails from './pages/donor/DonationDetails';
 import NextEligibility from './pages/donor/NextEligibility';
 import ManageRequests from './pages/donor/ManageRequests';
 import NearbyRequests from './pages/donor/NearbyRequests';
@@ -114,6 +115,12 @@ function App() {
           <Route path="/donor/donations" element={
             <DonorRouteGuard>
               <MyDonations />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/donations/:id" element={
+            <DonorRouteGuard>
+              <DonationDetails />
             </DonorRouteGuard>
           } />
 

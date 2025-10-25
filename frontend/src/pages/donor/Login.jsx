@@ -100,7 +100,15 @@ export default function Login(){
       const res = await login({ email_or_phone: ident, password });
       localStorage.setItem("access_token", res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
-      nav("/donor/dashboard");
+      
+      // Check if there's a redirect path stored (from DonorRouteGuard)
+      const redirectPath = localStorage.getItem('redirect_after_login');
+      if (redirectPath) {
+        localStorage.removeItem('redirect_after_login');
+        nav(redirectPath);
+      } else {
+        nav("/donor/dashboard");
+      }
     }catch(err){
       setError(err?.response?.data?.error || "Login failed. Please check your credentials.");
     } finally {

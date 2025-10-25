@@ -3,6 +3,30 @@ import { useNavigate } from "react-router-dom";
 import { getDonorProfile, updateDonorProfile } from "../../services/api";
 import "./donor-profile.css";
 
+// Generate default avatar with initials
+const generateDefaultAvatar = (firstName, lastName) => {
+  const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || 'D';
+  const colors = [
+    '#DC2626', '#EA580C', '#D97706', '#CA8A04', '#65A30D',
+    '#059669', '#0891B2', '#0284C7', '#2563EB', '#4F46E5',
+    '#7C3AED', '#9333EA', '#C026D3', '#DB2777'
+  ];
+  const colorIndex = (firstName?.charCodeAt(0) || 0) % colors.length;
+  const bgColor = colors[colorIndex];
+  
+  const svg = `
+    <svg width="150" height="150" xmlns="http://www.w3.org/2000/svg">
+      <rect width="150" height="150" fill="${bgColor}"/>
+      <text x="50%" y="50%" text-anchor="middle" dy=".35em" 
+            font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="white">
+        ${initials}
+      </text>
+    </svg>
+  `;
+  
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+};
+
 const DonorProfile = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("personal");
@@ -188,14 +212,25 @@ const DonorProfile = () => {
           <div className="profile-card">
             <div className="profile-pic-wrapper">
               <img 
-                src={profilePicPreview || profile.profile_pic_url || "https://via.placeholder.com/150"} 
+                src={profilePicPreview || profile.profile_pic_url || generateDefaultAvatar(profile.first_name, profile.last_name)} 
                 alt="Profile" 
                 className="profile-pic"
+                onError={(e) => {
+                  // Fallback to generated avatar if image fails to load
+                  e.target.src = generateDefaultAvatar(profile.first_name, profile.last_name);
+                }}
               />
               {isEditing && (
-                <label className="upload-btn">
+                <label htmlFor="profile-pic-upload" className="upload-btn">
                   📷 Change Photo
-                  <input type="file" accept="image/*" onChange={handleFileChange} hidden />
+                  <input 
+                    id="profile-pic-upload"
+                    name="profile_picture"
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleFileChange} 
+                    hidden 
+                  />
                 </label>
               )}
             </div>
@@ -206,8 +241,10 @@ const DonorProfile = () => {
             <div className="blood-badge">{profile.blood_group || "Not Set"}</div>
             
             <div className="availability-toggle-card">
-              <label className="switch">
+              <label htmlFor="availability-toggle" className="switch">
                 <input 
+                  id="availability-toggle"
+                  name="is_available"
                   type="checkbox" 
                   checked={profile.is_available}
                   onChange={(e) => handleInputChange('is_available', e.target.checked)}
@@ -276,8 +313,10 @@ const DonorProfile = () => {
                 
                 <div className="form-grid">
                   <div className="form-group">
-                    <label>👤 First Name</label>
+                    <label htmlFor="profile-first-name">👤 First Name</label>
                     <input 
+                      id="profile-first-name"
+                      name="first_name"
                       type="text" 
                       value={profile.first_name}
                       onChange={(e) => handleInputChange('first_name', e.target.value)}
@@ -286,8 +325,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>👤 Last Name</label>
+                    <label htmlFor="profile-last-name">👤 Last Name</label>
                     <input 
+                      id="profile-last-name"
+                      name="last_name"
                       type="text" 
                       value={profile.last_name}
                       onChange={(e) => handleInputChange('last_name', e.target.value)}
@@ -296,8 +337,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>📧 Email</label>
+                    <label htmlFor="profile-email">📧 Email</label>
                     <input 
+                      id="profile-email"
+                      name="email"
                       type="email" 
                       value={profile.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
@@ -307,8 +350,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>📞 Phone</label>
+                    <label htmlFor="profile-phone">📞 Phone</label>
                     <input 
+                      id="profile-phone"
+                      name="phone"
                       type="tel" 
                       value={profile.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -318,8 +363,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>📅 Date of Birth</label>
+                    <label htmlFor="profile-dob">📅 Date of Birth</label>
                     <input 
+                      id="profile-dob"
+                      name="date_of_birth"
                       type="date" 
                       value={profile.date_of_birth}
                       onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
@@ -328,8 +375,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>🚻 Gender</label>
+                    <label htmlFor="profile-gender">🚻 Gender</label>
                     <select 
+                      id="profile-gender"
+                      name="gender"
                       value={profile.gender}
                       onChange={(e) => handleInputChange('gender', e.target.value)}
                       disabled={!isEditing}
@@ -346,8 +395,10 @@ const DonorProfile = () => {
                 
                 <div className="form-grid">
                   <div className="form-group full-width">
-                    <label>🏠 Address</label>
+                    <label htmlFor="profile-address">🏠 Address</label>
                     <textarea 
+                      id="profile-address"
+                      name="address"
                       value={profile.address}
                       onChange={(e) => handleInputChange('address', e.target.value)}
                       disabled={!isEditing}
@@ -356,8 +407,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>🏙️ City</label>
+                    <label htmlFor="profile-city">🏙️ City</label>
                     <input 
+                      id="profile-city"
+                      name="city"
                       type="text" 
                       value={profile.city}
                       onChange={(e) => handleInputChange('city', e.target.value)}
@@ -366,8 +419,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>🏡 District</label>
+                    <label htmlFor="profile-district">🏡 District</label>
                     <input 
+                      id="profile-district"
+                      name="district"
                       type="text" 
                       value={profile.district}
                       onChange={(e) => handleInputChange('district', e.target.value)}
@@ -376,8 +431,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>🌍 State</label>
+                    <label htmlFor="profile-state">🌍 State</label>
                     <input 
+                      id="profile-state"
+                      name="state"
                       type="text" 
                       value={profile.state}
                       disabled
@@ -385,8 +442,10 @@ const DonorProfile = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>📍 Pin Code</label>
+                    <label htmlFor="profile-pincode">📍 Pin Code</label>
                     <input 
+                      id="profile-pincode"
+                      name="pincode"
                       type="text" 
                       value={profile.pincode}
                       onChange={(e) => handleInputChange('pincode', e.target.value)}

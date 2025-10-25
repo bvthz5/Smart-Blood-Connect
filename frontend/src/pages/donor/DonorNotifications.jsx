@@ -1,52 +1,86 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { 
+  getDonorNotifications, 
+  markNotificationRead, 
+  markAllNotificationsRead 
+} from "../../services/api";
+import { connectSocket, disconnectSocket, getSocket } from "../../services/socket";
 import "./donor-notifications.css";
 
 const DonorNotifications = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "request",
-      title: "New Donation Request",
-      message: "Amrita Institute needs O+ blood urgently. You're a match!",
-      time: "2 hours ago",
-      is_read: false,
-      icon: "🩸"
-    },
-    {
-      id: 2,
-      type: "badge",
-      title: "Achievement Unlocked!",
-      message: "You've earned the 'Life Saver' badge for 5 donations.",
-      time: "1 day ago",
-      is_read: false,
-      icon: "🏆"
-    },
-    {
-      id: 3,
-      type: "certificate",
-      title: "Certificate Available",
-      message: "Your donation certificate from Medical Trust Hospital is ready to download.",
-      time: "2 days ago",
-      is_read: true,
-      icon: "📜"
-    },
-    {
-      id: 4,
-      type: "insight",
-      title: "AI Insight Update",
-      message: "High demand for O+ blood in Ernakulam district next week.",
-      time: "3 days ago",
-      is_read: true,
-      icon: "🤖"
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  function markAsRead(id) {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, is_read: true } : n
-    ));
+  useEffect(() => {
+    loadNotifications();
+
+    // Connect socket and subscribe to events
+    const sock = connectSocket();
+    if (sock) {
+      sock.on('notification:new', (payload) => {
+        // Prepend new notification
+        setNotifications((prev) => [{
+          id: payload.id || Date.now(),
+          type: payload.type || 'request',
+          title: payload.title || 'Notification',
+          message: payload.message || 'You have a new update.',
+          time: payload.created_at ? new Date(payload.created_at).toLocaleString() : new Date().toLocaleString(),
+          is_read: false,
+          icon: payload.type === 'badge' ? '🏆' : payload.type === 'certificate' ? '📜' : '🩸'
+        }, ...prev]);
+      });
+
+      sock.on('notification:refresh', () => {
+        loadNotifications();
+      });
+    }
+
+    return () => {
+      const s = getSocket();
+      if (s) {
+        try { s.off('notification:new'); s.off('notification:refresh'); } catch (_) {}
+      }
+      disconnectSocket();
+    };
+  }, []);
+
+  async function loadNotifications() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await getDonorNotifications();
+      const list = res?.data?.notifications || [];
+      // Normalize fields
+      const mapped = list.map(n => ({
+        id: n.id,
+        type: n.type || 'request',
+        title: n.title || (n.type === 'request' ? 'New Donation Request' : 'Notification'),
+        message: n.message || 'You have a new update.',
+        time: n.created_at ? new Date(n.created_at).toLocaleString() : '',
+        is_read: !!n.read,
+        icon: n.type === 'badge' ? '🏆' : n.type === 'certificate' ? '📜' : '🩸'
+      }));
+      setNotifications(mapped);
+    } catch (e) {
+      console.error('Failed to load notifications', e);
+      setError('Failed to load notifications. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markAsRead(id) {
+    try {
+      await markNotificationRead(id);
+      setNotifications(notifications.map(n => 
+        n.id === id ? { ...n, is_read: true } : n
+      ));
+    } catch (e) {
+      console.warn('Failed to mark as read');
+    }
   }
 
   function deleteNotification(id) {
@@ -68,6 +102,21 @@ const DonorNotifications = () => {
       </header>
 
       <div className="notifications-container">
+        {error && (
+          <div className="error-banner">
+            <span className="error-icon">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+        {loading && (
+          <div className="loading-state">
+            <div className="loading-spinner">
+              <div className="pulse-ring"></div>
+              <div className="blood-drop">🩸</div>
+            </div>
+            <p>Loading notifications...</p>
+          </div>
+        )}
         {notifications.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📭</div>
@@ -110,6 +159,18 @@ const DonorNotifications = () => {
                 </div>
               </div>
             ))}
+            {notifications.length > 0 && unreadCount > 0 && (
+              <div className="notif-footer-actions">
+                <button 
+                  className="btn-mark-all"
+                  onClick={async () => { 
+                    try { await markAllNotificationsRead(); await loadNotifications(); } catch (_) {}
+                  }}
+                >
+                  Mark all as read
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

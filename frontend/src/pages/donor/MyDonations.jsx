@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getDonorDonations } from "../../services/api";
 import "./my-donations.css";
 
 const MyDonations = () => {
@@ -12,7 +13,7 @@ const MyDonations = () => {
     avg_interval_days: 0
   });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadDonations();
@@ -20,65 +21,53 @@ const MyDonations = () => {
 
   async function loadDonations() {
     setLoading(true);
+    setError("");
     try {
-      // API call - replace with actual endpoint
-      // const res = await getDonationHistory();
+      const response = await getDonorDonations();
+      const donationsData = response.data?.donations || [];
       
-      // Mock data for demonstration
-      const mockDonations = [
-        {
-          id: 1,
-          donation_date: "2024-01-15",
-          hospital_name: "Medical Trust Hospital",
-          district: "Ernakulam",
-          units_donated: 1,
-          request_id: "REQ-2024-001",
-          status: "completed",
-          certificate_url: "/certificates/cert-001.pdf"
-        },
-        {
-          id: 2,
-          donation_date: "2023-10-10",
-          hospital_name: "Amrita Institute of Medical Sciences",
-          district: "Ernakulam",
-          units_donated: 1,
-          request_id: "REQ-2023-089",
-          status: "verified",
-          certificate_url: "/certificates/cert-002.pdf"
-        },
-        {
-          id: 3,
-          donation_date: "2023-07-05",
-          hospital_name: "Lakeshore Hospital",
-          district: "Kochi",
-          units_donated: 1,
-          request_id: "REQ-2023-067",
-          status: "completed",
-          certificate_url: null
-        }
-      ];
-
-      setDonations(mockDonations);
+      setDonations(donationsData);
       
       // Calculate statistics
-      const totalUnits = mockDonations.reduce((sum, d) => sum + d.units_donated, 0);
+      const totalUnits = donationsData.reduce((sum, d) => sum + (d.units || 1), 0);
       const hospitalCounts = {};
-      mockDonations.forEach(d => {
-        hospitalCounts[d.hospital_name] = (hospitalCounts[d.hospital_name] || 0) + 1;
+      donationsData.forEach(d => {
+        if (d.hospital_name) {
+          hospitalCounts[d.hospital_name] = (hospitalCounts[d.hospital_name] || 0) + 1;
+        }
       });
       
-      const mostFrequent = Object.keys(hospitalCounts).reduce((a, b) => 
-        hospitalCounts[a] > hospitalCounts[b] ? a : b, ""
-      );
+      const mostFrequent = Object.keys(hospitalCounts).length > 0
+        ? Object.keys(hospitalCounts).reduce((a, b) => 
+            hospitalCounts[a] > hospitalCounts[b] ? a : b
+          )
+        : "N/A";
+
+      // Calculate average interval between donations
+      let avgInterval = 0;
+      if (donationsData.length >= 2) {
+        const dates = donationsData
+          .map(d => new Date(d.donation_date))
+          .sort((a, b) => a - b);
+        
+        let totalDays = 0;
+        for (let i = 1; i < dates.length; i++) {
+          const diffTime = Math.abs(dates[i] - dates[i-1]);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          totalDays += diffDays;
+        }
+        avgInterval = Math.round(totalDays / (dates.length - 1));
+      }
 
       setStats({
-        total_donations: mockDonations.length,
+        total_donations: donationsData.length,
         total_units: totalUnits,
         most_frequent_hospital: mostFrequent,
-        avg_interval_days: 96
+        avg_interval_days: avgInterval
       });
     } catch (error) {
       console.error("Failed to load donations:", error);
+      setError("Failed to load donation history. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -93,9 +82,9 @@ const MyDonations = () => {
     return badges[status] || badges.completed;
   }
 
-  const filteredDonations = filter === "all" 
-    ? donations 
-    : donations.filter(d => d.status === filter);
+  const handleViewDetails = (donationId) => {
+    navigate(`/donor/donations/${donationId}`);
+  };
 
   if (loading) {
     return (
@@ -174,38 +163,24 @@ const MyDonations = () => {
 
         {/* Main Content */}
         <main className="donations-main">
-          {/* Filters */}
-          <div className="filter-bar">
-            <button 
-              className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-              onClick={() => setFilter('all')}
-            >
-              All Donations ({donations.length})
-            </button>
-            <button 
-              className={`filter-btn ${filter === 'completed' ? 'active' : ''}`}
-              onClick={() => setFilter('completed')}
-            >
-              Completed
-            </button>
-            <button 
-              className={`filter-btn ${filter === 'verified' ? 'active' : ''}`}
-              onClick={() => setFilter('verified')}
-            >
-              Verified
-            </button>
-          </div>
+          {/* Error Display */}
+          {error && (
+            <div className="error-banner">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Donations List */}
           <div className="donations-list">
-            {filteredDonations.length === 0 ? (
+            {donations.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📋</div>
                 <h3>No donations yet</h3>
                 <p>Your donation history will appear here once you donate blood.</p>
               </div>
             ) : (
-              filteredDonations.map((donation, index) => (
+              donations.map((donation, index) => (
                 <div key={donation.id} className="donation-card" style={{"--index": index}}>
                   <div className="donation-header">
                     <div className="donation-date">
@@ -257,16 +232,10 @@ const MyDonations = () => {
                   </div>
 
                   <div className="donation-actions">
-                    {donation.certificate_url ? (
-                      <button className="btn-certificate">
-                        📜 Download Certificate
-                      </button>
-                    ) : (
-                      <button className="btn-certificate disabled">
-                        ⏳ Certificate Pending
-                      </button>
-                    )}
-                    <button className="btn-details">
+                    <button 
+                      className="btn-details"
+                      onClick={() => handleViewDetails(donation.id)}
+                    >
                       View Details →
                     </button>
                   </div>

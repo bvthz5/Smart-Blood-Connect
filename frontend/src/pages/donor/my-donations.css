@@ -304,40 +304,22 @@
   }
 }
 
-/* Filter Bar */
-.filter-bar {
+/* Error Banner */
+.error-banner {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  background: var(--white);
-  padding: 1rem;
-  border-radius: 1rem;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--gray-200);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 12px;
+  color: #c33;
+  font-weight: 500;
 }
 
-.filter-btn {
-  padding: 0.75rem 1.5rem;
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--gray-700);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.filter-btn:hover {
-  background: var(--gray-100);
-  transform: translateY(-2px);
-}
-
-.filter-btn.active {
-  background: var(--primary-red);
-  color: var(--white);
-  border-color: var(--primary-red);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+.error-icon {
+  font-size: 1.2rem;
 }
 
 /* Donations List */
@@ -475,45 +457,20 @@
   gap: 1rem;
 }
 
-.btn-certificate,
 .btn-details {
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 2rem;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
   font-weight: 600;
-  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.btn-certificate {
-  flex: 1;
-  background: var(--secondary-green);
-  color: var(--white);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-certificate:hover {
-  background: #047857;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.btn-certificate.disabled {
-  background: var(--gray-300);
-  color: var(--gray-600);
-  cursor: not-allowed;
-}
-
-.btn-certificate.disabled:hover {
-  transform: none;
-  box-shadow: var(--shadow-sm);
+  width: 100%;
 }
 
 .btn-details {
   background: var(--gray-100);
   color: var(--gray-700);
-  border: 1px solid var(--gray-300);
 }
 
 .btn-details:hover {

@@ -113,26 +113,66 @@ def main():
     # Run database migrations
     run_migrations()
     
+    # Import system config for portability
+    try:
+        from app.config.system_config import SystemConfig
+        from app.config.config_validator import ConfigValidator
+        
+        # Print system info
+        SystemConfig.print_system_info()
+        
+        # Get backend URL with auto port detection
+        backend_url, port = SystemConfig.get_backend_url()
+        host = os.getenv('BACKEND_HOST', '127.0.0.1')
+        
+    except ImportError:
+        # Fallback if system_config not available
+        host = "127.0.0.1"
+        port = 5000
+        backend_url = f"http://{host}:{port}"
+    
     # Import app only after environment is setup
     try:
         from app import create_app
         app = create_app()
+        
+        # Validate configuration
+        try:
+            from app.config import Config
+            from app.config.config_validator import ConfigValidator
+            ConfigValidator.print_config_summary(Config)
+        except:
+            pass
+        
     except Exception as e:
         print(f"Error creating application: {str(e)}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     
     # Server settings
-    host = "127.0.0.1"
-    port = 5000
-    debug = True
+    debug = os.getenv('FLASK_ENV', 'development') == 'development'
     
-    print(f"\nStarting server at http://{host}:{port}")
+    print(f"\n{'='*70}")
+    print(f"Starting server at {backend_url}")
     print(f"Database: {os.getenv('DATABASE_URL', '').split('://', 1)[0]}")
+    print(f"Frontend: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}")
     print(f"Debug mode: {debug}")
-    print("\nPress Ctrl+C to stop the server")
+    print(f"{'='*70}")
+    print("\nPress Ctrl+C to stop the server\n")
     
     # Start the Flask application
-    app.run(host=host, port=port, debug=debug)
+    try:
+        app.run(host=host, port=port, debug=debug)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"\n{'='*70}")
+            print(f"ERROR: Port {port} is already in use!")
+            print(f"Please stop the other process or use a different port:")
+            print(f"  set BACKEND_PORT=5001")
+            print(f"  python run.py")
+            print(f"{'='*70}\n")
+        raise
 
 if __name__ == "__main__":
     try:

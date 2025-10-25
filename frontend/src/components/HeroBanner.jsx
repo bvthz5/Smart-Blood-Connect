@@ -331,10 +331,11 @@ export default function HeroBanner({ language }) {
           >
             <Link
               to="/donor/login"
-              className="btn btn--primary btn--large"
+              className="btn btn--primary"
               style={{
                 boxShadow: "none",
-                border: "2px solid transparent"
+                border: "2px solid transparent",
+                width: "auto"
               }}
             >
               {language === "en" ? "Become a Donor" : "ഒരു ദാനിയായി മാറുക"}
@@ -342,13 +343,14 @@ export default function HeroBanner({ language }) {
 
             <Link
               to="/seeker/login"
-              className="btn btn--outline btn--large"
+              className="btn btn--outline"
               style={{
                 background: "rgba(255, 255, 255, 0.1)",
                 backdropFilter: "blur(10px)",
                 border: "2px solid rgba(230, 57, 70, 0.5)",
                 boxShadow: "none",
-                transition: "all 0.3s ease"
+                transition: "all 0.3s ease",
+                width: "auto"
               }}
               onMouseEnter={(e) => {
                 e.target.style.background = "rgba(230, 57, 70, 0.2)";

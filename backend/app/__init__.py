@@ -24,6 +24,14 @@ def configure_cors(app):
             response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
         if 'Access-Control-Allow-Credentials' not in response.headers:
             response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        # Explicitly set Content-Type for JSON responses to prevent CORB
+        if response.is_json or response.content_type == 'application/json':
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        
+        # Add X-Content-Type-Options to prevent MIME sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
         return response
 
 def configure_swagger(app):
