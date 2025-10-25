@@ -27,6 +27,7 @@ import NextEligibility from './pages/donor/NextEligibility';
 import ManageRequests from './pages/donor/ManageRequests';
 import NearbyRequests from './pages/donor/NearbyRequests';
 import DonorNotifications from './pages/donor/DonorNotifications';
+import Leaderboard from './pages/donor/Leaderboard';
 
 // Seeker Pages
 import SeekerRequest from './pages/seeker/SeekerRequest';
@@ -145,6 +146,12 @@ function App() {
           <Route path="/donor/notifications" element={
             <DonorRouteGuard>
               <DonorNotifications />
+            </DonorRouteGuard>
+          } />
+
+          <Route path="/donor/leaderboard" element={
+            <DonorRouteGuard>
+              <Leaderboard />
             </DonorRouteGuard>
           } />
 

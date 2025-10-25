@@ -108,6 +108,7 @@ def register_blueprints(app):
     """Register all blueprints"""
     from .auth.routes import auth_bp
     from .donor.routes import donor_bp
+    from .donor.leaderboard_routes import leaderboard_bp
     from .admin.routes import admin_bp
     from .admin.login import admin_auth_bp
     from .admin.dashboard import admin_dashboard_bp
@@ -122,6 +123,7 @@ def register_blueprints(app):
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(donor_bp)
+    app.register_blueprint(leaderboard_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(admin_auth_bp)
     app.register_blueprint(admin_dashboard_bp)

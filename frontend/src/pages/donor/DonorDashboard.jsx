@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { getDonorDashboard, setAvailability, respondToMatch, updateDonorLocation, getDonorCertificates, getDonorBadges } from "../../services/api";
 import "./donor-dashboard.css";
 
@@ -629,24 +629,54 @@ function DonorDashboard() {
             <section className="badges-section">
               <div className="content-card badges-list">
                 <div className="card-header">
-                  <h2>🏆 Your Badges</h2>
-                  <div className="card-badge">
-                    {badges.filter(b => b.earned).length} / {badges.length}
+                  <h2>🏆 Your Badges & Achievements</h2>
+                  <div className="card-actions">
+                    <div className="card-badge">
+                      {badges.filter(b => b.earned).length} / {badges.length} Earned
+                    </div>
+                    <Link to="/donor/leaderboard" className="view-leaderboard-btn">
+                      View Leaderboard →
+                    </Link>
                   </div>
                 </div>
                 <div className="card-content">
-                  <div className="badges-grid">
-                    {badges.slice(0, 6).map((badge) => (
-                      <div key={badge.id} className={`badge-item ${badge.earned ? 'earned' : 'locked'}`}>
-                        <div className="badge-icon">{badge.icon}</div>
-                        <div className="badge-info">
-                          <h4>{badge.name}</h4>
-                          <p>{badge.description}</p>
-                          {badge.earned ? (
-                            <span className="badge-status earned">✓ Earned</span>
-                          ) : (
-                            <span className="badge-status locked">🔒 Locked</span>
-                          )}
+                  <div className="badges-grid-enhanced">
+                    {badges.map((badge) => (
+                      <div key={badge.id} className={`badge-card ${badge.earned ? 'earned' : 'locked'}`}>
+                        <div className="badge-card-inner">
+                          <div className="badge-icon-large">{badge.icon}</div>
+                          <div className="badge-details">
+                            <h4 className="badge-name">{badge.name}</h4>
+                            <p className="badge-description">{badge.description}</p>
+
+                            {badge.earned ? (
+                              <div className="badge-earned-info">
+                                <span className="badge-status earned">
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  Unlocked
+                                </span>
+                                {badge.earned_at && (
+                                  <span className="badge-date">
+                                    {new Date(badge.earned_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="badge-progress-info">
+                                <div className="progress-bar">
+                                  <div
+                                    className="progress-fill"
+                                    style={{ width: `${(badge.progress / badge.requirement) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="progress-text">
+                                  {badge.progress} / {badge.requirement} donations
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
