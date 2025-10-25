@@ -70,8 +70,8 @@ def get_kerala_leaderboard():
             User.first_name,
             User.last_name,
             Donor.blood_group,
-            Donor.city,
-            Donor.district,
+            User.city,
+            User.district,
             func.count(DonationHistory.id).label('total_donations'),
             func.max(DonationHistory.donation_date).label('last_donation')
         ).join(
@@ -82,7 +82,7 @@ def get_kerala_leaderboard():
             User.status == 'active'
         ).group_by(
             Donor.id, User.first_name, User.last_name,
-            Donor.blood_group, Donor.city, Donor.district
+            Donor.blood_group, User.city, User.district
         )
 
         results = leaderboard_query.all()
@@ -143,7 +143,7 @@ def get_district_leaderboard(district_name):
             User.first_name,
             User.last_name,
             Donor.blood_group,
-            Donor.city,
+            User.city,
             func.count(DonationHistory.id).label('total_donations'),
             func.max(DonationHistory.donation_date).label('last_donation')
         ).join(
@@ -152,10 +152,10 @@ def get_district_leaderboard(district_name):
             DonationHistory, Donor.id == DonationHistory.donor_id
         ).filter(
             User.status == 'active',
-            Donor.district == district_name
+            User.district == district_name
         ).group_by(
             Donor.id, User.first_name, User.last_name,
-            Donor.blood_group, Donor.city
+            Donor.blood_group, User.city
         )
 
         results = leaderboard_query.all()
@@ -206,8 +206,8 @@ def get_top_donors():
             User.first_name,
             User.last_name,
             Donor.blood_group,
-            Donor.city,
-            Donor.district,
+            User.city,
+            User.district,
             func.count(DonationHistory.id).label('total_donations')
         ).join(
             User, Donor.user_id == User.id
@@ -217,7 +217,7 @@ def get_top_donors():
             User.status == 'active'
         ).group_by(
             Donor.id, User.first_name, User.last_name,
-            Donor.blood_group, Donor.city, Donor.district
+            Donor.blood_group, User.city, User.district
         )
 
         results = leaderboard_query.all()
@@ -281,15 +281,15 @@ def get_leaderboard_stats():
 
         # Donors by district
         district_stats = db.session.query(
-            Donor.district,
+            User.district,
             func.count(Donor.id).label('donor_count')
         ).join(
             User, Donor.user_id == User.id
         ).filter(
             User.status == 'active',
-            Donor.district.isnot(None)
+            User.district.isnot(None)
         ).group_by(
-            Donor.district
+            User.district
         ).all()
 
         district_data = [

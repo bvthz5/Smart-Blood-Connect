@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, MapPin, Droplets, TrendingUp, Users, Star } from 'lucide-react';
+import { Trophy, Medal, Award, MapPin, Droplets, TrendingUp, Users, Star, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './leaderboard.css';
 
@@ -10,6 +11,7 @@ const KERALA_DISTRICTS = [
 ];
 
 export default function Leaderboard() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('kerala');
   const [selectedDistrict, setSelectedDistrict] = useState('Ernakulam');
   const [keralaLeaderboard, setKeralaLeaderboard] = useState([]);
@@ -83,6 +85,12 @@ export default function Leaderboard() {
 
   return (
     <div className="leaderboard-page">
+      {/* Back Button */}
+      <button className="back-button" onClick={() => navigate(-1)} title="Go back">
+        <ArrowLeft size={20} />
+        <span>Back</span>
+      </button>
+
       {/* Header */}
       <div className="leaderboard-header">
         <div className="header-content">

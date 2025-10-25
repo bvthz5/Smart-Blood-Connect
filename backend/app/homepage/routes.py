@@ -31,7 +31,9 @@ def get_homepage_stats():
         ).scalar() or 0
         
         # Get total units collected (from donation history)
-        units_collected = db.session.query(func.sum(DonationHistory.units)).scalar() or 0
+        units_collected = db.session.query(func.sum(DonationHistory.units)).filter(
+            DonationHistory.units.isnot(None)
+        ).scalar() or 0
         
         # Get active hospitals count
         hospitals_count = db.session.query(func.count(Hospital.id)).filter(
@@ -260,29 +262,21 @@ def get_blood_availability():
     Get current blood availability across different blood types
     """
     try:
-        # Get blood type availability from hospitals
-        availability_query = text("""
-            SELECT 
-                h.blood_type,
-                COUNT(*) as available_units,
-                COUNT(DISTINCT h.id) as hospitals_count
-            FROM hospitals h
-            WHERE h.is_active = true 
-            AND h.blood_type IS NOT NULL
-            GROUP BY h.blood_type
-            ORDER BY h.blood_type
-        """)
-        
-        result = db.session.execute(availability_query).fetchall()
-        
+        # Get blood type availability from donors (active donors by blood group)
+        blood_type_rows = db.session.query(
+            Donor.blood_group, func.count(Donor.id)
+        ).join(User, Donor.user_id == User.id).filter(
+            User.status == "active", Donor.blood_group.isnot(None)
+        ).group_by(Donor.blood_group).all()
+
         blood_availability = {}
-        for row in result:
-            blood_availability[row.blood_type] = {
-                'available_units': row.available_units,
-                'hospitals_count': row.hospitals_count,
-                'status': 'available' if row.available_units > 0 else 'unavailable'
+        for blood_group, count in blood_type_rows:
+            blood_availability[blood_group] = {
+                'available_units': int(count),
+                'hospitals_count': 1,  # Placeholder - represents availability
+                'status': 'available' if count > 0 else 'unavailable'
             }
-        
+
         # Ensure all blood types are represented
         all_blood_types = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
         for blood_type in all_blood_types:
@@ -292,15 +286,17 @@ def get_blood_availability():
                     'hospitals_count': 0,
                     'status': 'unavailable'
                 }
-        
+
         logger.info(f"Retrieved blood availability for {len(blood_availability)} blood types")
         return jsonify({
             'success': True,
             'data': blood_availability
         })
-        
+
     except Exception as e:
         logger.error(f"Error fetching blood availability: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to fetch blood availability'
@@ -323,20 +319,18 @@ def get_featured_hospitals():
             # Get recent donation count for this hospital
             recent_donations = db.session.query(func.count(DonationHistory.id)).filter(
                 DonationHistory.hospital_id == hospital.id,
-                DonationHistory.created_at >= datetime.now() - timedelta(days=30)
+                DonationHistory.donation_date >= datetime.now() - timedelta(days=30)
             ).scalar() or 0
             
             hospital_data = {
                 'id': hospital.id,
                 'name': hospital.name,
-                'location': hospital.location,
+                'location': hospital.address or hospital.city or 'Unknown',
                 'district': hospital.district,
-                'contact_number': hospital.contact_number,
+                'contact_number': hospital.phone,
                 'email': hospital.email,
-                'website': hospital.website,
-                'specialties': hospital.specialties,
                 'recent_donations': recent_donations,
-                'rating': hospital.rating or 4.5,
+                'rating': 4.5,  # Default rating
                 'image_url': hospital.image_url
             }
             featured_hospitals.append(hospital_data)
@@ -369,7 +363,9 @@ def get_dashboard_summary():
             User, Donor.user_id == User.id
         ).filter(User.status == "active").scalar() or 0
 
-        total_units = db.session.query(func.sum(DonationHistory.units)).scalar() or 0
+        total_units = db.session.query(func.sum(DonationHistory.units)).filter(
+            DonationHistory.units.isnot(None)
+        ).scalar() or 0
 
         total_hospitals = db.session.query(func.count(Hospital.id)).filter(
             Hospital.is_active == True
