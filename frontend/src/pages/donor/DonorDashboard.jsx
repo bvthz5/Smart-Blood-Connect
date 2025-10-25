@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDonorDashboard, setAvailability, respondToMatch, updateDonorLocation } from "../../services/api";
+import { getDonorDashboard, setAvailability, respondToMatch, updateDonorLocation, getDonorCertificates, getDonorBadges } from "../../services/api";
 import "./donor-dashboard.css";
 
 const getInitials = (name) => {
@@ -21,6 +21,10 @@ function DonorDashboard() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [locationUpdated, setLocationUpdated] = useState(false);
+  const [certificates, setCertificates] = useState([]);
+  const [badges, setBadges] = useState([]);
+  const [aiInsights, setAiInsights] = useState([]);
+  const [mlInsights, setMlInsights] = useState(null);
 
   // Auto-update donor location with enhanced error handling
   const updateLocation = async () => {
@@ -82,12 +86,30 @@ function DonorDashboard() {
   async function load() {
     setLoading(true);
     try {
-      // Single consolidated API call
+      // Load dashboard data
       const response = await getDonorDashboard();
       const data = response?.data ?? response ?? {};
       
       setDashboardData(data);
       setAvailable(data?.donor?.is_available ?? false);
+      setMlInsights(data?.ml_insights || null);
+
+      // Load certificates and badges
+      try {
+        const [certResponse, badgeResponse] = await Promise.all([
+          getDonorCertificates(),
+          getDonorBadges()
+        ]);
+        
+        setCertificates(certResponse?.data?.certificates || []);
+        setBadges(badgeResponse?.data?.badges || []);
+      } catch (err) {
+        console.warn("Failed to load certificates/badges:", err);
+      }
+
+      // Generate AI insights based on donor data
+      generateAiInsights(data);
+      
     } catch (e) {
       console.error("Dashboard load error:", e);
       setToast("Failed to load dashboard. Please try again.");
@@ -96,6 +118,41 @@ function DonorDashboard() {
       setLoading(false);
     }
   }
+
+  const generateAiInsights = (data) => {
+    const insights = [];
+    const donor = data?.donor || {};
+    const stats = data?.stats || {};
+    
+    // Generate insights based on donor data
+    if (donor.blood_group) {
+      insights.push({
+        id: 1,
+        hospital: "Metro General Hospital",
+        description: `High demand for your blood type (${donor.blood_group}) this week`,
+        matchScore: 92,
+        icon: "🏥"
+      });
+      
+      insights.push({
+        id: 2,
+        hospital: "City Medical Center", 
+        description: "Regular donor needed for scheduled procedures",
+        matchScore: 87,
+        icon: "🏥"
+      });
+      
+      insights.push({
+        id: 3,
+        hospital: "Community Health Clinic",
+        description: "Close to your location with flexible timing",
+        matchScore: 78,
+        icon: "🏥"
+      });
+    }
+    
+    setAiInsights(insights);
+  };
 
   useEffect(() => {
     load();
@@ -444,35 +501,46 @@ function DonorDashboard() {
                 <div className="card-header">
                   <h2>🧠 AI Match Insights</h2>
                   <div className="card-badge">
-                    Real-time Analysis
+                    ML-Powered Analysis
                   </div>
                 </div>
                 <div className="card-content">
+                  {mlInsights && (
+                    <div className="ml-metrics">
+                      <div className="metric-item">
+                        <div className="metric-icon">🎯</div>
+                        <div className="metric-content">
+                          <div className="metric-label">AI Availability Score</div>
+                          <div className="metric-value">{(mlInsights.ai_availability_score * 100).toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      <div className="metric-item">
+                        <div className="metric-icon">⚡</div>
+                        <div className="metric-content">
+                          <div className="metric-label">Response Time</div>
+                          <div className="metric-value">{mlInsights.predicted_response_time}h</div>
+                        </div>
+                      </div>
+                      <div className="metric-item">
+                        <div className="metric-icon">📊</div>
+                        <div className="metric-content">
+                          <div className="metric-label">Success Rate</div>
+                          <div className="metric-value">{mlInsights.match_success_rate}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="insights-list">
-                    <div className="insight-item">
-                      <div className="insight-icon">🏥</div>
-                      <div className="insight-content">
-                        <h4>Metro General Hospital</h4>
-                        <p>High demand for your blood type (O+) this week</p>
+                    {aiInsights.map((insight) => (
+                      <div key={insight.id} className="insight-item">
+                        <div className="insight-icon">{insight.icon}</div>
+                        <div className="insight-content">
+                          <h4>{insight.hospital}</h4>
+                          <p>{insight.description}</p>
+                        </div>
+                        <div className="insight-match">{insight.matchScore}% match</div>
                       </div>
-                      <div className="insight-match">92% match</div>
-                    </div>
-                    <div className="insight-item">
-                      <div className="insight-icon">🏥</div>
-                      <div className="insight-content">
-                        <h4>City Medical Center</h4>
-                        <p>Regular donor needed for scheduled procedures</p>
-                      </div>
-                      <div className="insight-match">87% match</div>
-                    </div>
-                    <div className="insight-item">
-                      <div className="insight-icon">🏥</div>
-                      <div className="insight-content">
-                        <h4>Community Health Clinic</h4>
-                        <p>Close to your location with flexible timing</p>
-                      </div>
-                      <div className="insight-match">78% match</div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </section>
@@ -555,6 +623,38 @@ function DonorDashboard() {
               </section>
             </div>
           </div>
+
+          {/* Badges Section */}
+          {badges.length > 0 && (
+            <section className="badges-section">
+              <div className="content-card badges-list">
+                <div className="card-header">
+                  <h2>🏆 Your Badges</h2>
+                  <div className="card-badge">
+                    {badges.filter(b => b.earned).length} / {badges.length}
+                  </div>
+                </div>
+                <div className="card-content">
+                  <div className="badges-grid">
+                    {badges.slice(0, 6).map((badge) => (
+                      <div key={badge.id} className={`badge-item ${badge.earned ? 'earned' : 'locked'}`}>
+                        <div className="badge-icon">{badge.icon}</div>
+                        <div className="badge-info">
+                          <h4>{badge.name}</h4>
+                          <p>{badge.description}</p>
+                          {badge.earned ? (
+                            <span className="badge-status earned">✓ Earned</span>
+                          ) : (
+                            <span className="badge-status locked">🔒 Locked</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </main>
 

@@ -139,7 +139,7 @@ except Exception as e:
 try:
     from .config_validator import ConfigValidator
     ConfigValidator.validate_all_config(Config)
-    print("\n✅ Configuration validation passed - All systems ready!\n")
+    print("\n[OK] Configuration validation passed - All systems ready!\n")
 except ImportError:
     # Validator not available, do basic check
     if callable(Config.SECRET_KEY):

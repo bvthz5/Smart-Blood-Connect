@@ -1,18 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDonorDashboard, respondToMatch } from "../../services/api";
 import "./manage-requests.css";
 
 const ManageRequests = () => {
   const navigate = useNavigate();
+  const mapRef = useRef(null);
   const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState({ pending: [], completed: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showMap, setShowMap] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [donorLocation, setDonorLocation] = useState(null);
 
   useEffect(() => {
     loadMatches();
+    getDonorLocation();
   }, []);
+
+  useEffect(() => {
+    if (showMap && mapRef.current && selectedRequest) {
+      initializeMap();
+    }
+  }, [showMap, selectedRequest]);
 
   async function loadMatches() {
     setLoading(true);
@@ -70,6 +81,66 @@ const ManageRequests = () => {
     } catch (e) {
       alert("Failed to reject request. Please try again.");
     }
+  }
+
+  async function getDonorLocation() {
+    try {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setDonorLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+          },
+          (error) => {
+            console.warn("Location permission denied:", error);
+            // Default to Kochi if location denied
+            setDonorLocation({ lat: 9.9312, lng: 76.2673 });
+          }
+        );
+      } else {
+        setDonorLocation({ lat: 9.9312, lng: 76.2673 });
+      }
+    } catch (error) {
+      console.error("Error getting location:", error);
+      setDonorLocation({ lat: 9.9312, lng: 76.2673 });
+    }
+  }
+
+  function initializeMap() {
+    if (!mapRef.current || !selectedRequest || !donorLocation) return;
+
+    // Create a simple map using Google Maps embed
+    const mapContainer = mapRef.current;
+    const hospitalName = encodeURIComponent(selectedRequest.hospital_name);
+    const donorLat = donorLocation.lat;
+    const donorLng = donorLocation.lng;
+    
+    // Create embedded map URL
+    const mapUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dOWWgU6xq4j0tY&origin=${donorLat},${donorLng}&destination=${hospitalName}&mode=driving`;
+    
+    mapContainer.innerHTML = `
+      <iframe
+        width="100%"
+        height="400"
+        style="border:0; border-radius: 12px;"
+        loading="lazy"
+        allowfullscreen
+        referrerpolicy="no-referrer-when-downgrade"
+        src="${mapUrl}">
+      </iframe>
+    `;
+  }
+
+  function openMapView(request) {
+    setSelectedRequest(request);
+    setShowMap(true);
+  }
+
+  function closeMapView() {
+    setShowMap(false);
+    setSelectedRequest(null);
   }
 
   function openMapSearch(hospitalName) {
@@ -185,8 +256,11 @@ const ManageRequests = () => {
               <button className="btn-reject" onClick={() => handleReject(req.match_id)}>
                 ❌ Reject
               </button>
-              <button className="btn-view-map" onClick={() => openMapSearch(req.hospital_name)}>
-                🗺️ View on Map
+              <button className="btn-view-map" onClick={() => openMapView(req)}>
+                🗺️ View Route
+              </button>
+              <button className="btn-external-map" onClick={() => openMapSearch(req.hospital_name)}>
+                📍 Open Maps
               </button>
               <button className="btn-accept" onClick={() => handleAccept(req.match_id)}>
                 ✅ Accept Request
@@ -195,6 +269,71 @@ const ManageRequests = () => {
           </div>
         ))}
       </div>
+
+      {/* Map Modal */}
+      {showMap && selectedRequest && (
+        <div className="map-modal-overlay" onClick={closeMapView}>
+          <div className="map-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="map-modal-header">
+              <h3>📍 Route to {selectedRequest.hospital_name}</h3>
+              <button className="close-map-btn" onClick={closeMapView}>
+                ✕
+              </button>
+            </div>
+            <div className="map-modal-content">
+              <div className="map-info">
+                <div className="map-info-item">
+                  <span className="info-icon">🏥</span>
+                  <div>
+                    <div className="info-label">Hospital</div>
+                    <div className="info-value">{selectedRequest.hospital_name}</div>
+                  </div>
+                </div>
+                <div className="map-info-item">
+                  <span className="info-icon">🩸</span>
+                  <div>
+                    <div className="info-label">Blood Group</div>
+                    <div className="info-value">{selectedRequest.blood_group}</div>
+                  </div>
+                </div>
+                <div className="map-info-item">
+                  <span className="info-icon">💉</span>
+                  <div>
+                    <div className="info-label">Units Required</div>
+                    <div className="info-value">{selectedRequest.units_required}</div>
+                  </div>
+                </div>
+                {typeof selectedRequest.distance === 'number' && (
+                  <div className="map-info-item">
+                    <span className="info-icon">📏</span>
+                    <div>
+                      <div className="info-label">Distance</div>
+                      <div className="info-value">{selectedRequest.distance} km</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="map-container" ref={mapRef}>
+                <div className="map-loading">
+                  <div className="loading-spinner">
+                    <div className="pulse-ring"></div>
+                    <div className="blood-drop">🗺️</div>
+                  </div>
+                  <p>Loading map...</p>
+                </div>
+              </div>
+            </div>
+            <div className="map-modal-actions">
+              <button className="btn-secondary" onClick={closeMapView}>
+                Close Map
+              </button>
+              <button className="btn-primary" onClick={() => openMapSearch(selectedRequest.hospital_name)}>
+                Open in Google Maps
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -438,3 +438,249 @@
     padding: 0.75rem;
   }
 }
+
+/* Map Modal Styles */
+.map-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.map-modal {
+  background: var(--white);
+  border-radius: 1.5rem;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.map-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--gray-200);
+  background: linear-gradient(135deg, var(--primary-red-light) 0%, var(--white) 100%);
+}
+
+.map-modal-header h3 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.close-map-btn {
+  background: var(--gray-100);
+  border: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.125rem;
+  color: var(--gray-600);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-map-btn:hover {
+  background: var(--error);
+  color: var(--white);
+  transform: scale(1.1);
+}
+
+.map-modal-content {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 0;
+  height: 500px;
+}
+
+.map-info {
+  padding: 1.5rem;
+  background: var(--gray-50);
+  border-right: 1px solid var(--gray-200);
+  overflow-y: auto;
+}
+
+.map-info-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--white);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--gray-200);
+  transition: all 0.2s ease;
+}
+
+.map-info-item:hover {
+  border-color: var(--primary-red);
+  box-shadow: var(--shadow-sm);
+}
+
+.info-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.info-label {
+  font-size: 0.75rem;
+  color: var(--gray-600);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.25rem;
+}
+
+.info-value {
+  font-size: 0.875rem;
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.map-container {
+  position: relative;
+  background: var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-loading {
+  text-align: center;
+  color: var(--gray-600);
+}
+
+.map-loading .loading-spinner {
+  margin-bottom: 1rem;
+}
+
+.map-modal-actions {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.btn-secondary:hover {
+  background: var(--gray-200);
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--primary-red);
+  color: var(--white);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 2;
+}
+
+.btn-primary:hover {
+  background: var(--primary-red-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Enhanced Button Styles */
+.btn-external-map {
+  background: var(--secondary-blue);
+  color: var(--white);
+  flex: 1;
+}
+
+.btn-external-map:hover {
+  background: #1D4ED8;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Enhanced Request Actions */
+.request-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 2fr;
+  gap: 0.75rem;
+}
+
+/* Mobile Responsive for Map Modal */
+@media (max-width: 768px) {
+  .map-modal {
+    margin: 0.5rem;
+    max-height: 95vh;
+  }
+  
+  .map-modal-header {
+    padding: 1rem 1.5rem;
+  }
+  
+  .map-modal-header h3 {
+    font-size: 1rem;
+  }
+  
+  .map-modal-content {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  
+  .map-info {
+    padding: 1rem;
+    border-right: none;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  
+  .map-container {
+    height: 300px;
+  }
+  
+  .map-modal-actions {
+    flex-direction: column;
+    padding: 1rem 1.5rem;
+  }
+  
+  .request-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .btn-accept {
+    grid-column: 1 / -1;
+  }
+}
