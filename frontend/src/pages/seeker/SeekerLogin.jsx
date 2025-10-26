@@ -72,12 +72,42 @@ export default function SeekerLogin() {
     setLoading(true);
     try {
       const data = await seekerService.login(ident, pwd);
+      console.log('Login response:', data);
 
+      // Check for force password change (first login with auto-generated password)
       if (data?.force_change) {
-        // Account requires activation / force password change
-        if (data.temp_token) localStorage.setItem('seeker_temp_token', data.temp_token);
+        console.log('🔒 Force password change required');
+        
+        // Clear any existing full tokens
+        localStorage.removeItem('seeker_token');
+        localStorage.removeItem('seeker_refresh_token');
+        
+        // Store temp token and user info for password change flow
+        if (data.temp_token) {
+          console.log('Storing temporary token');
+          localStorage.setItem('seeker_temp_token', data.temp_token);
+        }
+        
+        if (data.user) {
+          console.log('Storing user info for password change flow');
+          localStorage.setItem('seeker_user_id', String(data.user.id));
+          localStorage.setItem('seeker_user_role', data.user.role);
+          if (data.user.hospital_id) {
+            localStorage.setItem('seeker_hospital_id', String(data.user.hospital_id));
+          }
+          if (data.user.email) localStorage.setItem('seeker_user_email', data.user.email);
+          if (data.user.phone) localStorage.setItem('seeker_user_phone', data.user.phone);
+          if (data.user.name) localStorage.setItem('seeker_user_name', data.user.name);
+        }
+        
         localStorage.setItem('user_type', 'seeker');
-        navigate('/seeker/activate-account');
+        
+        // Show message and redirect to password change page
+        setToast('Please change your temporary password to continue.');
+        setTimeout(() => {
+          console.log('Redirecting to password change page...');
+          navigate('/seeker/activate-account', { replace: true });
+        }, 500);
         return;
       }
 

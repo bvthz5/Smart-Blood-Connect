@@ -41,24 +41,64 @@ const AdminDashboard = () => {
   // Initialize dashboard data from backend with graceful fallback
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    
+    const fetchDashboard = async () => {
       try {
-        // Call admin dashboard endpoint instead of homepage
+        setLoading(true);
+        setError(null);
+        
+        // Call admin dashboard endpoint
         const token = localStorage.getItem('admin_access_token');
+        
+        if (!token) {
+          throw new Error('Authentication required. Please log in again.');
+        }
+        
+        console.log('[AdminDashboard] Fetching dashboard data...');
+        
         const response = await fetch('/api/admin/dashboard/', {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         
+        console.log('[AdminDashboard] Response status:', response.status);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
+          // Try to get error message from response
+          let errorMessage = `Server error: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.details || errorMessage;
+          } catch (parseErr) {
+            // If JSON parse fails, try to get text
+            try {
+              const errorText = await response.text();
+              if (errorText) {
+                console.error('[AdminDashboard] Error response:', errorText);
+              }
+            } catch (textErr) {
+              console.error('[AdminDashboard] Could not parse error response');
+            }
+          }
+          throw new Error(errorMessage);
         }
         
         const payload = await response.json();
+        console.log('[AdminDashboard] Received data:', payload);
+        
+        // Validate response structure
+        if (!payload || payload.success === false) {
+          throw new Error(payload?.error || 'Invalid response from server');
+        }
+        
         const stats = payload?.stats || {};
         const charts = payload?.charts || {};
+        
+        console.log('[AdminDashboard] Processing stats:', stats);
+        console.log('[AdminDashboard] Processing charts:', charts);
 
         const built = {
           metrics: [
@@ -170,18 +210,28 @@ const AdminDashboard = () => {
             urgent_requests: stats.urgentRequests ?? 0,
           }
         };
+        
         if (mounted) {
+          console.log('[AdminDashboard] Setting dashboard data:', built);
+          console.log('[AdminDashboard] Charts data:', built.charts);
           setDashboardData(built);
-          setLoading(false);
+          setError(null);
         }
       } catch (e) {
+        console.error('[AdminDashboard] Failed to fetch dashboard data:', e);
         if (mounted) {
-          console.error('Failed to fetch dashboard data:', e);
-          setError(e.message);
+          setError(e.message || 'Failed to load dashboard data. Please try again.');
+          setDashboardData(null);
+        }
+      } finally {
+        if (mounted) {
+          console.log('[AdminDashboard] Loading complete, setting loading to false');
           setLoading(false);
         }
       }
-    })();
+    };
+    
+    fetchDashboard();
     return () => { mounted = false; };
   }, []);
 
@@ -192,6 +242,10 @@ const AdminDashboard = () => {
     hospitalDonations: [],
     requestAnalysis: []
   };
+  
+  console.log('[AdminDashboard] Active charts:', activeCharts);
+  console.log('[AdminDashboard] Blood groups:', activeCharts.bloodGroups);
+  
   const recentActivities = dashboardData?.activities ?? [];
   const bloodGroupLabels = activeCharts.bloodGroups.map(b => b.group);
   const bloodGroupValues = activeCharts.bloodGroups.map(b => b.count);
@@ -210,6 +264,7 @@ const AdminDashboard = () => {
   const totalRequests = requestValues.reduce((a, b) => a + b, 0);
 
   if (loading) {
+    console.log('[AdminDashboard] Rendering loading state');
     return (
       <div className="dashboard-loading">
         <div className="loading-content">
@@ -221,18 +276,26 @@ const AdminDashboard = () => {
     );
   }
 
-  if (!dashboardData) {
+  if (error || !dashboardData) {
+    console.log('[AdminDashboard] Rendering error state:', error);
     return (
       <div className="dashboard-error">
         <div className="error-content">
           <div className="error-icon">⚠️</div>
           <div className="error-title">Failed to load dashboard data</div>
-          <div className="error-subtitle">Please try refreshing the page</div>
-          <button className="retry-button">Retry</button>
+          <div className="error-subtitle">{error || 'Unknown error occurred'}</div>
+          <button 
+            className="retry-button"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
   }
+  
+  console.log('[AdminDashboard] Rendering dashboard with data');
 
   return (
     <div className="admin-dashboard">
@@ -271,41 +334,54 @@ const AdminDashboard = () => {
           title="Blood Group Distribution" 
           subtitle="Distribution of blood types in the system"
         >
-          <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
-              <Pie
-                data={{
-                  labels: bloodGroupLabels,
-                  datasets: [{
-                    data: bloodGroupValues,
-                    backgroundColor: bloodGroupColors,
-                    borderWidth: 0,
-                  }]
-                }}
-                options={{
-                  plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true },
-                  },
-                  responsive: true,
-                  maintainAspectRatio: false,
-                }}
-                height={220}
-              />
+          {totalBloodGroups > 0 ? (
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <Pie
+                  data={{
+                    labels: bloodGroupLabels,
+                    datasets: [{
+                      data: bloodGroupValues,
+                      backgroundColor: bloodGroupColors,
+                      borderWidth: 0,
+                    }]
+                  }}
+                  options={{
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: { enabled: true },
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                  }}
+                  height={220}
+                />
+              </div>
+              <div className="chart-legend" style={{ flex: 1 }}>
+                {activeCharts.bloodGroups.map((g) => (
+                  <div key={g.group} className="legend-item">
+                    <div className="legend-color" style={{ backgroundColor: g.color }} />
+                    <span className="legend-label">{g.group}</span>
+                    <span className="legend-count">
+                      {g.count}
+                      {totalBloodGroups > 0 ? ` (${Math.round((g.count / totalBloodGroups) * 100)}%)` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="chart-legend" style={{ flex: 1 }}>
-              {activeCharts.bloodGroups.map((g) => (
-                <div key={g.group} className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: g.color }} />
-                  <span className="legend-label">{g.group}</span>
-                  <span className="legend-count">
-                    {g.count}
-                    {totalBloodGroups > 0 ? ` (${Math.round((g.count / totalBloodGroups) * 100)}%)` : ''}
-                  </span>
-                </div>
-              ))}
+          ) : (
+            <div style={{ 
+              height: '220px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: '#9ca3af',
+              fontSize: '0.875rem'
+            }}>
+              📊 No blood group data available yet
             </div>
-          </div>
+          )}
         </ChartCard>
 
         <ChartCard 

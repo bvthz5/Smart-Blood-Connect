@@ -148,11 +148,14 @@ const AdminNavbar = ({ onToggleSidebar, sidebarCollapsed }) => {
             <div className="search-container">
               <Search size={20} className="search-icon" />
               <input
+                id="admin-search-input"
+                name="search"
                 type="text"
                 placeholder="Search donors, hospitals, requests..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
+                aria-label="Search"
               />
             </div>
           </form>

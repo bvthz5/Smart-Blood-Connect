@@ -22,6 +22,7 @@ class User(db.Model):
     district = db.Column(db.String(100))
     state = db.Column(db.String(50), default="Kerala")
     pincode = db.Column(db.String(10))
+    password_needs_change = db.Column(db.Boolean, default=False)  # For auto-generated passwords
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
 

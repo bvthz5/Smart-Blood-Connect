@@ -108,10 +108,10 @@ const AdminRouteGuard = ({ children }) => {
     let maxLoadingTimeout;
     maxLoadingTimeout = setTimeout(() => {
       if (renderState.showLoading) {
-        console.log('AdminRouteGuard: Max loading time reached, showing login');
+        console.log('AdminRouteGuard: Max loading time reached, showing content');
         setRenderState({ showLoading: false, showContent: true, isInitialized: true });
       }
-    }, 800); // faster 0.8s max loading time
+    }, 3000); // 3s max loading time to allow dashboard data fetch
     
     // Cleanup timeout on unmount
     return () => {

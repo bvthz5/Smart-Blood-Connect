@@ -26,29 +26,52 @@ export default function AlertsBar({ language }) {
     const fetchAlerts = async () => {
       try {
         setLoading(true)
-        const alerts = await getCachedHomepageAlerts()
+        const response = await getCachedHomepageAlerts()
         
-        if (alerts && alerts.length > 0) {
+        // Validate response
+        if (!response) {
+          console.warn('[AlertsBar] Empty response from alerts API')
+          setEmergencyMessages(defaultMessages)
+          return
+        }
+
+        // Handle both direct array and { data: array } response formats
+        const alerts = Array.isArray(response) ? response : response.data || response
+        
+        if (Array.isArray(alerts) && alerts.length > 0) {
           const formattedAlerts = alerts.map(alert => {
-            const timeAgo = getRelativeTime(alert.created_at)
-            
-            if (alert.type === 'alert') {
-              return language === 'en' 
-                ? `🚨 ${alert.title} (${alert.quantity} units) - ${timeAgo} [Click to Help]`
-                : `🚨 ${alert.title} (${alert.quantity} യൂണിറ്റ്) - ${timeAgo} [സഹായിക്കാൻ ക്ലിക്ക് ചെയ്യുക]`
-            } else if (alert.type === 'camp') {
-              return language === 'en'
-                ? `🏥 ${alert.title} - ${timeAgo} [Join Camp]`
-                : `🏥 ${alert.title} - ${timeAgo} [ക്യാമ്പിൽ പങ്കെടുക്കുക]`
+            try {
+              const timeAgo = alert.created_at ? getRelativeTime(alert.created_at) : 'Recently'
+              
+              if (alert.type === 'alert') {
+                return language === 'en' 
+                  ? `🚨 ${alert.title || 'Urgent Need'} (${alert.quantity || 0} units) - ${timeAgo} [Click to Help]`
+                  : `🚨 ${alert.title || 'അടിയന്തരം'} (${alert.quantity || 0} യൂണിറ്റ്) - ${timeAgo} [സഹായിക്കാൻ ക്ലിക്ക് ചെയ്യുക]`
+              } else if (alert.type === 'camp') {
+                return language === 'en'
+                  ? `🏥 ${alert.title || 'Blood Donation Camp'} - ${timeAgo} [Join Camp]`
+                  : `🏥 ${alert.title || 'രക്തദാന ക്യാമ്പ്'} - ${timeAgo} [ക്യാമ്പിൽ പങ്കെടുക്കുക]`
+              }
+              return alert.title || (language === 'en' ? 'Emergency Alert' : 'അടിയന്തര അറിയിപ്പ്')
+            } catch (formatError) {
+              console.warn('[AlertsBar] Error formatting alert:', formatError)
+              return language === 'en' ? '🚨 Emergency Alert' : '🚨 അടിയന്തര അറിയിപ്പ്'
             }
-            return alert.title
           })
-          setEmergencyMessages(formattedAlerts)
+          
+          // Only update if we have valid formatted alerts
+          if (formattedAlerts.length > 0) {
+            setEmergencyMessages(formattedAlerts)
+          } else {
+            setEmergencyMessages(defaultMessages)
+          }
         } else {
+          // No alerts or invalid format - use defaults
           setEmergencyMessages(defaultMessages)
         }
       } catch (error) {
-        console.error('Error fetching alerts:', error)
+        console.error('[AlertsBar] Error fetching alerts:', error)
+        // Always fall back to default messages on error
         setEmergencyMessages(defaultMessages)
       } finally {
         setLoading(false)

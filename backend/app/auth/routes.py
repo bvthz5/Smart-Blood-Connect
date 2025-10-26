@@ -50,12 +50,13 @@ def register():
     first_name, last_name = (name.split(" ", 1) + [""])[:2] if name else ("Donor", "")
 
     pw_hash = hash_password(password)
-    user = User(first_name=first_name, last_name=last_name, email=email, phone=phone, password_hash=pw_hash, role="donor", status="active")
+    # SQLAlchemy model initialization
+    user = User(first_name=first_name, last_name=last_name, email=email, phone=phone, password_hash=pw_hash, role="donor", status="active")  # type: ignore[call-arg]
     db.session.add(user)
     db.session.commit()
 
     # donor profile
-    donor = Donor(user_id=user.id, blood_group=blood_group, date_of_birth=dob)
+    donor = Donor(user_id=user.id, blood_group=blood_group, date_of_birth=dob)  # type: ignore[call-arg]
     db.session.add(donor)
     db.session.commit()
 
@@ -94,7 +95,7 @@ def verify_otp_route():
         return jsonify({"error": "otp_key required"}), 400
     
     otp_store = OTPStore.get_instance()
-    if not otp_store.verify_otp(otp_key, otp):
+    if not otp or not otp_store.verify_otp(otp_key, otp):
         return jsonify({"error":"invalid or expired otp"}), 400
         
     user = User.query.get(user_id)
@@ -184,7 +185,7 @@ def seeker_login():
         return jsonify({"error": "email_or_phone and password required"}), 400
 
     user = None
-    if "@" in ident:
+    if ident and "@" in ident:
         user = User.query.filter_by(email=ident).first()
     else:
         user = User.query.filter_by(phone=ident).first()
@@ -229,6 +230,22 @@ def seeker_login():
         db.session.commit()
     except Exception:
         db.session.rollback()
+
+    # Check if password needs to be changed (auto-generated password)
+    if user.password_needs_change:
+        return jsonify({
+            "force_change": True,
+            "temp_token": access,
+            "user": {
+                "id": user.id,
+                "name": user.first_name,
+                "role": user.role,
+                "email": user.email,
+                "phone": user.phone,
+                "hospital_id": staff.hospital_id
+            },
+            "message": "Password change required. Please set a new password to continue."
+        }), 200
 
     return jsonify({
         "access_token": access,
@@ -324,14 +341,14 @@ def forgot_password():
     data = request.get_json() or {}
     ident = data.get("email_or_phone")
     user = None
-    if "@" in (ident or ""):
+    if ident and "@" in ident:
         user = User.query.filter_by(email=ident).first()
     else:
         user = User.query.filter_by(phone=ident).first()
 
     if user:
         # Email-based reset: send a time-limited reset link
-        if "@" in ident:
+        if ident and "@" in ident:
             try:
                 from app.services.email_service import email_service
                 reset_token = create_access_token(identity=str(user.id), additional_claims={"pr": "reset"}, expires_delta=timedelta(minutes=current_app.config.get("RESET_EXPIRES_MINUTES", 15)))
@@ -372,8 +389,10 @@ def reset_password():
     if pr_claim != "reset":
         return jsonify({"error": "invalid reset token"}), 400
     user_id = decoded.get("sub")
+    if user_id is None:
+        return jsonify({"error": "invalid user id in token"}), 400
     try:
-        user_id = int(user_id) if user_id is not None else None
+        user_id = int(user_id)
     except (TypeError, ValueError):
         return jsonify({"error": "invalid user id in token"}), 400
     user = User.query.get(user_id)
@@ -403,8 +422,10 @@ def change_password():
     except Exception:
         return jsonify({"error":"invalid token"}), 401
     user_id = decoded.get("sub")
+    if user_id is None:
+        return jsonify({"error":"invalid token"}), 401
     try:
-        user_id = int(user_id) if user_id is not None else None
+        user_id = int(user_id)
     except (TypeError, ValueError):
         return jsonify({"error":"invalid token"}), 401
     user = User.query.get(user_id)
@@ -437,6 +458,8 @@ def send_contact_otp():
 
     if channel not in ("email", "phone"):
         return jsonify({"error": "invalid channel"}), 400
+    if user_id is None:
+        return jsonify({"error": "invalid user_id"}), 400
     try:
         user_id = int(user_id)
     except Exception:
@@ -503,6 +526,8 @@ def verify_email_otp():
     data = request.get_json() or {}
     user_id = data.get("user_id")
     otp = data.get("otp")
+    if user_id is None:
+        return jsonify({"error": "invalid user_id"}), 400
     try:
         user_id = int(user_id)
     except Exception:

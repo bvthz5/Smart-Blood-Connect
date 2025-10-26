@@ -31,6 +31,11 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Network timeout configuration for slow connections
+  timeout: 30000, // 30 seconds timeout for slow networks
+  // Retry configuration
+  maxContentLength: 100000000, // 100MB max response size
+  maxBodyLength: 100000000, // 100MB max request size
 });
 
 // Defensive request interceptor: rewrite accidental absolute URLs (e.g. http://127.0.0.1:1408/...) to relative path

@@ -12,11 +12,17 @@ import api from './api';
 export const getHomepageStats = async () => {
   try {
     const response = await api.get('/api/homepage/stats');
+    
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response from stats API');
+      return { success: false, data: {} };
+    }
+    
     return response.data;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[homepageService] Error fetching homepage stats:', error?.message || error);
-    throw error;
+    console.error('[homepageService] Error fetching homepage stats:', error?.response?.data?.error || error?.message || error);
+    return { success: false, data: {}, error: error?.message || 'Failed to fetch stats' };
   }
 };
 
@@ -27,11 +33,26 @@ export const getHomepageStats = async () => {
 export const getHomepageAlerts = async () => {
   try {
     const response = await api.get('/api/homepage/alerts');
+    
+    // Validate response structure
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response structure from alerts API');
+      return { success: false, data: [] };
+    }
+    
+    // Handle both direct array and { success, data } formats
+    if (response.data.success === false) {
+      console.warn('[homepageService] API returned error:', response.data.error);
+      return { success: false, data: [] };
+    }
+    
     return response.data;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[homepageService] Error fetching homepage alerts:', error?.message || error);
-    throw error;
+    console.error('[homepageService] Error fetching homepage alerts:', error?.response?.data?.error || error?.message || error);
+    
+    // Return safe fallback instead of throwing
+    return { success: false, data: [], error: error?.message || 'Failed to fetch alerts' };
   }
 };
 
@@ -42,11 +63,16 @@ export const getHomepageAlerts = async () => {
 export const getHomepageTestimonials = async () => {
   try {
     const response = await api.get('/api/homepage/testimonials');
+    
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response from testimonials API');
+      return { success: false, data: [] };
+    }
+    
     return response.data;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('[homepageService] Error fetching testimonials:', error?.message || error);
-    throw error;
+    console.error('[homepageService] Error fetching testimonials:', error?.response?.data?.error || error?.message || error);
+    return { success: false, data: [], error: error?.message || 'Failed to fetch testimonials' };
   }
 };
 
@@ -57,10 +83,16 @@ export const getHomepageTestimonials = async () => {
 export const getBloodAvailability = async () => {
   try {
     const response = await api.get('/api/homepage/blood-availability');
+    
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response from blood availability API');
+      return { success: false, data: {} };
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('Error fetching blood availability:', error);
-    throw error;
+    console.error('[homepageService] Error fetching blood availability:', error?.response?.data?.error || error?.message || error);
+    return { success: false, data: {}, error: error?.message || 'Failed to fetch blood availability' };
   }
 };
 
@@ -71,10 +103,16 @@ export const getBloodAvailability = async () => {
 export const getFeaturedHospitals = async () => {
   try {
     const response = await api.get('/api/homepage/featured-hospitals');
+    
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response from featured hospitals API');
+      return { success: false, data: [] };
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('Error fetching featured hospitals:', error);
-    throw error;
+    console.error('[homepageService] Error fetching featured hospitals:', error?.response?.data?.error || error?.message || error);
+    return { success: false, data: [], error: error?.message || 'Failed to fetch featured hospitals' };
   }
 };
 
@@ -85,10 +123,16 @@ export const getFeaturedHospitals = async () => {
 export const getDashboardSummary = async () => {
   try {
     const response = await api.get('/api/homepage/dashboard-summary');
+    
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response from dashboard summary API');
+      return { success: false, data: {} };
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('Error fetching dashboard summary:', error);
-    throw error;
+    console.error('[homepageService] Error fetching dashboard summary:', error?.response?.data?.error || error?.message || error);
+    return { success: false, data: {}, error: error?.message || 'Failed to fetch dashboard summary' };
   }
 };
 
@@ -175,12 +219,23 @@ export const getCachedHomepageStats = async () => {
   let data = homepageCache.get(cacheKey);
   
   if (!data) {
-    const response = await getHomepageStats();
-    data = response.data;
-    homepageCache.set(cacheKey, data);
+    try {
+      const response = await getHomepageStats();
+      
+      if (response && response.success !== false) {
+        data = response.data || response;
+        homepageCache.set(cacheKey, data);
+      } else {
+        console.warn('[homepageService] Not caching failed stats response');
+        return {};
+      }
+    } catch (error) {
+      console.error('[homepageService] Error in cached stats:', error);
+      return {};
+    }
   }
   
-  return data;
+  return data || {};
 };
 
 export const getCachedHomepageAlerts = async () => {
@@ -188,12 +243,26 @@ export const getCachedHomepageAlerts = async () => {
   let data = homepageCache.get(cacheKey);
   
   if (!data) {
-    const response = await getHomepageAlerts();
-    data = response.data;
-    homepageCache.set(cacheKey, data);
+    try {
+      const response = await getHomepageAlerts();
+      
+      // Validate response before caching
+      if (response && response.success !== false) {
+        data = response.data || response;
+        homepageCache.set(cacheKey, data);
+      } else {
+        // Return empty array instead of caching error state
+        console.warn('[homepageService] Not caching failed alerts response');
+        return [];
+      }
+    } catch (error) {
+      console.error('[homepageService] Error in cached alerts:', error);
+      // Return empty array instead of throwing
+      return [];
+    }
   }
   
-  return data;
+  return data || [];
 };
 
 export const getCachedHomepageTestimonials = async () => {
@@ -201,12 +270,23 @@ export const getCachedHomepageTestimonials = async () => {
   let data = homepageCache.get(cacheKey);
   
   if (!data) {
-    const response = await getHomepageTestimonials();
-    data = response.data;
-    homepageCache.set(cacheKey, data);
+    try {
+      const response = await getHomepageTestimonials();
+      
+      if (response && response.success !== false) {
+        data = response.data || response;
+        homepageCache.set(cacheKey, data);
+      } else {
+        console.warn('[homepageService] Not caching failed testimonials response');
+        return [];
+      }
+    } catch (error) {
+      console.error('[homepageService] Error in cached testimonials:', error);
+      return [];
+    }
   }
   
-  return data;
+  return data || [];
 };
 
 /**

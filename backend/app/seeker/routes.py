@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from sqlalchemy import func
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.models import db, User, Hospital, HospitalStaff, Request, Match
 
@@ -23,6 +24,62 @@ def _current_staff_and_hospital():
     return user, hospital, None
 
 
+@seeker_bp.route('/change-password', methods=['POST'])
+@jwt_required()
+def change_password():
+    """Change password for staff user"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user or user.role != 'staff':
+        return jsonify({"error": "only hospital staff can access this endpoint"}), 403
+    
+    data = request.get_json() or {}
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
+    
+    if not old_password or not new_password:
+        return jsonify({"error": "old_password and new_password are required"}), 400
+    
+    # Verify old password
+    if not check_password_hash(user.password_hash, old_password):
+        return jsonify({"error": "current password is incorrect"}), 401
+    
+    # Validate new password strength
+    if len(new_password) < 8:
+        return jsonify({"error": "new password must be at least 8 characters long"}), 400
+    
+    # Update password
+    user.password_hash = generate_password_hash(new_password)
+    user.password_needs_change = False  # Clear the flag after password change
+    
+    try:
+        db.session.commit()
+        
+        # Create new tokens with the updated user state
+        from flask_jwt_extended import create_access_token, create_refresh_token
+        from datetime import timedelta
+        from flask import current_app
+        
+        access = create_access_token(
+            identity=str(user.id), 
+            expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15))
+        )
+        refresh = create_refresh_token(
+            identity=str(user.id), 
+            expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7))
+        )
+        
+        return jsonify({
+            "message": "Password changed successfully",
+            "access_token": access,
+            "refresh_token": refresh
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to update password", "details": str(e)}), 500
+
+
 @seeker_bp.route('/hospital', methods=['GET'])
 @jwt_required()
 def get_hospital():
@@ -30,6 +87,10 @@ def get_hospital():
     user, hospital, err = _current_staff_and_hospital()
     if err:
         return err
+
+    # Type guard for user and hospital
+    if not user or not hospital:
+        return jsonify({"error": "invalid user or hospital"}), 500
 
     staff_name = f"{user.first_name} {user.last_name or ''}".strip()
     payload = {
@@ -61,6 +122,10 @@ def update_hospital_staff_profile():
     user, hospital, err = _current_staff_and_hospital()
     if err:
         return err
+
+    # Type guard
+    if not user:
+        return jsonify({"error": "invalid user"}), 500
 
     data = request.get_json() or {}
     staff_name = (data.get('staff_name') or '').strip()
@@ -94,6 +159,10 @@ def dashboard():
     user, hospital, err = _current_staff_and_hospital()
     if err:
         return err
+
+    # Type guard
+    if not hospital:
+        return jsonify({"error": "invalid hospital"}), 500
 
     # Base query for this hospital
     q = Request.query.filter_by(hospital_id=hospital.id)
@@ -164,6 +233,10 @@ def list_matches():
     user, hospital, err = _current_staff_and_hospital()
     if err:
         return err
+
+    # Type guard
+    if not hospital:
+        return jsonify({"error": "invalid hospital"}), 500
 
     rows = db.session.query(Match, Request).join(Request, Match.request_id == Request.id)\
         .filter(Request.hospital_id == hospital.id)\

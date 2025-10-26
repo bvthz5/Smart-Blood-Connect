@@ -1,7 +1,7 @@
 """
 Admin Routes
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.models import User, Request, Donor, Hospital, Match, DonationHistory
 from app.extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -259,8 +259,8 @@ def get_all_donors():
             elif availability == 'unavailable':
                 query = query.filter(Donor.is_available == False)
         
-        # Get paginated results
-        donors_pagination = query.paginate(
+        # Get paginated results (type ignore for SQLAlchemy query methods)
+        donors_pagination = query.paginate(  # type: ignore
             page=page,
             per_page=per_page,
             error_out=False
@@ -269,24 +269,28 @@ def get_all_donors():
         # Build response data
         donors_data = []
         for user, donor in donors_pagination.items:
-            donors_data.append({
-                "id": user.id,
-                "donor_id": donor.id,
-                "name": f"{user.first_name} {user.last_name or ''}".strip(),
-                "email": user.email,
-                "phone": user.phone,
-                "blood_group": donor.blood_group,
-                "gender": donor.gender,
-                "date_of_birth": donor.date_of_birth.isoformat() if donor.date_of_birth else None,
-                "is_available": donor.is_available,
-                "last_donation_date": donor.last_donation_date.isoformat() if donor.last_donation_date else None,
-                "reliability_score": donor.reliability_score,
-                "status": user.status,
-                "city": user.city,
-                "district": user.district,
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-                "last_login": user.last_login.isoformat() if user.last_login else None
-            })
+            try:
+                donors_data.append({
+                    "id": user.id,
+                    "donor_id": donor.id,
+                    "name": f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '') or ''}".strip() or 'Unknown',
+                    "email": getattr(user, 'email', 'N/A'),
+                    "phone": getattr(user, 'phone', 'N/A'),
+                    "blood_group": getattr(donor, 'blood_group', 'N/A'),
+                    "gender": getattr(donor, 'gender', 'N/A'),
+                    "date_of_birth": donor.date_of_birth.isoformat() if getattr(donor, 'date_of_birth', None) else None,
+                    "is_available": getattr(donor, 'is_available', False),
+                    "last_donation_date": donor.last_donation_date.isoformat() if getattr(donor, 'last_donation_date', None) else None,
+                    "reliability_score": getattr(donor, 'reliability_score', 0),
+                    "status": getattr(user, 'status', 'active'),
+                    "city": getattr(user, 'city', 'N/A'),
+                    "district": getattr(user, 'district', 'N/A'),
+                    "created_at": user.created_at.isoformat() if getattr(user, 'created_at', None) else None,
+                    "last_login": user.last_login.isoformat() if getattr(user, 'last_login', None) else None
+                })
+            except Exception as e:
+                current_app.logger.warning(f'Error processing donor {user.id}: {str(e)}')
+                continue
         
         # Return response with metadata
         response_data = {
@@ -306,14 +310,11 @@ def get_all_donors():
         return jsonify(response_data), 200
         
     except Exception as e:
-        # Log the error for debugging
-        import traceback
-        print(f"Error fetching donors: {str(e)}")
-        print(traceback.format_exc())
-        
+        current_app.logger.exception("Error fetching donors")
         return jsonify({
             "error": "Failed to fetch donors",
-            "message": "An error occurred while retrieving donor data. Please try again."
+            "message": "An error occurred while retrieving donor data. Please try again.",
+            "details": str(e) if current_app.debug else None
         }), 500
 
 
@@ -1048,18 +1049,18 @@ def create_hospital():
         if data.get('license_number') and Hospital.query.filter_by(license_number=data['license_number']).first():
             return jsonify({"error": "Hospital with this license number already exists"}), 409
         
-        # Create new hospital
-        hospital = Hospital(
-            name=data['name'],
-            email=data['email'],
-            phone=data['phone'],
-            address=data['address'],
-            district=data['district'],
-            city=data['city'],
-            state=data.get('state'),
-            pincode=data.get('pincode'),
-            license_number=data.get('license_number', ''),
-            is_verified=data.get('is_verified', False)
+        # Create new hospital (SQLAlchemy dynamic model initialization)
+        hospital = Hospital(  # type: ignore
+            name=data['name'],  # type: ignore
+            email=data['email'],  # type: ignore
+            phone=data['phone'],  # type: ignore
+            address=data['address'],  # type: ignore
+            district=data['district'],  # type: ignore
+            city=data['city'],  # type: ignore
+            state=data.get('state'),  # type: ignore
+            pincode=data.get('pincode'),  # type: ignore
+            license_number=data.get('license_number', ''),  # type: ignore
+            is_verified=data.get('is_verified', False)  # type: ignore
         )
         
         db.session.add(hospital)
@@ -1440,28 +1441,29 @@ def assign_hospital_staff(hospital_id):
             if existing_email and existing_email.status != 'deleted':
                 return jsonify({"error": "Email already registered"}), 400
         
-        # Create new staff user
-        new_user = User(
-            first_name=data['first_name'],
-            last_name=data.get('last_name', ''),
-            email=data.get('email'),
-            phone=data['phone'],
-            role="staff",
-            status="inactive",  # Staff remains inactive until they accept invitation
-            is_phone_verified=True,
-            is_email_verified=True
+        # Create new staff user (SQLAlchemy dynamic model initialization)
+        new_user = User(  # type: ignore
+            first_name=data['first_name'],  # type: ignore
+            last_name=data.get('last_name', ''),  # type: ignore
+            email=data.get('email'),  # type: ignore
+            phone=data['phone'],  # type: ignore
+            role="staff",  # type: ignore
+            status="inactive",  # type: ignore # Staff remains inactive until they accept invitation
+            is_phone_verified=True,  # type: ignore
+            is_email_verified=True,  # type: ignore
+            password_needs_change=True  # type: ignore # Force password change on first login
         )
         new_user.set_password(data['password'])
 
         db.session.add(new_user)
         db.session.flush()  # Get the user ID
 
-        # Create HospitalStaff relationship
-        hospital_staff = HospitalStaff(
-            user_id=new_user.id,
-            hospital_id=hospital_id,
-            invited_by=current_user_id,
-            status="pending"  # Waiting for staff to accept invitation
+        # Create HospitalStaff relationship (SQLAlchemy dynamic model)
+        hospital_staff = HospitalStaff(  # type: ignore
+            user_id=new_user.id,  # type: ignore
+            hospital_id=hospital_id,  # type: ignore
+            invited_by=current_user_id,  # type: ignore
+            status="pending"  # type: ignore # Waiting for staff to accept invitation
         )
         
         db.session.add(hospital_staff)
@@ -1480,9 +1482,12 @@ def assign_hospital_staff(hospital_id):
             accept_url = f"{request.host_url}api/staff/accept-invitation/{new_user.id}"
             reject_url = f"{request.host_url}api/staff/reject-invitation/{new_user.id}"
 
+            # Note: This function signature may need email and temp_password parameters
             invitation_email = get_staff_invitation_email(
                 staff_name=staff_name,
                 hospital_name=hospital.name,
+                email=new_user.email,
+                temp_password=data.get('password', ''),
                 accept_url=accept_url,
                 reject_url=reject_url
             )
@@ -1799,19 +1804,19 @@ def create_hospital_with_staff():
                 "field": "staff_phone"
             }), 409
         
-        # All validations passed, now create hospital
-        new_hospital = Hospital(
-            name=hospital_data['name'],
-            email=hospital_data['email'],
-            phone=hospital_data['phone'],
-            address=hospital_data['address'],
-            city=hospital_data['city'],
-            district=hospital_data['district'],
-            state=hospital_data.get('state'),
-            pincode=hospital_data.get('pincode'),
-            license_number=hospital_data.get('license_number'),
-            is_verified=False,
-            is_active=True
+        # All validations passed, now create hospital (SQLAlchemy dynamic model)
+        new_hospital = Hospital(  # type: ignore
+            name=hospital_data['name'],  # type: ignore
+            email=hospital_data['email'],  # type: ignore
+            phone=hospital_data['phone'],  # type: ignore
+            address=hospital_data['address'],  # type: ignore
+            city=hospital_data['city'],  # type: ignore
+            district=hospital_data['district'],  # type: ignore
+            state=hospital_data.get('state'),  # type: ignore
+            pincode=hospital_data.get('pincode'),  # type: ignore
+            license_number=hospital_data.get('license_number'),  # type: ignore
+            is_verified=False,  # type: ignore
+            is_active=True  # type: ignore
         )
         
         db.session.add(new_hospital)
@@ -1820,28 +1825,29 @@ def create_hospital_with_staff():
         # Generate password
         temp_password = generate_password()
         
-        # Create user
-        new_user = User(
-            first_name=staff_data['first_name'],
-            last_name=staff_data.get('last_name', ''),
-            email=staff_data['email'],
-            phone=staff_data['phone'],
-            role="staff",
-            status="inactive",  # Will be active after accepting invitation
-            is_phone_verified=True,
-            is_email_verified=True
+        # Create user (SQLAlchemy dynamic model)
+        new_user = User(  # type: ignore
+            first_name=staff_data['first_name'],  # type: ignore
+            last_name=staff_data.get('last_name', ''),  # type: ignore
+            email=staff_data['email'],  # type: ignore
+            phone=staff_data['phone'],  # type: ignore
+            role="staff",  # type: ignore
+            status="inactive",  # type: ignore # Will be active after accepting invitation
+            is_phone_verified=True,  # type: ignore
+            is_email_verified=True,  # type: ignore
+            password_needs_change=True  # type: ignore # Force password change on first login
         )
         new_user.set_password(temp_password)
         
         db.session.add(new_user)
         db.session.flush()  # Get user ID
         
-        # Create HospitalStaff relationship (one staff per hospital)
-        hospital_staff = HospitalStaff(
-            user_id=new_user.id,
-            hospital_id=new_hospital.id,
-            invited_by=current_user_id,
-            status="pending"  # Waiting for acceptance
+        # Create HospitalStaff relationship (one staff per hospital, SQLAlchemy dynamic model)
+        hospital_staff = HospitalStaff(  # type: ignore
+            user_id=new_user.id,  # type: ignore
+            hospital_id=new_hospital.id,  # type: ignore
+            invited_by=current_user_id,  # type: ignore
+            status="pending"  # type: ignore # Waiting for acceptance
         )
         
         db.session.add(hospital_staff)
@@ -2090,7 +2096,7 @@ def get_all_matches():
         # Apply filters
         if search:
             search_filter = or_(
-                Donor.name.ilike(f'%{search}%'),
+                # Note: Donor model doesn't have 'name' field, using User fields instead
                 Hospital.name.ilike(f'%{search}%'),
                 Request.patient_name.ilike(f'%{search}%')
             )
@@ -2105,8 +2111,8 @@ def get_all_matches():
         if urgency:
             query = query.filter(Request.urgency == urgency)
         
-        # Get paginated results
-        matches_pagination = query.paginate(
+        # Get paginated results (SQLAlchemy query method)
+        matches_pagination = query.paginate(  # type: ignore
             page=page,
             per_page=per_page,
             error_out=False
@@ -2114,27 +2120,53 @@ def get_all_matches():
         
         matches_data = []
         for match, donor, request_obj, hospital in matches_pagination.items:
-            # Calculate match score based on various factors
-            match_score = calculate_match_score(donor, request_obj)
-            
-            matches_data.append({
-                "id": match.id,
-                "donor_name": donor.name,
-                "donor_email": donor.email,
-                "donor_phone": donor.phone,
-                "hospital_name": hospital.name,
-                "hospital_city": hospital.city,
-                "patient_name": request_obj.patient_name,
-                "blood_group": request_obj.blood_group,
-                "units_required": request_obj.units_required,
-                "urgency": request_obj.urgency,
-                "match_score": match_score,
-                "status": match.status,
-                "matched_at": match.matched_at.isoformat() if match.matched_at else None,
-                "confirmed_at": match.confirmed_at.isoformat() if match.confirmed_at else None,
-                "completed_at": match.completed_at.isoformat() if match.completed_at else None,
-                "notes": match.notes
-            })
+            try:
+                # Calculate match score based on various factors
+                match_score = calculate_match_score(donor, request_obj)
+
+                # Safely get donor user information
+                donor_user = None
+                donor_name = 'Unknown Donor'
+                donor_email = 'N/A'
+                donor_phone = 'N/A'
+
+                if hasattr(donor, 'user') and donor.user:
+                    donor_user = donor.user
+                    donor_name = f"{getattr(donor_user, 'first_name', '')} {getattr(donor_user, 'last_name', '')}".strip() or 'Unknown Donor'
+                    donor_email = getattr(donor_user, 'email', 'N/A')
+                    donor_phone = getattr(donor_user, 'phone', 'N/A')
+
+                # Safely get hospital information
+                hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
+                hospital_city = getattr(hospital, 'city', 'N/A')
+
+                # Safely get request information
+                patient_name = getattr(request_obj, 'patient_name', 'Unknown Patient')
+                blood_group = getattr(request_obj, 'blood_group', 'N/A')
+                units_required = getattr(request_obj, 'units_required', 0)
+                urgency = getattr(request_obj, 'urgency', 'normal')
+
+                matches_data.append({
+                    "id": match.id,
+                    "donor_name": donor_name,
+                    "donor_email": donor_email,
+                    "donor_phone": donor_phone,
+                    "hospital_name": hospital_name,
+                    "hospital_city": hospital_city,
+                    "patient_name": patient_name,
+                    "blood_group": blood_group,
+                    "units_required": units_required,
+                    "urgency": urgency,
+                    "match_score": match_score,
+                    "status": match.status,
+                    "matched_at": match.matched_at.isoformat() if match.matched_at else None,
+                    "confirmed_at": match.confirmed_at.isoformat() if match.confirmed_at else None,
+                    "completed_at": match.completed_at.isoformat() if match.completed_at else None,
+                    "notes": match.notes
+                })
+            except Exception as e:
+                current_app.logger.warning(f'Error processing match {match.id}: {str(e)}')
+                continue
         
         return jsonify({
             "matches": matches_data,
@@ -2143,9 +2175,13 @@ def get_all_matches():
             "per_page": per_page,
             "pages": matches_pagination.pages
         }), 200
-        
+
     except Exception as e:
-        return jsonify({"error": "Failed to fetch matches"}), 500
+        current_app.logger.exception("Error fetching matches")
+        return jsonify({
+            "error": "Failed to fetch matches",
+            "details": str(e) if current_app.debug else None
+        }), 500
 
 
 @admin_bp.route("/matches/<int:match_id>/status", methods=["PUT"])
@@ -2308,8 +2344,8 @@ def get_all_requests():
         if status:
             query = query.filter(Request.status == status)
         
-        # Get paginated results
-        requests_pagination = query.paginate(
+        # Get paginated results (SQLAlchemy query method)
+        requests_pagination = query.paginate(  # type: ignore
             page=page,
             per_page=per_page,
             error_out=False
@@ -2317,28 +2353,49 @@ def get_all_requests():
         
         requests_data = []
         for request_obj, hospital in requests_pagination.items:
-            # Count existing matches for this request
-            match_count = Match.query.filter_by(request_id=request_obj.id).count()
-            
-            requests_data.append({
-                "id": request_obj.id,
-                "hospital_name": hospital.name,
-                "hospital_city": hospital.city,
-                "hospital_district": hospital.district,
-                "patient_name": request_obj.patient_name,
-                "blood_group": request_obj.blood_group,
-                "units_required": request_obj.units_required,
-                "urgency": request_obj.urgency,
-                "status": request_obj.status,
-                "description": request_obj.description,
-                "contact_person": request_obj.contact_person,
-                "contact_phone": request_obj.contact_phone,
-                "required_by": request_obj.required_by.isoformat() if request_obj.required_by else None,
-                "created_at": request_obj.created_at.isoformat() if request_obj.created_at else None,
-                "updated_at": request_obj.updated_at.isoformat() if request_obj.updated_at else None,
-                "match_count": match_count
-            })
-        
+            try:
+                # Count existing matches for this request
+                match_count = 0
+                if hasattr(request_obj, 'id') and request_obj.id:
+                    match_count = Match.query.filter_by(request_id=request_obj.id).count()
+
+                # Safely get hospital information
+                hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
+                hospital_city = getattr(hospital, 'city', 'N/A')
+                hospital_district = getattr(hospital, 'district', 'N/A')
+
+                # Safely get request information
+                patient_name = getattr(request_obj, 'patient_name', 'Unknown Patient')
+                blood_group = getattr(request_obj, 'blood_group', 'N/A')
+                units_required = getattr(request_obj, 'units_required', 0)
+                urgency = getattr(request_obj, 'urgency', 'normal')
+                status = getattr(request_obj, 'status', 'pending')
+                description = getattr(request_obj, 'description', '')
+                contact_person = getattr(request_obj, 'contact_person', 'N/A')
+                contact_phone = getattr(request_obj, 'contact_phone', 'N/A')
+
+                requests_data.append({
+                    "id": request_obj.id,
+                    "hospital_name": hospital_name,
+                    "hospital_city": hospital_city,
+                    "hospital_district": hospital_district,
+                    "patient_name": patient_name,
+                    "blood_group": blood_group,
+                    "units_required": units_required,
+                    "urgency": urgency,
+                    "status": status,
+                    "description": description,
+                    "contact_person": contact_person,
+                    "contact_phone": contact_phone,
+                    "required_by": request_obj.required_by.isoformat() if request_obj.required_by else None,
+                    "created_at": request_obj.created_at.isoformat() if request_obj.created_at else None,
+                    "updated_at": request_obj.updated_at.isoformat() if request_obj.updated_at else None,
+                    "match_count": match_count
+                })
+            except Exception as e:
+                current_app.logger.warning(f'Error processing request {request_obj.id}: {str(e)}')
+                continue
+
         return jsonify({
             "requests": requests_data,
             "total": requests_pagination.total,
@@ -2346,9 +2403,13 @@ def get_all_requests():
             "per_page": per_page,
             "pages": requests_pagination.pages
         }), 200
-        
+
     except Exception as e:
-        return jsonify({"error": "Failed to fetch requests"}), 500
+        current_app.logger.exception("Error fetching requests")
+        return jsonify({
+            "error": "Failed to fetch requests",
+            "details": str(e) if current_app.debug else None
+        }), 500
 
 
 @admin_bp.route("/requests/<int:request_id>", methods=["GET"])
@@ -2369,52 +2430,91 @@ def get_request_details(request_id):
         request_obj = Request.query.get(request_id)
         if not request_obj:
             return jsonify({"error": "Request not found"}), 404
-        
-        hospital = Hospital.query.get(request_obj.hospital_id)
-        
+
+        hospital = None
+        if hasattr(request_obj, 'hospital_id') and request_obj.hospital_id:
+            hospital = Hospital.query.get(request_obj.hospital_id)
+
         # Get existing matches for this request
-        matches = db.session.query(Match, Donor).join(
-            Donor, Match.donor_id == Donor.id
-        ).filter(Match.request_id == request_id).all()
-        
         matches_data = []
-        for match, donor in matches:
-            matches_data.append({
-                "id": match.id,
-                "donor_name": donor.name,
-                "donor_email": donor.email,
-                "donor_phone": donor.phone,
-                "donor_blood_group": donor.blood_group,
-                "match_status": match.status,
-                "matched_at": match.matched_at.isoformat() if match.matched_at else None,
-                "confirmed_at": match.confirmed_at.isoformat() if match.confirmed_at else None
-            })
-        
+        try:
+            matches = db.session.query(Match, Donor).join(
+                Donor, Match.donor_id == Donor.id
+            ).filter(Match.request_id == request_id).all()
+
+            for match, donor in matches:
+                try:
+                    # Safely get donor user information
+                    donor_user = None
+                    donor_name = 'Unknown Donor'
+                    donor_email = 'N/A'
+                    donor_phone = 'N/A'
+
+                    if hasattr(donor, 'user') and donor.user:
+                        donor_user = donor.user
+                        donor_name = f"{getattr(donor_user, 'first_name', '')} {getattr(donor_user, 'last_name', '')}".strip() or 'Unknown Donor'
+                        donor_email = getattr(donor_user, 'email', 'N/A')
+                        donor_phone = getattr(donor_user, 'phone', 'N/A')
+
+                    matches_data.append({
+                        "id": match.id,
+                        "donor_name": donor_name,
+                        "donor_email": donor_email,
+                        "donor_phone": donor_phone,
+                        "donor_blood_group": getattr(donor, 'blood_group', 'N/A'),
+                        "match_status": match.status,
+                        "matched_at": match.matched_at.isoformat() if match.matched_at else None,
+                        "confirmed_at": match.confirmed_at.isoformat() if match.confirmed_at else None
+                    })
+                except Exception as e:
+                    current_app.logger.warning(f'Error processing match {match.id}: {str(e)}')
+                    continue
+        except Exception as e:
+            current_app.logger.warning(f'Error fetching matches for request {request_id}: {str(e)}')
+
+        # Safely get hospital information
+        hospital_name = 'Unknown Hospital'
+        hospital_city = 'N/A'
+        hospital_district = 'N/A'
+        hospital_address = 'N/A'
+        hospital_phone = 'N/A'
+
+        if hospital:
+            hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
+            hospital_city = getattr(hospital, 'city', 'N/A')
+            hospital_district = getattr(hospital, 'district', 'N/A')
+            hospital_address = getattr(hospital, 'address', 'N/A')
+            hospital_phone = getattr(hospital, 'phone', 'N/A')
+
         request_data = {
             "id": request_obj.id,
-            "hospital_name": hospital.name,
-            "hospital_city": hospital.city,
-            "hospital_district": hospital.district,
-            "hospital_address": hospital.address,
-            "hospital_phone": hospital.phone,
-            "patient_name": request_obj.patient_name,
-            "blood_group": request_obj.blood_group,
-            "units_required": request_obj.units_required,
-            "urgency": request_obj.urgency,
-            "status": request_obj.status,
-            "description": request_obj.description,
-            "contact_person": request_obj.contact_person,
-            "contact_phone": request_obj.contact_phone,
+            "hospital_name": hospital_name,
+            "hospital_city": hospital_city,
+            "hospital_district": hospital_district,
+            "hospital_address": hospital_address,
+            "hospital_phone": hospital_phone,
+            "patient_name": getattr(request_obj, 'patient_name', 'Unknown Patient'),
+            "blood_group": getattr(request_obj, 'blood_group', 'N/A'),
+            "units_required": getattr(request_obj, 'units_required', 0),
+            "urgency": getattr(request_obj, 'urgency', 'normal'),
+            "status": getattr(request_obj, 'status', 'pending'),
+            "description": getattr(request_obj, 'description', ''),
+            "contact_person": getattr(request_obj, 'contact_person', 'N/A'),
+            "contact_phone": getattr(request_obj, 'contact_phone', 'N/A'),
             "required_by": request_obj.required_by.isoformat() if request_obj.required_by else None,
             "created_at": request_obj.created_at.isoformat() if request_obj.created_at else None,
             "updated_at": request_obj.updated_at.isoformat() if request_obj.updated_at else None,
             "matches": matches_data
         }
-        
+
         return jsonify(request_data), 200
-        
+
     except Exception as e:
-        return jsonify({"error": "Failed to fetch request details"}), 500
+        current_app.logger.exception("Error fetching request details")
+        return jsonify({
+            "error": "Failed to fetch request details",
+            "details": str(e) if current_app.debug else None
+        }), 500
 
 
 @admin_bp.route("/requests/<int:request_id>/status", methods=["PUT"])
@@ -2497,11 +2597,11 @@ def assign_donor_to_request(request_id):
         if existing_match:
             return jsonify({"error": "Donor already assigned to this request"}), 409
         
-        # Create new match
-        match = Match(
-            request_id=request_id,
-            donor_id=donor_id,
-            status='pending'
+        # Create new match (SQLAlchemy dynamic model)
+        match = Match(  # type: ignore
+            request_id=request_id,  # type: ignore
+            donor_id=donor_id,  # type: ignore
+            status='pending'  # type: ignore
         )
         
         db.session.add(match)
@@ -2596,8 +2696,8 @@ def get_donation_history():
         # Order by donation date (newest first)
         query = query.order_by(DonationHistory.donation_date.desc())
         
-        # Get paginated results
-        donations_pagination = query.paginate(
+        # Get paginated results (SQLAlchemy query method)
+        donations_pagination = query.paginate(  # type: ignore
             page=page,
             per_page=per_page,
             error_out=False

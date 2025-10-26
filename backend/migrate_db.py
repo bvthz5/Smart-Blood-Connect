@@ -23,14 +23,19 @@ def run_migrations():
     load_dotenv(env_path)
     print("Environment variables loaded from:", env_path)
     
-    # Check for required environment variables
+    # Check for required DATABASE_URL (PostgreSQL)
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         print("Error: DATABASE_URL environment variable is required")
-        print("Please check .env file contents. Current value:", db_url)
+        print("Please set DATABASE_URL in .env file with PostgreSQL connection string")
+        print("Example: DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/smartblood")
         sys.exit(1)
+    
+    if 'postgresql' not in db_url.lower():
+        print("Warning: DATABASE_URL should be a PostgreSQL connection string")
+        print("Current value:", db_url)
     else:
-        print("Found DATABASE_URL:", db_url)
+        print("Found PostgreSQL DATABASE_URL:", db_url)
     
     app = create_app()
     

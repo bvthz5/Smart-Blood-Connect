@@ -20,6 +20,17 @@ const seekerService = {
     });
     return res.data;
   },
+  changePassword: async (old_password, new_password) => {
+    // Try temp token first (for force password change), then regular token
+    const tempToken = typeof window !== 'undefined' ? localStorage.getItem('seeker_temp_token') : null;
+    const regularToken = typeof window !== 'undefined' ? localStorage.getItem('seeker_token') : null;
+    const token = tempToken || regularToken;
+    
+    const res = await api.post('/api/seeker/change-password', { old_password, new_password }, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    return res.data;
+  },
   dashboard: async () => {
     const res = await api.get('/api/seeker/dashboard');
     return res.data;

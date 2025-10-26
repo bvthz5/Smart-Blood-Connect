@@ -229,11 +229,14 @@ export default function FAQ() {
           <div ref={searchRef} className="search-container">
             <div className="search-box">
               <input
+                id="faq-search-input"
+                name="faqSearch"
                 type="text"
                 placeholder={language === 'en' ? 'Search FAQs...' : 'FAQ തിരയുക...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
+                aria-label="Search FAQs"
               />
               <div className="search-icon">🔍</div>
             </div>

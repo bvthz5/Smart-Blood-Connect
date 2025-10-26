@@ -1,6 +1,6 @@
 import os
 import pathlib
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -13,7 +13,7 @@ class EnvVar:
     key: str
     required: bool = True
     default: Any = None
-    validator: Optional[callable] = None
+    validator: Optional[Callable[[str], Any]] = None
     
     def get_value(self) -> Any:
         """Get and validate environment variable value"""
@@ -65,18 +65,27 @@ class Config:
             "Fix: Remove 'lambda:' from default parameter"
         )
     
-    # Database configuration
-    _DB_ENV = EnvVar("DATABASE_URL", required=False).get_value()
-    if not _DB_ENV:
-        db_path = pathlib.Path(__file__).parent.parent.parent / "smartblood.db"
-        _DB_ENV = f"sqlite:///{db_path}"
-    DATABASE_URL = _DB_ENV
+    # Database configuration - PostgreSQL required
+    DATABASE_URL = EnvVar("DATABASE_URL", required=True).get_value()
     
     # Handle Docker development configuration
     if ('@postgres:' in DATABASE_URL) and os.environ.get('FLASK_ENV', 'development') == 'development':
         DATABASE_URL = DATABASE_URL.replace('@postgres:', '@localhost:')
+    
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # PostgreSQL connection pool configuration for better performance
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,  # Number of connections to maintain
+        'pool_timeout': 30,  # Timeout for getting connection from pool (seconds)
+        'pool_recycle': 3600,  # Recycle connections after 1 hour
+        'pool_pre_ping': True,  # Verify connections before using them
+        'max_overflow': 20,  # Maximum overflow connections
+        'connect_args': {
+            'connect_timeout': 10,  # Connection timeout (seconds) - PostgreSQL specific
+        }
+    }
     
     # JWT and Authentication configuration
     JWT_SECRET_KEY = EnvVar("JWT_SECRET_KEY", required=True).get_value()
@@ -122,7 +131,7 @@ class Config:
                 getattr(instance, attr)
 
 # Single configuration for application
-config: Dict[str, Config] = {
+config: Dict[str, type] = {
     'default': Config
 }
 

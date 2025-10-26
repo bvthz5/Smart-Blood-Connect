@@ -35,6 +35,7 @@ import SeekerLogin from './pages/seeker/SeekerLogin';
 import SeekerDashboard from './pages/seeker/SeekerDashboard';
 import HospitalStaffDashboard from './pages/seeker/HospitalStaffDashboard';
 import ForceChangePassword from './pages/seeker/ForceChangePassword';
+import SeekerChangePassword from './pages/seeker/ChangePassword';
 import CreateRequest from './pages/seeker/CreateRequest';
 import ViewRequests from './pages/seeker/ViewRequests';
 import MatchedDonors from './pages/seeker/MatchedDonors';
@@ -164,6 +165,11 @@ function App() {
             <SeekerTempGuard>
               <ForceChangePassword />
             </SeekerTempGuard>
+          } />
+          <Route path="/seeker/change-password" element={
+            <SeekerRouteGuard>
+              <SeekerChangePassword />
+            </SeekerRouteGuard>
           } />
           <Route path="/seeker/dashboard" element={
             <SeekerRouteGuard>
