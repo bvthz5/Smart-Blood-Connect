@@ -243,11 +243,81 @@ def seeker_login():
         }
     })
 
-# TODO: Implement refresh endpoint with new schema
-# @auth_bp.route("/refresh", methods=["POST"])
-# def refresh():
-#     # Refresh token functionality temporarily disabled
-#     return jsonify({"error": "refresh tokens not implemented in new schema"}), 501
+@auth_bp.route("/refresh", methods=["POST"])
+def refresh():
+    """
+    Refresh Access Token for Donors
+
+    Accepts a refresh token and returns a new access token.
+    This allows users to stay logged in without re-entering credentials.
+    """
+    data = request.get_json() or {}
+    refresh_token_value = data.get("refresh_token")
+
+    if not refresh_token_value:
+        return jsonify({"error": "refresh_token is required"}), 400
+
+    try:
+        # Decode the refresh token
+        decoded = decode_token(refresh_token_value)
+        if not decoded:
+            return jsonify({"error": "invalid or expired refresh token"}), 401
+
+        # Get user ID from token
+        user_id = decoded.get("sub")
+        try:
+            user_id = int(user_id) if user_id is not None else None
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid token"}), 401
+
+        # Get user
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "user not found"}), 404
+
+        # Verify user is a donor
+        if user.role != "donor":
+            return jsonify({"error": "not a donor account"}), 403
+
+        # Check account status
+        if user.status == 'deleted':
+            return jsonify({"error": "account deleted"}), 403
+        if user.status == 'blocked':
+            return jsonify({"error": "account blocked"}), 403
+        if user.status != 'active':
+            return jsonify({"error": "account not active"}), 403
+
+        # Check phone verification
+        if not user.is_phone_verified:
+            return jsonify({"error": "phone not verified"}), 403
+
+        # Generate new access token
+        new_access = create_access_token(
+            identity=str(user.id),
+            expires_delta=timedelta(minutes=current_app.config.get("ACCESS_EXPIRES_MINUTES", 15))
+        )
+
+        # Generate new refresh token
+        new_refresh = create_refresh_token(
+            identity=str(user.id),
+            expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7))
+        )
+
+        return jsonify({
+            "access_token": new_access,
+            "refresh_token": new_refresh,
+            "user": {
+                "id": user.id,
+                "name": user.first_name,
+                "role": user.role,
+                "email": user.email,
+                "phone": user.phone
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Token refresh error: {str(e)}")
+        return jsonify({"error": "invalid or expired refresh token"}), 401
 
 @auth_bp.route("/forgot-password", methods=["POST"])
 def forgot_password():

@@ -38,19 +38,34 @@ def list_requests():
     List requests (for admin or for the seeker who created them)
     Query params: mine=true to list only own
     """
-    uid = get_jwt_identity()
-    mine = request.args.get("mine", "false").lower() == "true"
-    q = Request.query
-    if mine:
-        q = q.filter_by(seeker_id=uid)
-    results = []
-    for r in q.order_by(Request.created_at.desc()).limit(50).all():
-        results.append({
-            "id": r.id, "seeker_id": r.seeker_id, "blood_group": r.blood_group,
-            "units_required": r.units_required, "urgency": r.urgency, "status": r.status,
-            "created_at": r.created_at.isoformat()
-        })
-    return jsonify(results)
+    try:
+        uid = get_jwt_identity()
+        # Convert uid to integer to match database column type
+        try:
+            uid = int(uid)
+        except (ValueError, TypeError):
+            current_app.logger.error(f"Invalid user ID: {uid}")
+            return jsonify({"error": "Invalid user ID"}), 400
+
+        mine = request.args.get("mine", "false").lower() == "true"
+        q = Request.query
+        if mine:
+            q = q.filter_by(seeker_id=uid)
+        results = []
+        for r in q.order_by(Request.created_at.desc()).limit(50).all():
+            results.append({
+                "id": r.id,
+                "seeker_id": r.seeker_id,
+                "blood_group": r.blood_group,
+                "units_required": r.units_required,
+                "urgency": r.urgency,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            })
+        return jsonify({"items": results, "results": results, "count": len(results)})
+    except Exception as e:
+        current_app.logger.error(f"Error listing requests: {str(e)}")
+        return jsonify({"error": "Failed to list requests", "details": str(e)}), 500
 
 
 @req_bp.route("/nearby", methods=["GET"])

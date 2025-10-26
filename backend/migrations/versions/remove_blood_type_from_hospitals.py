@@ -1,7 +1,7 @@
 """Remove blood_type from hospitals table
 
 Revision ID: remove_blood_type
-Revises: remove_contact_number
+Revises: b3f8c9d12345
 Create Date: 2025-01-20
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'remove_blood_type'
-down_revision = 'remove_contact_number'
+down_revision = 'b3f8c9d12345'
 branch_labels = None
 depends_on = None
 

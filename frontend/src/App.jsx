@@ -33,6 +33,7 @@ import Leaderboard from './pages/donor/Leaderboard';
 import SeekerRequest from './pages/seeker/SeekerRequest';
 import SeekerLogin from './pages/seeker/SeekerLogin';
 import SeekerDashboard from './pages/seeker/SeekerDashboard';
+import HospitalStaffDashboard from './pages/seeker/HospitalStaffDashboard';
 import ForceChangePassword from './pages/seeker/ForceChangePassword';
 import CreateRequest from './pages/seeker/CreateRequest';
 import ViewRequests from './pages/seeker/ViewRequests';
@@ -167,6 +168,11 @@ function App() {
           <Route path="/seeker/dashboard" element={
             <SeekerRouteGuard>
               <SeekerDashboard />
+            </SeekerRouteGuard>
+          } />
+          <Route path="/hospital/dashboard" element={
+            <SeekerRouteGuard>
+              <HospitalStaffDashboard />
             </SeekerRouteGuard>
           } />
           <Route path="/seeker/request" element={<SeekerRequest />} />

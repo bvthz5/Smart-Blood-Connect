@@ -33,6 +33,7 @@ const AddHospitalContent = () => {
     name: '',
     email: '',
     phone: '',
+    contact_number: '',
     address: '',
     city: '',
     district: '',
@@ -177,19 +178,44 @@ const AddHospitalContent = () => {
       console.error('Hospital creation error:', err);
       console.error('Error response:', err.response);
       console.error('Error data:', err.response?.data);
-      
+
       const errorData = err.response?.data;
-      
-      if (errorData?.field) {
-        // Field-specific error
-        setFieldErrors({ [errorData.field]: errorData.error });
-        setError(errorData.error);
+      const status = err.response?.status;
+
+      // Handle different error types
+      if (status === 409) {
+        // Conflict error (duplicate email, phone, or license)
+        if (errorData?.field) {
+          setFieldErrors({ [errorData.field]: errorData.error });
+          setError(`⚠️ ${errorData.error}`);
+        } else {
+          setError('⚠️ This record already exists in the system');
+        }
+      } else if (status === 400) {
+        // Validation error
+        if (errorData?.field) {
+          setFieldErrors({ [errorData.field]: errorData.error });
+          setError(`❌ ${errorData.error}`);
+        } else {
+          const errorMessage = errorData?.message || errorData?.error || 'Validation failed';
+          setError(`❌ ${errorMessage}`);
+        }
+      } else if (status === 401) {
+        // Unauthorized
+        setError('❌ You are not authorized to perform this action');
+      } else if (status === 500) {
+        // Server error
+        setError('❌ Server error. Please try again later');
       } else {
         // General error
         const errorMessage = errorData?.message || errorData?.error || err.message || 'Failed to create hospital';
-        setError(errorMessage);
-        console.error('Final error message:', errorMessage);
+        setError(`❌ ${errorMessage}`);
       }
+
+      console.error('Final error message:', error);
+
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }

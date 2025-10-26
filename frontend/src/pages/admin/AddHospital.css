@@ -84,16 +84,39 @@
   color: #ef4444;
   font-weight: 600;
   margin-bottom: 2rem;
+  animation: slideInDown 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
 }
 
 .error-banner svg {
   flex-shrink: 0;
   margin-top: 2px;
+  animation: pulse 2s infinite;
 }
 
 .error-banner span {
   white-space: pre-line;
   line-height: 1.6;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Form */
@@ -344,20 +367,22 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+  border-left: 4px solid #ef4444;
   border-radius: 8px;
   color: #dc2626;
   font-size: 0.875rem;
   font-weight: 600;
-  margin-top: 0.25rem;
-  animation: slideDown 0.2s ease;
+  margin-top: 0.5rem;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
 }
 
 .field-error svg {
   flex-shrink: 0;
   color: #ef4444;
+  animation: shake 0.5s ease;
 }
 
 @keyframes slideDown {
@@ -368,6 +393,18 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
   }
 }
 

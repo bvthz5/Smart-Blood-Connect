@@ -1,7 +1,7 @@
 """Add unique constraint to hospital_staff.hospital_id
 
 Revision ID: add_hospital_staff_unique
-Revises: 
+Revises: add_state_pincode
 Create Date: 2025-01-20 09:19:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_hospital_staff_unique'
-down_revision = None
+down_revision = 'add_state_pincode'
 branch_labels = None
 depends_on = None
 

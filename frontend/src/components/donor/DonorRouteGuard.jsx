@@ -19,13 +19,6 @@ export default function DonorRouteGuard({ children }) {
 
   useEffect(() => {
     validateSession();
-    
-    // Auto-logout on browser close
-    const handleBeforeUnload = () => {
-      // Clear tokens when browser/tab closes
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-    };
 
     // Handle tab visibility changes
     const handleVisibilityChange = () => {
@@ -35,7 +28,6 @@ export default function DonorRouteGuard({ children }) {
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Auto-refresh token every 14 minutes
@@ -44,7 +36,6 @@ export default function DonorRouteGuard({ children }) {
     }, 14 * 60 * 1000);
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(refreshInterval);
     };

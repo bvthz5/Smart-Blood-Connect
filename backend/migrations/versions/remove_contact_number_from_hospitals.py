@@ -1,7 +1,7 @@
 """Remove contact_number from hospitals table
 
 Revision ID: remove_contact_number
-Revises: 
+Revises: add_seeker_id_to_requests
 Create Date: 2025-01-20
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'remove_contact_number'
-down_revision = None  # Update this if you know the previous migration ID
+down_revision = 'add_seeker_id_to_requests'
 branch_labels = None
 depends_on = None
 

@@ -1,8 +1,10 @@
-from flask import request, jsonify, render_template_string
+from flask import request, jsonify, render_template_string, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.staff import staff_bp
-from app.models import User, Hospital, HospitalStaff, db
+from app.models import User, Hospital, HospitalStaff, Request, Match, db
 from app.utils.email_sender import send_email
 from app.utils.email_templates import get_staff_acceptance_confirmation_email
+from datetime import datetime, timedelta
 
 
 @staff_bp.route("/accept-invitation/<int:user_id>", methods=["GET"])
@@ -289,7 +291,7 @@ def render_rejection_page(success, message):
             <div class="icon">ℹ️</div>
             <h1>Invitation Declined</h1>
             <p>{message}</p>
-            
+
             <div class="note">
                 <p>If you change your mind, please contact the hospital administrator to resend the invitation.</p>
             </div>
@@ -298,3 +300,132 @@ def render_rejection_page(success, message):
     </html>
     """
     return render_template_string(html)
+
+
+# ============================================================================
+# HOSPITAL STAFF DASHBOARD ENDPOINTS
+# ============================================================================
+
+@staff_bp.route("/hospital-info", methods=["GET"])
+@jwt_required()
+def get_hospital_info():
+    """Get hospital information for the logged-in staff member"""
+    try:
+        user_id = get_jwt_identity()
+        staff = HospitalStaff.query.filter_by(user_id=int(user_id)).first()
+
+        if not staff:
+            return jsonify({"error": "Staff profile not found"}), 404
+
+        hospital = Hospital.query.get(staff.hospital_id)
+        if not hospital:
+            return jsonify({"error": "Hospital not found"}), 404
+
+        return jsonify({
+            "id": hospital.id,
+            "name": hospital.name,
+            "email": hospital.email,
+            "phone": hospital.phone,
+            "address": hospital.address,
+            "city": hospital.city,
+            "state": hospital.state,
+            "pincode": hospital.pincode,
+            "license_number": hospital.license_number,
+            "is_verified": hospital.is_verified,
+            "is_active": hospital.is_active
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting hospital info: {str(e)}")
+        return jsonify({"error": "Failed to get hospital info"}), 500
+
+
+@staff_bp.route("/dashboard", methods=["GET"])
+@jwt_required()
+def get_dashboard_data():
+    """Get dashboard overview data for hospital staff"""
+    try:
+        user_id = get_jwt_identity()
+        staff = HospitalStaff.query.filter_by(user_id=int(user_id)).first()
+
+        if not staff:
+            return jsonify({"error": "Staff profile not found"}), 404
+
+        hospital_id = staff.hospital_id
+
+        # Get request statistics
+        active_requests = Request.query.filter_by(
+            hospital_id=hospital_id,
+            status='pending'
+        ).count()
+
+        fulfilled_requests = Request.query.filter_by(
+            hospital_id=hospital_id,
+            status='completed'
+        ).count()
+
+        pending_matches = Match.query.filter_by(
+            status='pending'
+        ).count()
+
+        urgent_requests = Request.query.filter_by(
+            hospital_id=hospital_id,
+            urgency='high'
+        ).count()
+
+        # Get top blood type
+        top_blood_type = 'O+'
+        blood_group_counts = db.session.query(
+            Request.blood_group,
+            db.func.count(Request.id)
+        ).filter_by(hospital_id=hospital_id).group_by(Request.blood_group).all()
+
+        if blood_group_counts:
+            top_blood_type = max(blood_group_counts, key=lambda x: x[1])[0]
+
+        # Get monthly data
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        monthly_requests = db.session.query(
+            db.func.date(Request.created_at),
+            db.func.count(Request.id)
+        ).filter(
+            Request.hospital_id == hospital_id,
+            Request.created_at >= thirty_days_ago
+        ).group_by(db.func.date(Request.created_at)).all()
+
+        monthly_labels = [str(r[0]) for r in monthly_requests]
+        monthly_data = [r[1] for r in monthly_requests]
+
+        # Get demand by blood group
+        demand_by_group = []
+        for bg, count in blood_group_counts:
+            demand_by_group.append({"blood_group": bg, "count": count})
+
+        # Get recent activity
+        recent_requests = Request.query.filter_by(
+            hospital_id=hospital_id
+        ).order_by(Request.created_at.desc()).limit(5).all()
+
+        activity = []
+        for req in recent_requests:
+            activity.append({
+                "type": "request",
+                "title": f"Request #{req.id}",
+                "description": f"{req.units_required} units of {req.blood_group} needed",
+                "timestamp": req.created_at.strftime("%Y-%m-%d %H:%M") if req.created_at else ""
+            })
+
+        return jsonify({
+            "active_requests": active_requests,
+            "fulfilled_requests": fulfilled_requests,
+            "pending_matches": pending_matches,
+            "urgent_requests": urgent_requests,
+            "top_blood_type": top_blood_type,
+            "total_donors": 0,
+            "monthly_labels": monthly_labels,
+            "monthly_data": monthly_data,
+            "demand_by_group": demand_by_group,
+            "recent_activity": activity
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting dashboard data: {str(e)}")
+        return jsonify({"error": "Failed to get dashboard data", "details": str(e)}), 500
