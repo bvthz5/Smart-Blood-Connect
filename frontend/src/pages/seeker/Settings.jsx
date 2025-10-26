@@ -7,7 +7,12 @@ import './Settings.css';
 const Settings = () => {
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [autoAssign, setAutoAssign] = useState(false);
-  const onLogout = () => { localStorage.removeItem('seeker_token'); window.location.href = '/seeker/login'; };
+  const onLogout = () => { 
+    localStorage.removeItem('seeker_token'); 
+    localStorage.removeItem('token'); 
+    localStorage.removeItem('seeker_refresh_token'); 
+    window.location.href = '/seeker/login'; 
+  };
 
   return (
     <SeekerLayout navbar={<SeekerNavbar onLogout={onLogout} />} sidebar={<SeekerSidebar />}>

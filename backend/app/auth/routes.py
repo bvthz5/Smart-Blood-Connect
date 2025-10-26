@@ -263,7 +263,7 @@ def seeker_login():
 @auth_bp.route("/refresh", methods=["POST"])
 def refresh():
     """
-    Refresh Access Token for Donors
+    Refresh Access Token for Donors and Hospital Staff
 
     Accepts a refresh token and returns a new access token.
     This allows users to stay logged in without re-entering credentials.
@@ -292,9 +292,9 @@ def refresh():
         if not user:
             return jsonify({"error": "user not found"}), 404
 
-        # Verify user is a donor
-        if user.role != "donor":
-            return jsonify({"error": "not a donor account"}), 403
+        # Support both donor and staff (seeker) accounts
+        if user.role not in ["donor", "staff"]:
+            return jsonify({"error": "invalid account type"}), 403
 
         # Check account status
         if user.status == 'deleted':
@@ -320,16 +320,25 @@ def refresh():
             expires_delta=timedelta(days=current_app.config.get("REFRESH_EXPIRES_DAYS", 7))
         )
 
+        # Build user response
+        user_data = {
+            "id": user.id,
+            "name": user.first_name,
+            "role": user.role,
+            "email": user.email,
+            "phone": user.phone
+        }
+
+        # Add hospital_id for staff users
+        if user.role == "staff":
+            staff = HospitalStaff.query.filter_by(user_id=user.id).first()
+            if staff:
+                user_data["hospital_id"] = staff.hospital_id
+
         return jsonify({
             "access_token": new_access,
             "refresh_token": new_refresh,
-            "user": {
-                "id": user.id,
-                "name": user.first_name,
-                "role": user.role,
-                "email": user.email,
-                "phone": user.phone
-            }
+            "user": user_data
         }), 200
 
     except Exception as e:

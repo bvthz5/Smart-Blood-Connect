@@ -63,6 +63,8 @@ const HospitalStaffDashboard = () => {
 
   const onLogout = () => {
     localStorage.removeItem('seeker_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('seeker_refresh_token');
     localStorage.removeItem('seeker_temp_token');
     navigate('/seeker/login', { replace: true });
   };

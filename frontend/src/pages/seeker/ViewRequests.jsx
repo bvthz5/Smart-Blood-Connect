@@ -47,7 +47,7 @@ const ViewRequests = () => {
     });
   }, [rows, q, status, urgency, blood]);
 
-  const onLogout = () => { localStorage.removeItem('seeker_token'); window.location.href = '/seeker/login'; };
+  const onLogout = () => { localStorage.removeItem('seeker_token'); localStorage.removeItem('token'); localStorage.removeItem('seeker_refresh_token'); window.location.href = '/seeker/login'; };
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page-1)*pageSize, page*pageSize);

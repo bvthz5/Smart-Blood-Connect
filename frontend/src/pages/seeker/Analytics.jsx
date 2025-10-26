@@ -9,6 +9,8 @@ import './Analytics.css';
 const Analytics = () => {
   const onLogout = () => {
     localStorage.removeItem('seeker_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('seeker_refresh_token');
     redirectToLogin();
   };
   return (

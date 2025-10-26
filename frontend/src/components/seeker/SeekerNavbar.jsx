@@ -42,14 +42,6 @@ const SeekerNavbar = ({ onLogout }) => {
       <div className="seekernav-left">
         <div className="brand">🏥 Smart Blood Connect <span>{hospitalName ? `| ${hospitalName}` : ''}</span></div>
       </div>
-      <div className="seekernav-search">
-        <input
-          placeholder="Search requests (ID / patient ref)"
-          value={query}
-          onChange={(e)=>setQuery(e.target.value)}
-          onKeyDown={(e)=>{ if (e.key==='Enter'){ const s=query.trim(); if(s) nav(`/seeker/requests?search=${encodeURIComponent(s)}`); } }}
-        />
-      </div>
       <div className="seekernav-right" ref={ref}>
         <button className="icon-btn" title="Notifications" onClick={() => { window.location.href = '/seeker/notifications'; }}>
           <span className="bell">🔔</span>

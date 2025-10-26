@@ -29,7 +29,7 @@ const SeekerSidebar = () => {
       </nav>
       <div className="side-bottom">
         <NavLink to="/contact" className="link">❓ <span>Help & Support</span></NavLink>
-        <button className="link" onClick={()=>{ localStorage.removeItem('seeker_token'); window.location.href='/seeker/login'; }}>🚪 <span>Logout</span></button>
+        <button className="link" onClick={()=>{ localStorage.removeItem('seeker_token'); localStorage.removeItem('token'); localStorage.removeItem('seeker_refresh_token'); window.location.href='/seeker/login'; }}>🚪 <span>Logout</span></button>
       </div>
 
     </div>

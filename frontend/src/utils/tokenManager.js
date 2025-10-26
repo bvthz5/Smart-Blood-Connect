@@ -133,10 +133,5 @@ export const tokenManager = {
   }
 };
 
-// Auto-clear expired tokens on page load
-if (typeof window !== 'undefined') {
-  // Check token validity on page load
-  if (!tokenManager.isAuthenticated()) {
-    tokenManager.clearTokens();
-  }
-}
+// Note: Auto-clear logic removed to prevent interference with donor/seeker tokens
+// Token validation is now handled by individual route guards and API interceptors

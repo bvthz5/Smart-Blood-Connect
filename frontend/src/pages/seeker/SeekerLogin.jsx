@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import seekerService from "../../services/seekerService";
+import tokenStorage from "../../utils/tokenStorage";
 import Nav from "../../components/Nav";
 import "./SeekerLogin.css";
 
@@ -130,15 +131,19 @@ export default function SeekerLogin() {
         return;
       }
 
-      // Persist tokens and user linkage
-      localStorage.setItem('seeker_token', data.access_token);
-      localStorage.setItem('seeker_refresh_token', data.refresh_token);
-      localStorage.setItem('seeker_user_id', String(u.id));
-      localStorage.setItem('seeker_user_role', u.role);
-      localStorage.setItem('seeker_hospital_id', String(u.hospital_id));
-      if (u.email) localStorage.setItem('seeker_user_email', u.email);
-      if (u.phone) localStorage.setItem('seeker_user_phone', u.phone);
-      localStorage.setItem('user_type', 'seeker');
+      // Persist tokens and user linkage using robust storage
+      const saved = tokenStorage.saveTokens(data.access_token, data.refresh_token, {
+        id: u.id,
+        role: u.role,
+        email: u.email,
+        phone: u.phone,
+        hospital_id: u.hospital_id
+      });
+
+      if (!saved) {
+        setToast('Failed to save session. Please try again.');
+        return;
+      }
 
       navigate('/seeker/dashboard', { replace: true });
     } catch (err) {

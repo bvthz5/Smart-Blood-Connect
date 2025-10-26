@@ -1,4 +1,5 @@
 import axios from 'axios';
+import tokenStorage from '../utils/tokenStorage';
 
 // Configure API base URL
 // Prefer environment variable only if it's set and doesn't point to a known-bad port (1408).
@@ -67,10 +68,19 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const url = typeof config.url === 'string' ? config.url : '';
+      
+      // Skip auth if explicitly requested (e.g., for refresh endpoint)
+      if (config.headers && config.headers['Skip-Auth']) {
+        delete config.headers['Skip-Auth'];
+        delete config.headers.Authorization;
+        return config;
+      }
+      
       // If caller explicitly provided Authorization, don't override it
       if (config.headers && config.headers.Authorization) {
         return config;
       }
+      
       const isAdminPath = url.startsWith('/admin') || url.startsWith('/api/admin');
       if (isAdminPath) {
         // Admin module: ONLY use admin access token
@@ -86,7 +96,7 @@ api.interceptors.request.use(
         const isDonorContext = path.startsWith('/donor') || url.startsWith('/api/donors');
 
         const donorToken = localStorage.getItem('access_token');
-        const seekerToken = localStorage.getItem('seeker_token') || localStorage.getItem('token');
+        const seekerToken = tokenStorage.getAccessToken();
 
         if (isDonorContext && donorToken) {
           config.headers.Authorization = `Bearer ${donorToken}`;
@@ -95,8 +105,6 @@ api.interceptors.request.use(
         } else if (donorToken) {
           // Fallback: if donor token exists and no seeker token, use donor token
           config.headers.Authorization = `Bearer ${donorToken}`;
-        } else if (config.headers && config.headers.Authorization) {
-          delete config.headers.Authorization;
         }
       }
     }
@@ -179,7 +187,10 @@ api.interceptors.response.use(
           // Avoid multiple simultaneous refreshes
           if (!isRefreshing) {
             isRefreshing = true;
-            refreshPromise = api.post('/api/auth/refresh', { refresh_token: refreshTokenValue })
+            // Don't include Authorization header in refresh request
+            refreshPromise = api.post('/api/auth/refresh', { refresh_token: refreshTokenValue }, {
+              headers: { 'Skip-Auth': 'true' } // Custom flag to skip auth interceptor
+            })
               .then((res) => {
                 const newAccess = res?.data?.access_token;
                 const newRefresh = res?.data?.refresh_token;
@@ -212,12 +223,59 @@ api.interceptors.response.use(
             return api(originalRequest);
           });
         } else {
-          // Clear seeker tokens and redirect to seeker login
-          localStorage.removeItem('seeker_token');
-          localStorage.removeItem('token');
-          localStorage.removeItem('seeker_refresh_token');
-          localStorage.setItem('toast_message', 'Your session expired. Please login again.');
-          window.location.href = '/seeker/login';
+          // Seeker route - attempt token refresh
+          const seekerRefreshToken = tokenStorage.getRefreshToken();
+          
+          if (!seekerRefreshToken) {
+            // No refresh token available, redirect to login
+            tokenStorage.clearTokens();
+            localStorage.setItem('toast_message', 'Your session expired. Please login again.');
+            window.location.href = '/seeker/login';
+            return Promise.reject(error);
+          }
+
+          // Avoid multiple simultaneous refreshes
+          if (!isRefreshing) {
+            isRefreshing = true;
+            // Don't include Authorization header in refresh request
+            refreshPromise = api.post('/api/auth/refresh', { refresh_token: seekerRefreshToken }, {
+              headers: { 'Skip-Auth': 'true' } // Custom flag to skip auth interceptor
+            })
+              .then((res) => {
+                const newAccess = res?.data?.access_token;
+                const newRefresh = res?.data?.refresh_token;
+                if (newAccess && newRefresh) {
+                  tokenStorage.updateTokens(newAccess, newRefresh);
+                  resolvePendingRequests(newAccess);
+                  return newAccess;
+                } else if (newAccess) {
+                  tokenStorage.updateAccessToken(newAccess);
+                  resolvePendingRequests(newAccess);
+                  return newAccess;
+                }
+                throw new Error('No tokens in refresh response');
+              })
+              .catch((e) => {
+                rejectPendingRequests(e);
+                // On refresh failure, logout seeker
+                tokenStorage.clearTokens();
+                localStorage.setItem('toast_message', 'Your session expired. Please login again.');
+                window.location.href = '/seeker/login';
+                throw e;
+              })
+              .finally(() => {
+                isRefreshing = false;
+                refreshPromise = null;
+              });
+          }
+
+          // Queue this failed request to retry after refresh
+          return enqueuePendingRequest((newToken) => {
+            if (!newToken) return Promise.reject(error);
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            return api(originalRequest);
+          });
         }
       }
 
