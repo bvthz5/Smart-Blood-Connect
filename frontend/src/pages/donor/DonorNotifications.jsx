@@ -18,32 +18,60 @@ const DonorNotifications = () => {
     loadNotifications();
 
     // Connect socket and subscribe to events
-    const sock = connectSocket();
+    let sock;
+    try {
+      sock = connectSocket();
+    } catch (error) {
+      console.warn('[DonorNotifications] Failed to connect socket:', error);
+    }
+    
     if (sock) {
-      sock.on('notification:new', (payload) => {
-        // Prepend new notification
-        setNotifications((prev) => [{
-          id: payload.id || Date.now(),
-          type: payload.type || 'request',
-          title: payload.title || 'Notification',
-          message: payload.message || 'You have a new update.',
-          time: payload.created_at ? new Date(payload.created_at).toLocaleString() : new Date().toLocaleString(),
-          is_read: false,
-          icon: payload.type === 'badge' ? '🏆' : payload.type === 'certificate' ? '📜' : '🩸'
-        }, ...prev]);
-      });
+      const handleNewNotification = (payload) => {
+        try {
+          // Prepend new notification
+          setNotifications((prev) => [{
+            id: payload.id || Date.now(),
+            type: payload.type || 'request',
+            title: payload.title || 'Notification',
+            message: payload.message || 'You have a new update.',
+            time: payload.created_at ? new Date(payload.created_at).toLocaleString() : new Date().toLocaleString(),
+            is_read: false,
+            icon: payload.type === 'badge' ? '🏆' : payload.type === 'certificate' ? '📜' : '🩸'
+          }, ...prev]);
+        } catch (error) {
+          console.warn('[DonorNotifications] Error handling new notification:', error);
+        }
+      };
 
-      sock.on('notification:refresh', () => {
-        loadNotifications();
-      });
+      const handleRefresh = () => {
+        try {
+          loadNotifications();
+        } catch (error) {
+          console.warn('[DonorNotifications] Error handling refresh:', error);
+        }
+      };
+
+      sock.on('notification:new', handleNewNotification);
+      sock.on('notification:refresh', handleRefresh);
+
+      // Store event handlers for cleanup
+      sock._handlers = {
+        'notification:new': handleNewNotification,
+        'notification:refresh': handleRefresh
+      };
     }
 
     return () => {
       const s = getSocket();
-      if (s) {
+      if (s && s._handlers) {
+        try { 
+          s.off('notification:new', s._handlers['notification:new']); 
+          s.off('notification:refresh', s._handlers['notification:refresh']); 
+        } catch (_) {}
+      } else if (s) {
         try { s.off('notification:new'); s.off('notification:refresh'); } catch (_) {}
       }
-      disconnectSocket();
+      try { disconnectSocket(); } catch (_) {}
     };
   }, []);
 

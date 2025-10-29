@@ -12,7 +12,8 @@ import './styles/performance.css';
 // CRITICAL: Suppress extension errors BEFORE anything else loads
 window.addEventListener('error', (event) => {
   if (event.error && event.error.message && 
-      event.error.message.includes('message channel closed before a response was received')) {
+      (event.error.message.includes('message channel closed before a response was received') ||
+       event.error.message.includes('A listener indicated an asynchronous response'))) {
     event.preventDefault();
     return false;
   }
@@ -20,7 +21,8 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
   if (event.reason && event.reason.message && 
-      event.reason.message.includes('message channel closed before a response was received')) {
+      (event.reason.message.includes('message channel closed before a response was received') ||
+       event.reason.message.includes('A listener indicated an asynchronous response'))) {
     event.preventDefault();
   }
 }, true); // Use capture phase

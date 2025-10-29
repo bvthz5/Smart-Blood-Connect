@@ -25,7 +25,8 @@ import {
   Loader,
   Target,
   FileText,
-  FileDown
+  FileDown,
+  ClipboardList
 } from 'lucide-react';
 import './DonationHistory.css';
 import donationHistoryService from '../../services/donationHistoryService';
@@ -288,7 +289,10 @@ const DonationHistoryContent = () => {
           <div className="header-actions">
             <button 
               className="btn btn-secondary"
-              onClick={loadDonations}
+              onClick={() => {
+                setLoading(true);
+                loadDonations().then(() => setLoading(false));
+              }}
               disabled={loading}
             >
               <RefreshCw className={`icon ${loading ? 'spinning' : ''}`} />
@@ -301,14 +305,6 @@ const DonationHistoryContent = () => {
             >
               <FileDown className="icon" />
               Export CSV
-            </button>
-            <button 
-              className="btn btn-outline"
-              onClick={exportToPDF}
-              disabled={exportLoading}
-            >
-              <FileText className="icon" />
-              Export PDF
             </button>
           </div>
         </div>

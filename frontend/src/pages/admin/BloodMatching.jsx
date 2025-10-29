@@ -522,23 +522,30 @@ const BloodMatchingContent = () => {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      <button 
+                      <button
+                        type="button"
+                        aria-label="View Details"
                         className="action-btn view"
                         onClick={() => handleViewDetails(match)}
                         title="View Details"
                       >
-                        <Eye size={16} />
+                        {/* use icon class so sizing/stroke can be controlled by CSS for consistent look */}
+                        <Eye className="icon view-icon" aria-hidden="true" />
                       </button>
                       {match.status === 'pending' && (
                         <>
-                          <button 
+                          <button
+                            type="button"
+                            aria-label="Accept Match"
                             className="action-btn accept"
                             onClick={() => handleStatusChange(match, 'accepted')}
                             title="Accept Match"
                           >
                             <Check size={16} />
                           </button>
-                          <button 
+                          <button
+                            type="button"
+                            aria-label="Decline Match"
                             className="action-btn decline"
                             onClick={() => handleStatusChange(match, 'declined')}
                             title="Decline Match"
@@ -548,7 +555,9 @@ const BloodMatchingContent = () => {
                         </>
                       )}
                       {match.status === 'accepted' && (
-                        <button 
+                        <button
+                          type="button"
+                          aria-label="Mark as Completed"
                           className="action-btn complete"
                           onClick={() => handleStatusChange(match, 'completed')}
                           title="Mark as Completed"

@@ -26,21 +26,31 @@ export function connectSocket(options = {}) {
     return token ? { token } : {};
   })();
 
-  socket = io(url, {
-    path: '/socket.io',
-    transports: ['websocket'],
-    autoConnect: true,
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    auth,
-  });
+  try {
+    socket = io(url, {
+      path: '/socket.io',
+      transports: ['websocket'],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      auth,
+      timeout: 10000, // Add timeout to prevent hanging connections
+    });
 
-  socket.on('connect', () => console.info('[socket] connected', socket.id));
-  socket.on('disconnect', (reason) => console.info('[socket] disconnected', reason));
-  socket.on('connect_error', (err) => console.warn('[socket] connect_error', err?.message || err));
+    socket.on('connect', () => console.info('[socket] connected', socket.id));
+    socket.on('disconnect', (reason) => console.info('[socket] disconnected', reason));
+    socket.on('connect_error', (err) => {
+      console.warn('[socket] connect_error', err?.message || err);
+      // Don't let connection errors propagate
+      return true;
+    });
 
-  return socket;
+    return socket;
+  } catch (error) {
+    console.error('[socket] Failed to initialize socket:', error);
+    return null;
+  }
 }
 
 export function getSocket() {

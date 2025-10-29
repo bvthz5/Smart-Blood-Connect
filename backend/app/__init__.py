@@ -1,6 +1,6 @@
 import os
 import sys
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 # from flask_cors import CORS  # Removed - using manual CORS headers
 from dotenv import load_dotenv
 from flasgger import Swagger
@@ -12,24 +12,47 @@ from app.config.email_config import EmailConfig
 
 def configure_cors(app):
     """Configure CORS for cross-origin requests"""
-    # Manual CORS headers for all requests
+    # Handle OPTIONS preflight requests
+    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+    @app.route('/<path:path>', methods=['OPTIONS'])
+    def handle_options(path):
+        # Get the Origin header from the request
+        origin = request.headers.get('Origin', '*')
+        response = app.make_default_options_response()
+        
+        # Set CORS headers
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = (
+            'Content-Type,Authorization,X-Requested-With,Accept,Origin,'
+            'Access-Control-Request-Method,Access-Control-Request-Headers'
+        )
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        response.headers['Vary'] = 'Origin'
+        return response
+
+    # Add CORS headers to all responses
     @app.after_request
     def after_request(response):
-        # Only add CORS headers if they don't already exist
-        if 'Access-Control-Allow-Origin' not in response.headers:
-            response.headers['Access-Control-Allow-Origin'] = '*'
-        if 'Access-Control-Allow-Headers' not in response.headers:
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With'
-        if 'Access-Control-Allow-Methods' not in response.headers:
-            response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
-        if 'Access-Control-Allow-Credentials' not in response.headers:
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        # Get the Origin header from the request
+        origin = request.headers.get('Origin', '*')
         
-        # Explicitly set Content-Type for JSON responses to prevent CORB
+        # Set CORS headers
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = (
+            'Content-Type,Authorization,X-Requested-With,Accept,Origin,'
+            'Access-Control-Request-Method,Access-Control-Request-Headers'
+        )
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Vary'] = 'Origin'
+        
+        # Explicitly set Content-Type for JSON responses
         if response.is_json or response.content_type == 'application/json':
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
         
-        # Add X-Content-Type-Options to prevent MIME sniffing
+        # Security headers
         response.headers['X-Content-Type-Options'] = 'nosniff'
         
         return response
@@ -114,10 +137,11 @@ def register_blueprints(app):
     from .admin.dashboard import admin_dashboard_bp
     from .requests.routes import req_bp
     from .admin.match_routes import admin_match_bp
+    from .admin.donation_routes import donation_bp
     from .api.health import health_bp
     from .homepage.routes import homepage_bp
     from .ml.routes import ml_bp
-    from .staff import staff_bp
+    from .staff.routes import staff_bp
     from .seeker.routes import seeker_bp
 
 
@@ -129,6 +153,7 @@ def register_blueprints(app):
     app.register_blueprint(admin_dashboard_bp)
     app.register_blueprint(req_bp)
     app.register_blueprint(admin_match_bp)
+    app.register_blueprint(donation_bp)  # The donation blueprint has its own url_prefix
     app.register_blueprint(health_bp)
     app.register_blueprint(homepage_bp)
     app.register_blueprint(seeker_bp)
@@ -200,6 +225,21 @@ def initialize_database(app):
                 # Don't raise, just continue - tables might already exist
                 print("Continuing with existing database...")
 
+# Global variable to track if routes have been listed
+_routes_listed = False
+
+def list_routes():
+    """Print all registered routes"""
+    global _routes_listed
+    if not _routes_listed:
+        from flask import current_app
+        print("\nRegistered Routes:")
+        print("-"*50)
+        for rule in current_app.url_map.iter_rules():
+            print(f"Rule: {rule}, Endpoint: {rule.endpoint}")
+        print("-"*50 + "\n")
+        _routes_listed = True
+
 def create_app(config_name='default'):
     """Application factory pattern"""
     # Load environment variables from .env file
@@ -212,6 +252,11 @@ def create_app(config_name='default'):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+
+    # Register the route listing function to run once on first request
+    @app.before_request
+    def before_first_request():
+        list_routes()
 
     # Global error handlers
     @app.errorhandler(Exception)

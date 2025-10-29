@@ -32,12 +32,44 @@ export default defineConfig({
       allow: ['..']
     },
     proxy: {
-      '/api': {
+      '^/api/admin': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false,
+        ws: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            if (req.method === 'OPTIONS') {
+              proxyReq.setHeader('Access-Control-Allow-Origin', '*');
+              proxyReq.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+              proxyReq.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+              proxyReq.setHeader('Access-Control-Max-Age', '3600');
+            }
+          });
+          proxy.on('error', (err, req, res) => {
+            console.warn('Proxy error:', err);
+          });
+        },
       },
-      // Note: Admin API calls use absolute baseURL (http://127.0.0.1:5000) via axios, so no '/admin/*' proxies here
+      '^/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            if (req.method === 'OPTIONS') {
+              proxyReq.setHeader('Access-Control-Allow-Origin', '*');
+              proxyReq.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+              proxyReq.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+              proxyReq.setHeader('Access-Control-Max-Age', '3600');
+            }
+          });
+          proxy.on('error', (err, req, res) => {
+            console.warn('Proxy error:', err);
+          });
+        },
+      }
     }
   },
   build: {

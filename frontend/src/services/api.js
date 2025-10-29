@@ -334,4 +334,8 @@ export async function adminGenerateMatches(payload) {
   return api.post("/api/admin/match/generate", payload);
 }
 
+export async function getAdminDashboard() {
+  return api.get('/api/admin/dashboard/');
+}
+
 export default api;

@@ -234,7 +234,8 @@ const DonorManagementContent = () => {
       await fetchDonors();
       await fetchStats();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete donor');
+      const errorMsg = err.response?.data?.message || 'Failed to delete donor';
+      setError(errorMsg);
     } finally {
       setActionLoading(false);
     }
@@ -251,7 +252,8 @@ const DonorManagementContent = () => {
       await fetchDonors();
       await fetchStats();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update donor status');
+      const errorMsg = err.response?.data?.message || `Failed to ${selectedDonor.status === 'blocked' ? 'unblock' : 'block'} donor`;
+      setError(errorMsg);
     } finally {
       setActionLoading(false);
     }
@@ -338,7 +340,8 @@ const DonorManagementContent = () => {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError('Failed to export donors. Please try again.');
+      const errorMsg = 'Failed to export donors. Please try again.';
+      setError(errorMsg);
       console.error('Export error:', err);
     }
   };
@@ -355,10 +358,6 @@ const DonorManagementContent = () => {
             <h1>Donor Management</h1>
           </div>
           <div className="header-actions">
-            <button className="btn-primary">
-              <Plus size={16} />
-              Add Donor
-            </button>
             <button className="btn-secondary" onClick={exportCsv}>
               <Download size={16} />
               Export CSV

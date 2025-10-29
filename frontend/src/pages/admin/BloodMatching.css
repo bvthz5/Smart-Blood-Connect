@@ -603,73 +603,43 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.12s ease, color 0.12s ease;
+  background: transparent; /* remove background color */
+  box-shadow: none; /* remove shadow */
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.action-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.1);
-  opacity: 0;
-  transition: opacity 0.2s ease;
+.action-btn:hover {
+  transform: scale(1.06);
 }
 
-.action-btn:hover::before {
-  opacity: 1;
+/* Icon color variants (no background) */
+.action-btn.view svg {
+  color: var(--color-primary);
+}
+.action-btn.accept svg {
+  color: var(--color-success);
+}
+.action-btn.decline svg {
+  color: var(--color-error);
+}
+.action-btn.complete svg {
+  color: var(--color-primary);
 }
 
-.action-btn.view {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.25) 100%);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+/* Hover color intensification */
+.action-btn.view:hover svg {
+  color: color-mix(in srgb, var(--color-primary) 80%, black 20%);
 }
-
-.action-btn.view:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.35) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+.action-btn.accept:hover svg {
+  color: color-mix(in srgb, var(--color-success) 80%, black 20%);
 }
-
-.action-btn.accept {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.25) 100%);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+.action-btn.decline:hover svg {
+  color: color-mix(in srgb, var(--color-error) 80%, black 20%);
 }
-
-.action-btn.accept:hover {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.35) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.action-btn.decline {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.25) 100%);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.action-btn.decline:hover {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.35) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-
-.action-btn.complete {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.25) 100%);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.action-btn.complete:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.35) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+.action-btn.complete:hover svg {
+  color: color-mix(in srgb, var(--color-primary) 80%, black 20%);
 }
 
 .action-btn:active {
@@ -684,6 +654,33 @@
 
 .action-btn:hover svg {
   transform: scale(1.1);
+}
+
+/* Professional, consistent icon sizing and stroke for view button */
+.action-btn .icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  color: inherit; /* allow parent color to control icon color */
+  stroke-width: 1.6; /* slightly bolder stroke for clarity */
+  fill: none; /* ensure outline icon only */
+  vector-effect: non-scaling-stroke; /* keep stroke thickness consistent when scaling */
+}
+
+/* specifically tighten the view icon to use the primary color without any background */
+.action-btn.view {
+  background: transparent; /* explicit override: no background */
+  border: none; /* no border like other icon-only controls */
+  padding: 0; /* let sizing come from width/height */
+}
+
+.action-btn.view .icon {
+  color: var(--color-primary);
+}
+
+.action-btn.view:hover .icon {
+  color: color-mix(in srgb, var(--color-primary) 85%, black 15%);
+  transform: scale(1.12);
 }
 
 /* Pagination */

@@ -1,7 +1,7 @@
 """create ml tables
 
 Revision ID: create_ml_tables_001
-Revises: add_state_pincode_remove_location
+Revises: add_state_pincode
 Create Date: 2025-10-27 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'create_ml_tables_001'
-down_revision = 'add_state_pincode_remove_location'
+down_revision = 'add_state_pincode'
 branch_labels = None
 depends_on = None
 

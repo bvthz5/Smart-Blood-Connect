@@ -19,7 +19,7 @@ const donationHistoryService = {
       if (params.date_to) queryParams.append('date_to', params.date_to);
       if (params.status) queryParams.append('status', params.status);
       
-      const response = await api.get(`/admin/donation-history?${queryParams.toString()}`);
+      const response = await api.get(`/api/admin/donation-history?${queryParams.toString()}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching donation history:', error);
@@ -40,7 +40,7 @@ const donationHistoryService = {
       if (params.date_from) queryParams.append('date_from', params.date_from);
       if (params.date_to) queryParams.append('date_to', params.date_to);
       
-      const response = await api.get(`/admin/donation-history/export?${queryParams.toString()}`, {
+      const response = await api.get(`/api/admin/donation-history/export?${queryParams.toString()}`, {
         responseType: 'blob'
       });
       
@@ -72,7 +72,7 @@ const donationHistoryService = {
   // Get donation history statistics
   getDonationStats: async () => {
     try {
-      const response = await api.get('/admin/donation-history/stats');
+      const response = await api.get('/api/admin/donation-history/stats');
       return response.data;
     } catch (error) {
       console.error('Error fetching donation stats:', error);

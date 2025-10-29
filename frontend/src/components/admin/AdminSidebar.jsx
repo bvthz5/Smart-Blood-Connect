@@ -25,7 +25,7 @@ const AdminSidebar = ({ collapsed, onToggle }) => {
   const [expandedSections, setExpandedSections] = useState({
     donors: true,
     hospitals: true,
-    analytics: false
+    // analytics section removed
   });
 
   const toggleSection = (section) => {
@@ -94,19 +94,7 @@ const AdminSidebar = ({ collapsed, onToggle }) => {
         { label: 'Request Calendar', path: '/admin/requests/calendar', icon: Calendar }
       ]
     },
-    {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: BarChart3,
-      path: '/admin/analytics',
-      badge: null,
-      children: [
-        { label: 'Overview', path: '/admin/analytics', icon: BarChart3 },
-        { label: 'Donation Trends', path: '/admin/analytics/trends', icon: TrendingUp },
-        { label: 'Geographic Data', path: '/admin/analytics/geographic', icon: MapPin },
-        { label: 'Performance Metrics', path: '/admin/analytics/performance', icon: Activity }
-      ]
-    },
+    // Analytics section removed
     {
       id: 'settings',
       label: 'Settings',

@@ -68,13 +68,6 @@ const Sidebar = ({ collapsed, onToggle, isMobile }) => {
       badge: null
     },
     {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: BarChart3,
-      path: '/admin/analytics',
-      badge: null
-    },
-    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,

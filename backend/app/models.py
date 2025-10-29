@@ -167,7 +167,16 @@ class DonationHistory(db.Model):
     hospital_id = db.Column(db.Integer, db.ForeignKey("hospitals.id", ondelete="CASCADE"))
     units = db.Column(db.Integer, nullable=False)
     donation_date = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="completed")  # completed, cancelled
+    location = db.Column(db.String(255))  # Location where donation took place
+    notes = db.Column(db.Text)  # Additional notes about the donation
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Relationships
+    donor = db.relationship("Donor", backref="donations")
+    hospital = db.relationship("Hospital", backref="donations")
+    request = db.relationship("Request", backref="donation", uselist=False)
 
 
 # ============================================================================

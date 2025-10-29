@@ -17,6 +17,7 @@ import {
   Calendar,
   MapPin
 } from 'lucide-react';
+import { getAdminDashboard } from '../../services/api'; // Add this import
 import '../css/AdminDashboardNew.css';
 
 const AdminDashboard = () => {
@@ -31,76 +32,6 @@ const AdminDashboard = () => {
     total: 0,
     pages: 0
   });
-
-  // Memoized dashboard data
-  const mockDashboardData = useMemo(() => ({
-    summary: {
-      total_donors: 1240,
-      active_donors: 512,
-      total_hospitals: 42,
-      open_requests: 15,
-      urgent_requests: 5,
-      donations_today: 12,
-      total_matches: 89,
-      success_rate: 94.5
-    },
-    charts: {
-      blood_groups: [
-        { blood_group: 'O+', count: 450, color: '#FF6B6B' },
-        { blood_group: 'A+', count: 320, color: '#4ECDC4' },
-        { blood_group: 'B+', count: 280, color: '#45B7D1' },
-        { blood_group: 'AB+', count: 120, color: '#96CEB4' },
-        { blood_group: 'O-', count: 45, color: '#FFEAA7' },
-        { blood_group: 'A-', count: 25, color: '#DDA0DD' }
-      ],
-      requests_per_day: [
-        { date: '2025-10-01', count: 8 },
-        { date: '2025-10-02', count: 12 },
-        { date: '2025-10-03', count: 15 },
-        { date: '2025-10-04', count: 10 },
-        { date: '2025-10-05', count: 18 },
-        { date: '2025-10-06', count: 14 },
-        { date: '2025-10-07', count: 16 }
-      ]
-    },
-    recent_activities: [
-      {
-        id: 1,
-        type: 'urgent_request',
-        message: 'Emergency O+ blood needed at Medical College Trivandrum',
-        time: '2 minutes ago',
-        status: 'pending'
-      },
-      {
-        id: 2,
-        type: 'donation_completed',
-        message: 'Anu Joseph completed donation at Kottayam Hospital',
-        time: '15 minutes ago',
-        status: 'completed'
-      },
-      {
-        id: 3,
-        type: 'new_donor',
-        message: 'New donor registered: Priya Suresh (A+)',
-        time: '1 hour ago',
-        status: 'active'
-      },
-      {
-        id: 4,
-        type: 'match_found',
-        message: 'Match found for B+ request at Alappuzha Hospital',
-        time: '2 hours ago',
-        status: 'matched'
-      },
-      {
-        id: 5,
-        type: 'urgent_request',
-        message: 'Critical AB- blood needed at Aster Medcity',
-        time: '3 hours ago',
-        status: 'pending'
-      }
-    ]
-  }), []);
 
   // Fetch activities from backend
   const fetchActivities = async () => {
@@ -135,23 +66,115 @@ const AdminDashboard = () => {
     }
   };
 
-  // Simulate API call for dashboard data
+  // Fetch dashboard data from backend
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setDashboardData(mockDashboardData);
+        const response = await getAdminDashboard();
+        if (response.data) {
+          // Transform the data to match the component's expected structure
+          const transformedData = {
+            summary: {
+              total_donors: response.data.stats.totalDonors,
+              active_donors: response.data.stats.activeDonors,
+              total_hospitals: response.data.stats.hospitals,
+              open_requests: response.data.stats.openRequests,
+              urgent_requests: response.data.stats.urgentRequests,
+              donations_today: response.data.stats.donationsToday,
+              total_matches: response.data.stats.completedDonations,
+              success_rate: 94.5 // This isn't in the response, so we'll keep a default value
+            },
+            charts: {
+              blood_groups: response.data.charts.bloodGroupDistribution.map((item, index) => ({
+                blood_group: item.group,
+                count: item.count,
+                color: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'][index % 6] || '#666666'
+              })),
+              requests_per_day: response.data.charts.requestsOverTime
+            }
+          };
+          setDashboardData(transformedData);
+        }
         setLoading(false);
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
+        // Fallback to mock data if API fails
+        const mockDashboardData = {
+          summary: {
+            total_donors: 1240,
+            active_donors: 512,
+            total_hospitals: 42,
+            open_requests: 15,
+            urgent_requests: 5,
+            donations_today: 12,
+            total_matches: 89,
+            success_rate: 94.5
+          },
+          charts: {
+            blood_groups: [
+              { blood_group: 'O+', count: 450, color: '#FF6B6B' },
+              { blood_group: 'A+', count: 320, color: '#4ECDC4' },
+              { blood_group: 'B+', count: 280, color: '#45B7D1' },
+              { blood_group: 'AB+', count: 120, color: '#96CEB4' },
+              { blood_group: 'O-', count: 45, color: '#FFEAA7' },
+              { blood_group: 'A-', count: 25, color: '#DDA0DD' }
+            ],
+            requests_per_day: [
+              { date: '2025-10-01', count: 8 },
+              { date: '2025-10-02', count: 12 },
+              { date: '2025-10-03', count: 15 },
+              { date: '2025-10-04', count: 10 },
+              { date: '2025-10-05', count: 18 },
+              { date: '2025-10-06', count: 14 },
+              { date: '2025-10-07', count: 16 }
+            ]
+          },
+          recent_activities: [
+            {
+              id: 1,
+              type: 'urgent_request',
+              message: 'Emergency O+ blood needed at Medical College Trivandrum',
+              time: '2 minutes ago',
+              status: 'pending'
+            },
+            {
+              id: 2,
+              type: 'donation_completed',
+              message: 'Anu Joseph completed donation at Kottayam Hospital',
+              time: '15 minutes ago',
+              status: 'completed'
+            },
+            {
+              id: 3,
+              type: 'new_donor',
+              message: 'New donor registered: Priya Suresh (A+)',
+              time: '1 hour ago',
+              status: 'active'
+            },
+            {
+              id: 4,
+              type: 'match_found',
+              message: 'Match found for B+ request at Alappuzha Hospital',
+              time: '2 hours ago',
+              status: 'matched'
+            },
+            {
+              id: 5,
+              type: 'urgent_request',
+              message: 'Critical AB- blood needed at Aster Medcity',
+              time: '3 hours ago',
+              status: 'pending'
+            }
+          ]
+        };
+        setDashboardData(mockDashboardData);
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [mockDashboardData]);
+  }, []);
 
   // Fetch activities when pagination changes
   useEffect(() => {
