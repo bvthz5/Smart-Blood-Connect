@@ -67,32 +67,32 @@ def get_dashboard_data():
         
         try:
             total_donors = Donor.query.count() or 0
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Total donors query failed: {e}")
             
         try:
             active_donors = Donor.query.filter_by(is_available=True).count() or 0
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Active donors query failed: {e}")
             
         try:
             total_hospitals = Hospital.query.count() or 0
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Total hospitals query failed: {e}")
         
         # Get request statistics
         try:
             pending_requests = Request.query.filter_by(status='pending').count() or 0
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Pending requests query failed: {e}")
             
         try:
             urgent_requests = Request.query.filter(
                 Request.status == 'pending',
                 Request.urgency == 'high'
             ).count() or 0
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Urgent requests query failed: {e}")
         
         # Get donation statistics - safe datetime handling
         try:
@@ -102,7 +102,6 @@ def get_dashboard_data():
             ).count() or 0
         except Exception as e:
             current_app.logger.warning(f"Donations today query failed: {e}")
-            pass
         
         # Get completed donations for this quarter - safe datetime handling
         try:
@@ -116,16 +115,16 @@ def get_dashboard_data():
             ).count() or 0
         except Exception as e:
             current_app.logger.warning(f"Completed donations query failed: {e}")
-            pass
         
         # Get critical alerts (urgent pending requests + low inventory alerts)
         critical_alerts = urgent_requests
         
         # Calculate inventory units (sum of available blood units from donation history)
         try:
-            inventory_units = db.session.query(func.sum(DonationHistory.units)).scalar() or 0
-        except Exception:
-            pass
+            inventory_result = db.session.query(func.sum(DonationHistory.units)).scalar()
+            inventory_units = int(inventory_result) if inventory_result is not None else 0
+        except Exception as e:
+            current_app.logger.warning(f"Inventory units query failed: {e}")
         
         # Get blood group distribution from donors
         blood_group_distribution = []
@@ -137,11 +136,11 @@ def get_dashboard_data():
             
             if blood_group_data:
                 blood_group_distribution = [
-                    {"group": bg, "count": int(count)} 
-                    for bg, count in blood_group_data if bg
+                    {"group": str(bg) if bg else "Unknown", "count": int(count) if count else 0} 
+                    for bg, count in blood_group_data
                 ]
         except Exception as e:
-            current_app.logger.error(f"Blood group distribution error: {e}")
+            current_app.logger.warning(f"Blood group distribution error: {e}")
         
         # Get requests over time (last 7 days) - safer datetime handling
         requests_over_time = []
@@ -165,30 +164,30 @@ def get_dashboard_data():
                     current_app.logger.warning(f"Request count for day {i} failed: {inner_e}")
                     continue
         except Exception as e:
-            current_app.logger.error(f"Requests over time error: {e}")
+            current_app.logger.warning(f"Requests over time error: {e}")
         
         # Get requests by district - with safer join
         district_data = []
         try:
+            # Use outerjoin to handle cases where hospital_id might be null
             requests_by_district = db.session.query(
                 Hospital.district,
                 func.count(Request.id).label('count')
-            ).join(
+            ).outerjoin(
                 Request, Hospital.id == Request.hospital_id
             ).filter(
-                Hospital.district.isnot(None),
-                Request.hospital_id.isnot(None)
+                Hospital.district.isnot(None)
             ).group_by(Hospital.district).order_by(
                 func.count(Request.id).desc()
             ).limit(5).all()
             
             if requests_by_district:
                 district_data = [
-                    {"district": str(district), "count": int(count)}
-                    for district, count in requests_by_district if district
+                    {"district": str(district) if district else "Unknown", "count": int(count) if count else 0}
+                    for district, count in requests_by_district
                 ]
         except Exception as e:
-            current_app.logger.error(f"Requests by district error: {e}")
+            current_app.logger.warning(f"Requests by district error: {e}")
         
         # Get request status analysis
         request_analysis = []
@@ -211,32 +210,26 @@ def get_dashboard_data():
                 request_analysis = [
                     {
                         "status": str(status).capitalize() if status else 'Unknown',
-                        "count": int(count),
-                        "color": status_colors.get(str(status), '#6B7280')
+                        "count": int(count) if count else 0,
+                        "color": status_colors.get(str(status), '#6B7280') if status else '#6B7280'
                     }
-                    for status, count in request_status_data if status
+                    for status, count in request_status_data
                 ]
         except Exception as e:
-            current_app.logger.error(f"Request analysis error: {e}")
+            current_app.logger.warning(f"Request analysis error: {e}")
         
         # Build response with all safe values
-        # Log for debugging
-        current_app.logger.info(f"Blood group distribution: {blood_group_distribution}")
-        current_app.logger.info(f"District data: {district_data}")
-        current_app.logger.info(f"Request analysis: {request_analysis}")
-        current_app.logger.info(f"Requests over time: {requests_over_time}")
-        
         dashboard_data = {
             "stats": {
-                "totalDonors": int(total_donors),
-                "activeDonors": int(active_donors),
-                "hospitals": int(total_hospitals),
-                "openRequests": int(pending_requests),
-                "urgentRequests": int(urgent_requests),
-                "donationsToday": int(donations_today),
-                "completedDonations": int(completed_donations),
-                "criticalAlerts": int(critical_alerts),
-                "inventoryUnits": int(inventory_units)
+                "totalDonors": int(total_donors) if total_donors else 0,
+                "activeDonors": int(active_donors) if active_donors else 0,
+                "hospitals": int(total_hospitals) if total_hospitals else 0,
+                "openRequests": int(pending_requests) if pending_requests else 0,
+                "urgentRequests": int(urgent_requests) if urgent_requests else 0,
+                "donationsToday": int(donations_today) if donations_today else 0,
+                "completedDonations": int(completed_donations) if completed_donations else 0,
+                "criticalAlerts": int(critical_alerts) if critical_alerts else 0,
+                "inventoryUnits": int(inventory_units) if inventory_units else 0
             },
             "charts": {
                 "requestsOverTime": requests_over_time if requests_over_time else [

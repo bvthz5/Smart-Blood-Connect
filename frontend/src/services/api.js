@@ -33,19 +33,24 @@ const api = axios.create({
   },
 });
 
-// Defensive request interceptor: rewrite accidental absolute URLs (e.g. http://127.0.0.1:1408/...) to relative path
+// Request interceptor to handle WebSocket and API requests
 api.interceptors.request.use((config) => {
   try {
+    // Skip for WebSocket upgrade requests
+    if (config.url && config.url.startsWith('ws')) {
+      return config;
+    }
+
+    // Handle absolute URLs
     if (typeof window !== 'undefined' && typeof config.url === 'string') {
       const url = config.url;
       if (/^https?:\/\//i.test(url)) {
-        // If absolute URL contains port 1408, or origin differs from current, rewrite to relative
         const a = document.createElement('a');
         a.href = url;
         const origin = a.origin;
-        if (origin.includes(':1408') || (window.location && origin !== window.location.origin)) {
-          // eslint-disable-next-line no-console
-          console.warn('[api] Rewriting absolute URL to relative for dev proxy:', url);
+        // Only rewrite if it's not a WebSocket and matches our proxy pattern
+        if (!config.url.startsWith('ws') && 
+            (origin.includes(':1408') || (window.location && origin !== window.location.origin))) {
           config.url = a.pathname + (a.search || '') + (a.hash || '');
           config.baseURL = '';
         }
@@ -335,7 +340,7 @@ export async function adminGenerateMatches(payload) {
 }
 
 export async function getAdminDashboard() {
-  return api.get('/api/admin/dashboard/');
+  return api.get('/api/admin/dashboard');
 }
 
 export default api;

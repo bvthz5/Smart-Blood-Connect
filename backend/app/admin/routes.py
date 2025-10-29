@@ -2129,12 +2129,14 @@ def get_all_matches():
                 donor_name = 'Unknown Donor'
                 donor_email = 'N/A'
                 donor_phone = 'N/A'
+                donor_city = 'N/A'  # Add donor city
 
                 if hasattr(donor, 'user') and donor.user:
                     donor_user = donor.user
                     donor_name = f"{getattr(donor_user, 'first_name', '')} {getattr(donor_user, 'last_name', '')}".strip() or 'Unknown Donor'
                     donor_email = getattr(donor_user, 'email', 'N/A')
                     donor_phone = getattr(donor_user, 'phone', 'N/A')
+                    donor_city = getattr(donor_user, 'city', 'N/A')  # Get city from user
 
                 # Safely get hospital information
                 hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
@@ -2151,6 +2153,7 @@ def get_all_matches():
                     "donor_name": donor_name,
                     "donor_email": donor_email,
                     "donor_phone": donor_phone,
+                    "donor_city": donor_city,  # Include donor city in response
                     "hospital_name": hospital_name,
                     "hospital_city": hospital_city,
                     "patient_name": patient_name,
@@ -2238,6 +2241,146 @@ def update_match_status(match_id):
         return jsonify({"error": "Failed to update match status"}), 500
 
 
+@admin_bp.route("/matches/export", methods=["GET"])
+@jwt_required()
+def export_matches():
+    """
+    Export blood matches to CSV
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get query parameters
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '')
+        blood_group = request.args.get('blood_group', '')
+        urgency = request.args.get('urgency', '')
+        
+        # Build query with joins
+        query = db.session.query(Match, Donor, Request, Hospital).join(
+            Donor, Match.donor_id == Donor.id
+        ).join(
+            Request, Match.request_id == Request.id
+        ).join(
+            Hospital, Request.hospital_id == Hospital.id
+        )
+        
+        # Apply filters
+        if search:
+            search_filter = or_(
+                Hospital.name.ilike(f'%{search}%'),
+                Request.patient_name.ilike(f'%{search}%')
+            )
+            query = query.filter(search_filter)
+        
+        if status:
+            query = query.filter(Match.status == status)
+        
+        if blood_group:
+            query = query.filter(Request.blood_group == blood_group)
+        
+        if urgency:
+            query = query.filter(Request.urgency == urgency)
+        
+        # Get all results (no pagination for export)
+        matches = query.all()
+        
+        # Create CSV content
+        csv_content = "Match ID,Donor Name,Donor Email,Donor Phone,Donor City,Hospital Name,Hospital City,Patient Name,Blood Group,Units Required,Urgency,Match Score,Status,Matched Date,Confirmed Date,Completed Date,Notes\n"
+        
+        for match, donor, request_obj, hospital in matches:
+            try:
+                # Safely get donor user information
+                donor_name = 'Unknown Donor'
+                donor_email = 'N/A'
+                donor_phone = 'N/A'
+                donor_city = 'N/A'  # Add donor city
+                
+                if hasattr(donor, 'user') and donor.user:
+                    donor_name = f"{getattr(donor.user, 'first_name', '')} {getattr(donor.user, 'last_name', '')}".strip() or 'Unknown Donor'
+                    donor_email = getattr(donor.user, 'email', 'N/A')
+                    donor_phone = getattr(donor.user, 'phone', 'N/A')
+                    donor_city = getattr(donor.user, 'city', 'N/A')  # Get city from user
+                
+                # Safely get hospital information
+                hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
+                hospital_city = getattr(hospital, 'city', 'N/A')
+                
+                # Safely get request information
+                patient_name = getattr(request_obj, 'patient_name', 'Unknown Patient')
+                blood_group = getattr(request_obj, 'blood_group', 'N/A')
+                units_required = getattr(request_obj, 'units_required', 0)
+                urgency = getattr(request_obj, 'urgency', 'normal')
+                
+                # Calculate match score
+                match_score = calculate_match_score(donor, request_obj)
+                
+                # Format dates
+                matched_date = match.matched_at.strftime('%Y-%m-%d %H:%M:%S') if match.matched_at else 'N/A'
+                confirmed_date = match.confirmed_at.strftime('%Y-%m-%d %H:%M:%S') if match.confirmed_at else 'N/A'
+                completed_date = match.completed_at.strftime('%Y-%m-%d %H:%M:%S') if match.completed_at else 'N/A'
+                
+                # Escape quotes in fields
+                def escape_csv_field(value):
+                    if isinstance(value, str):
+                        return f'"{value.replace("\"", "\"\"")}"'
+                    return value
+                
+                csv_content += f'{match.id},{escape_csv_field(donor_name)},{escape_csv_field(donor_email)},{escape_csv_field(donor_phone)},{escape_csv_field(donor_city)},{escape_csv_field(hospital_name)},{escape_csv_field(hospital_city)},{escape_csv_field(patient_name)},{escape_csv_field(blood_group)},{units_required},{escape_csv_field(urgency)},{match_score},{escape_csv_field(match.status)},{escape_csv_field(matched_date)},{escape_csv_field(confirmed_date)},{escape_csv_field(completed_date)},{escape_csv_field(match.notes or "N/A")}\n'
+            except Exception as e:
+                current_app.logger.warning(f'Error processing match {match.id} for export: {str(e)}')
+                continue
+        
+        # Return CSV content
+        from flask import Response
+        return Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=blood_matches.csv'}
+        )
+        
+    except Exception as e:
+        current_app.logger.exception("Error exporting matches")
+        return jsonify({"error": "Failed to export matches"}), 500
+
+
+@admin_bp.route("/matches/stats", methods=["GET"])
+@jwt_required()
+def get_matches_stats():
+    """
+    Get blood matches statistics
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get statistics
+        total_matches = db.session.query(Match).count()
+        pending_matches = db.session.query(Match).filter(Match.status == 'pending').count()
+        accepted_matches = db.session.query(Match).filter(Match.status == 'accepted').count()
+        completed_matches = db.session.query(Match).filter(Match.status == 'completed').count()
+        
+        return jsonify({
+            "total": total_matches,
+            "pending": pending_matches,
+            "accepted": accepted_matches,
+            "completed": completed_matches
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.exception("Error fetching matches stats")
+        return jsonify({"error": "Failed to fetch matches stats"}), 500
+
+
 def calculate_match_score(donor, request_obj):
     """
     Calculate match score based on various factors
@@ -2258,10 +2401,12 @@ def calculate_match_score(donor, request_obj):
     score += min(donor.reliability_score * 0.3, 30)
     
     # Location proximity (up to 20 points)
-    if donor.city == request_obj.hospital.city:
-        score += 20
-    elif donor.district == request_obj.hospital.district:
-        score += 10
+    # Fix: Access city through donor.user instead of donor.city
+    if hasattr(donor, 'user') and donor.user and hasattr(request_obj, 'hospital') and request_obj.hospital:
+        if getattr(donor.user, 'city', None) == getattr(request_obj.hospital, 'city', None):
+            score += 20
+        elif getattr(donor.user, 'district', None) == getattr(request_obj.hospital, 'district', None):
+            score += 10
     
     # Last donation date (up to 15 points)
     if donor.last_donation_date:

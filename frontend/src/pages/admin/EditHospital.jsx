@@ -248,10 +248,25 @@ const EditHospitalContent = () => {
       }
       
       setSuccess(true);
-      
+      // Notify other parts of the app that a hospital was updated so lists can refresh
+      try {
+        // Dispatch asynchronously to avoid interfering with any extension message handlers
+        // and to prevent potential "message channel closed" errors from propagation.
+        setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('hospital:updated', { detail: { id } }));
+          } catch (innerErr) {
+            console.warn('Could not dispatch hospital:updated event', innerErr);
+          }
+        }, 0);
+      } catch (err) {
+        // ignore if synchronous scheduling fails
+        console.warn('Could not schedule hospital:updated dispatch', err);
+      }
+
       setTimeout(() => {
         navigate('/admin/hospitals');
-      }, 2000);
+      }, 1200);
       
     } catch (err) {
       console.error('Error updating hospital:', err);

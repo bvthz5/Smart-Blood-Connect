@@ -14,16 +14,29 @@ window.addEventListener('error', (event) => {
   if (event.error && event.error.message && 
       (event.error.message.includes('message channel closed before a response was received') ||
        event.error.message.includes('A listener indicated an asynchronous response'))) {
-    event.preventDefault();
-    return false;
+    try {
+      event.preventDefault();
+      event.stopImmediatePropagation?.();
+    } catch (err) {
+      // ignore
+    }
+    return;
   }
 }, true); // Use capture phase to catch errors early
 
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason && event.reason.message && 
-      (event.reason.message.includes('message channel closed before a response was received') ||
-       event.reason.message.includes('A listener indicated an asynchronous response'))) {
-    event.preventDefault();
+  try {
+    let msg = '';
+    if (!event) return;
+    if (typeof event.reason === 'string') msg = event.reason;
+    else if (event.reason && typeof event.reason.message === 'string') msg = event.reason.message;
+
+    if (msg && (msg.includes('message channel closed before a response was received') || msg.includes('A listener indicated an asynchronous response'))) {
+      event.preventDefault();
+      event.stopImmediatePropagation?.();
+    }
+  } catch (err) {
+    // ignore
   }
 }, true); // Use capture phase
 

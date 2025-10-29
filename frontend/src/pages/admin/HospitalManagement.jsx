@@ -95,48 +95,7 @@ const HospitalManagementContent = () => {
     is_verified: false
   });
 
-  // Mock data for development
-  const mockHospitals = [
-    {
-      id: 1,
-      name: 'City General Hospital',
-      email: 'info@citygeneral.com',
-      phone: '+91-9876543210',
-      address: '123 Medical Street, Health District',
-      district: 'Ernakulam',
-      city: 'Kochi',
-      license_number: 'HOS001',
-      is_verified: true,
-      created_at: '2023-06-15T10:30:00Z',
-      updated_at: '2024-01-20T14:25:00Z'
-    },
-    {
-      id: 2,
-      name: 'Metro Medical Center',
-      email: 'contact@metromedical.com',
-      phone: '+91-9876543211',
-      address: '456 Healthcare Avenue, Medical Zone',
-      district: 'Thiruvananthapuram',
-      city: 'Thiruvananthapuram',
-      license_number: 'HOS002',
-      is_verified: false,
-      created_at: '2023-05-20T09:15:00Z',
-      updated_at: '2024-01-18T11:45:00Z'
-    },
-    {
-      id: 3,
-      name: 'Regional Hospital',
-      email: 'admin@regionalhospital.com',
-      phone: '+91-9876543212',
-      address: '789 Health Boulevard, Care District',
-      district: 'Kozhikode',
-      city: 'Kozhikode',
-      license_number: 'HOS003',
-      is_verified: true,
-      created_at: '2023-08-10T16:20:00Z',
-      updated_at: '2024-01-10T08:30:00Z'
-    }
-  ];
+  // NOTE: Removed mock hospitals. Data should come from the API via hospitalService.
 
   const districts = ['Ernakulam', 'Thiruvananthapuram', 'Kozhikode', 'Thrissur', 'Kollam', 'Kannur', 'Alappuzha', 'Palakkad'];
   const cities = ['Kochi', 'Thiruvananthapuram', 'Kozhikode', 'Thrissur', 'Kollam', 'Kannur', 'Alappuzha', 'Palakkad'];
@@ -144,6 +103,22 @@ const HospitalManagementContent = () => {
   useEffect(() => {
     fetchHospitals();
   }, [pagination.page, searchTerm, filters]);
+
+  // Listen for global updates (e.g. when hospital edited on a separate page)
+  useEffect(() => {
+    const onHospitalUpdated = (e) => {
+      // refetch hospitals to reflect latest changes
+      try {
+        fetchHospitals();
+      } catch (err) {
+        // swallow - fetchHospitals handles its own errors
+        console.warn('Failed to refetch hospitals after update', err);
+      }
+    };
+
+    window.addEventListener('hospital:updated', onHospitalUpdated);
+    return () => window.removeEventListener('hospital:updated', onHospitalUpdated);
+  }, []);
 
   const fetchHospitals = async () => {
     setLoading(true);

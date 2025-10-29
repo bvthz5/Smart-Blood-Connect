@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from flasgger import Swagger
 from .config import config
 from .extensions import db, migrate, jwt
+# from .websocket import socketio, init_socketio  # Commented out - websocket module missing
 from .services.database import check_database_connection
 from .services.auth import seed_admin_user
 from app.config.email_config import EmailConfig
@@ -189,7 +190,7 @@ def initialize_ml_models(app):
             print("[ML] ML features will be unavailable")
 
 def initialize_database(app):
-    """Initialize database and create tables if they don't exist"""
+    # Initialize database
     with app.app_context():
         try:
             # Check if tables exist

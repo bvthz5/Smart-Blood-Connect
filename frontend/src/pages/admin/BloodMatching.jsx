@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
 import DashboardLayout from '../../components/admin/DashboardLayout';
+import bloodMatchingService from '../../services/bloodMatchingService';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import {
   Search,
   Filter,
@@ -24,14 +27,33 @@ import {
   Eye,
   Check,
   X,
-  Loader
+  Loader,
+  CheckSquare,
+  XSquare,
+  FileText,
+  UserCheck,
+  UserX,
+  BarChart2,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+//import { Tooltip } from 'react-tooltip';
+//import 'react-tooltip/dist/react-tooltip.css';
 import './BloodMatching.css';
 
 const BloodMatchingContent = () => {
   const { theme } = useTheme();
   const [matches, setMatches] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    accepted: 0,
+    completed: 0
+  });
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -51,134 +73,304 @@ const BloodMatchingContent = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
+  const [socket, setSocket] = useState(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
-  // Mock data for development
-  const mockMatches = [
-    {
-      id: 1,
-      donor_name: 'John Smith',
-      donor_email: 'john.smith@email.com',
-      donor_phone: '+91-9876543210',
-      hospital_name: 'City General Hospital',
-      hospital_city: 'Kochi',
-      patient_name: 'Sarah Johnson',
-      blood_group: 'O+',
-      units_required: 2,
-      urgency: 'high',
-      match_score: 95,
-      status: 'pending',
-      matched_at: '2024-01-20T10:30:00Z',
-      confirmed_at: null,
-      completed_at: null,
-      notes: ''
-    },
-    {
-      id: 2,
-      donor_name: 'Emily Davis',
-      donor_email: 'emily.davis@email.com',
-      donor_phone: '+91-9876543211',
-      hospital_name: 'Metro Medical Center',
-      hospital_city: 'Thiruvananthapuram',
-      patient_name: 'Michael Brown',
-      blood_group: 'A+',
-      units_required: 1,
-      urgency: 'medium',
-      match_score: 88,
-      status: 'accepted',
-      matched_at: '2024-01-19T14:20:00Z',
-      confirmed_at: '2024-01-19T16:45:00Z',
-      completed_at: null,
-      notes: 'Donor confirmed availability'
-    },
-    {
-      id: 3,
-      donor_name: 'Robert Wilson',
-      donor_email: 'robert.wilson@email.com',
-      donor_phone: '+91-9876543212',
-      hospital_name: 'Regional Hospital',
-      hospital_city: 'Kozhikode',
-      patient_name: 'Lisa Anderson',
-      blood_group: 'B+',
-      units_required: 3,
-      urgency: 'low',
-      match_score: 92,
-      status: 'completed',
-      matched_at: '2024-01-18T09:15:00Z',
-      confirmed_at: '2024-01-18T11:30:00Z',
-      completed_at: '2024-01-19T08:00:00Z',
-      notes: 'Donation completed successfully'
-    },
-    {
-      id: 4,
-      donor_name: 'Maria Garcia',
-      donor_email: 'maria.garcia@email.com',
-      donor_phone: '+91-9876543213',
-      hospital_name: 'City General Hospital',
-      hospital_city: 'Kochi',
-      patient_name: 'David Lee',
-      blood_group: 'AB+',
-      units_required: 1,
-      urgency: 'high',
-      match_score: 76,
-      status: 'declined',
-      matched_at: '2024-01-17T13:45:00Z',
-      confirmed_at: null,
-      completed_at: null,
-      notes: 'Donor unavailable due to travel'
-    }
-  ];
-
+  // Blood groups, urgency levels, and status options for filters
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
   const urgencyLevels = ['low', 'medium', 'high'];
   const statusOptions = ['pending', 'accepted', 'declined', 'completed', 'cancelled'];
 
-  useEffect(() => {
-    fetchMatches();
-  }, [pagination.page, searchTerm, filters]);
+  // Sort configuration
+  const [sortConfig, setSortConfig] = useState({
+    key: 'match_score',
+    direction: 'desc'
+  });
 
-  const fetchMatches = async () => {
-    setLoading(true);
+  // Memoized match score calculation
+  const calculateMatchScore = useCallback((match) => {
+    // This is a fallback calculation if the backend doesn't provide a score
+    // The actual score should come from the backend's ML model
+    if (match.match_score !== undefined) {
+      return match.match_score;
+    }
+    
+    // Fallback calculation (should be removed once backend integration is complete)
+    let score = 0;
+    if (match.blood_group_compatibility) score += 30;
+    if (match.distance_km < 50) score += 25;
+    if (match.urgency === 'high') score += 20;
+    if (match.donor_availability) score += 15;
+    if (match.donor_reliability > 0.7) score += 10;
+    return Math.min(100, Math.max(0, score));
+  }, []);
+
+  // Sort matches based on sort configuration
+  const sortedMatches = useCallback(() => {
+    if (!matches.length) return [];
+
+    return [...matches].sort((a, b) => {
+      let aValue, bValue;
+
+      // Handle different sort keys
+      switch (sortConfig.key) {
+        case 'match_score':
+          aValue = calculateMatchScore(a);
+          bValue = calculateMatchScore(b);
+          break;
+        case 'created_at':
+          aValue = new Date(a.created_at);
+          bValue = new Date(b.created_at);
+          break;
+        case 'urgency':
+          const urgencyOrder = { high: 3, medium: 2, low: 1 };
+          aValue = urgencyOrder[a.urgency] || 0;
+          bValue = urgencyOrder[b.urgency] || 0;
+          break;
+        default:
+          aValue = a[sortConfig.key] || '';
+          bValue = b[sortConfig.key] || '';
+      }
+
+      // Handle comparison based on type
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [matches, sortConfig, calculateMatchScore]);
+
+  // Handle sort request
+  const requestSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Render sort indicator
+  const renderSortIndicator = (key) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />;
+  };
+
+  // Initialize WebSocket connection with Socket.IO
+  const initializeWebSocket = useCallback(() => {
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
+      // Import socket.io-client dynamically to avoid SSR issues
+      const io = require('socket.io-client');
+      
+      if (socket) {
+        socket.disconnect();
+      }
+      
+      // Create a new Socket.IO connection
+      const socketIo = io({
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+      });
+      
+      // Connection established
+      socketIo.on('connect', () => {
+        console.log('Socket.IO Connected');
+        reconnectAttempts.current = 0;
+        
+        // Subscribe to match updates
+        socketIo.emit('subscribe_to_matches', { user_id: 'admin' });
+      });
+      
+      // Handle match updates
+      socketIo.on('match_updated', (data) => {
+        console.log('Match update received:', data);
+        
+        if (data.match) {
+          // Update the specific match in the list
+          setMatches(prevMatches => 
+            prevMatches.map(match => 
+              match.id === data.match.id ? { ...match, ...data.match } : match
+            )
+          );
+          
+          // If the updated match is currently selected, update it
+          if (selectedMatch && selectedMatch.id === data.match.id) {
+            setSelectedMatch(prev => ({ ...prev, ...data.match }));
+          }
+          
+          // Show a toast notification
+          toast.info(`Match ${data.match.id} status updated to ${data.match.status}`);
+          
+          // Refresh stats
+          fetchStats();
         }
       });
       
-      // Filter mock data based on search and filters
-      let filteredMatches = [...mockMatches];
+      // Handle errors
+      socketIo.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
+        
+        // Attempt to reconnect with exponential backoff
+        const attempts = reconnectAttempts.current + 1;
+        reconnectAttempts.current = attempts;
+        
+        if (attempts <= 5) {
+          const delay = Math.min(1000 * Math.pow(2, attempts), 30000); // Max 30s delay
+          console.log(`Reconnection attempt ${attempts} in ${delay}ms`);
+          
+          setTimeout(() => {
+            if (socketIo && !socketIo.connected) {
+              socketIo.connect();
+            }
+          }, delay);
+        }
+      });
       
-      if (searchTerm) {
-        filteredMatches = filteredMatches.filter(match =>
-          match.donor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          match.hospital_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          match.patient_name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      // Handle disconnection
+      socketIo.on('disconnect', (reason) => {
+        console.log('Socket.IO Disconnected:', reason);
+        
+        if (reason === 'io server disconnect') {
+          // The server has forcibly disconnected the socket, try to reconnect
+          socketIo.connect();
+        }
+      });
+      
+      // Store the socket instance in state
+      setSocket(socketIo);
+      
+      // Cleanup function
+      return () => {
+        if (socketIo) {
+          socketIo.disconnect();
+        }
+      };
+    } catch (error) {
+      console.error('Failed to initialize WebSocket:', error);
+    }
+  }, [selectedMatch]);
+
+  useEffect(() => {
+    // Initialize WebSocket connection
+    initializeWebSocket();
+    
+    // Initial data fetch
+    const loadInitialData = async () => {
+      try {
+        await Promise.all([fetchStats(), fetchMatches()]);
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        setError('Failed to load initial data. Please refresh the page.');
       }
-      
-      if (filters.status) {
-        filteredMatches = filteredMatches.filter(match => match.status === filters.status);
+    };
+    
+    loadInitialData();
+    
+    // Cleanup WebSocket on unmount
+    return () => {
+      if (socket) {
+        socket.close();
       }
-      
-      if (filters.blood_group) {
-        filteredMatches = filteredMatches.filter(match => match.blood_group === filters.blood_group);
+    };
+  }, []);
+
+  // Handle pagination, search, and filter changes
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        await fetchMatches();
+      } catch (error) {
+        console.error('Error fetching matches:', error);
+        setError('Failed to fetch matches. Please try again.');
       }
-      
-      if (filters.urgency) {
-        filteredMatches = filteredMatches.filter(match => match.urgency === filters.urgency);
+    };
+    
+    // Debounce the fetch to avoid too many requests
+    const debounceTimer = setTimeout(fetchData, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [pagination.page, searchTerm, filters, sortConfig]);
+
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const response = await bloodMatchingService.getMatchStats();
+      if (response) {
+        setStats({
+          total: response.total || 0,
+          pending: response.pending || 0,
+          accepted: response.accepted || 0,
+          completed: response.completed || 0
+        });
+      } else {
+        throw new Error('Invalid response format from server');
       }
-      
-      setMatches(filteredMatches);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      toast.error('Failed to load match statistics');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetchMatches = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = {
+        search: searchTerm,
+        status: filters.status,
+        blood_group: filters.blood_group,
+        urgency: filters.urgency,
+        page: pagination.page,
+        per_page: pagination.per_page,
+        sort_by: sortConfig.key,
+        sort_order: sortConfig.direction
+      };
+
+      const response = await bloodMatchingService.getMatches(params);
+
+      if (!response || !response.matches) {
+        throw new Error('Invalid response format from server');
+      }
+
+      // The API returns data in the format { matches: [...], pagination: { total, page, pages, per_page } }
+      if (!response || !response.matches) {
+        throw new Error('Invalid response from server');
+      }
+
+      setMatches(response.matches);
       setPagination(prev => ({
         ...prev,
-        total: filteredMatches.length,
-        pages: Math.ceil(filteredMatches.length / prev.per_page)
+        total: response.total || 0,
+        pages: response.pages || 1
       }));
+      setError(null); // Clear any existing errors
+
     } catch (err) {
-      setError('Failed to fetch matches');
+      console.error('Error fetching matches:', err);
+      let errorMessage = 'Failed to fetch matches. Please check your connection and try again.';
+      
+      if (err.response?.status === 401) {
+        errorMessage = 'Your session has expired. Please log in again.';
+        // Handle logout/redirect if needed
+      } else if (err.response?.status === 403) {
+        errorMessage = 'You do not have permission to access this resource.';
+      } else if (err.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      setMatches([]);
     } finally {
       setLoading(false);
     }
@@ -200,6 +392,19 @@ const BloodMatchingContent = () => {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilters({
+      status: '',
+      blood_group: '',
+      urgency: ''
+    });
+    setSortConfig({
+      key: 'match_score',
+      direction: 'desc'
+    });
+  };
+
   const handleViewDetails = (match) => {
     setSelectedMatch(match);
     setShowDetailsModal(true);
@@ -213,21 +418,23 @@ const BloodMatchingContent = () => {
   };
 
   const confirmStatusChange = async () => {
+    if (!selectedMatch) return;
+
     setActionLoading(true);
+
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
-      
-      setMatches(prev => prev.map(match => 
-        match.id === selectedMatch.id 
-          ? { 
-              ...match, 
+      // Call the API to update the match status
+      await bloodMatchingService.updateMatchStatus(
+        selectedMatch.id,
+        newStatus,
+        statusNotes
+      );
+
+      // Update the local state to reflect the change
+      setMatches(prev => prev.map(match =>
+        match.id === selectedMatch.id
+          ? {
+              ...match,
               status: newStatus,
               confirmed_at: newStatus === 'accepted' ? new Date().toISOString() : match.confirmed_at,
               completed_at: newStatus === 'completed' ? new Date().toISOString() : match.completed_at,
@@ -235,15 +442,28 @@ const BloodMatchingContent = () => {
             }
           : match
       ));
-      
+
+      // Refresh stats
+      fetchStats();
+
+      // Show success message
+      console.log(`Match ${selectedMatch.id} status updated to ${newStatus}`);
+
+      // Close the modal and reset state
       setShowStatusModal(false);
       setSelectedMatch(null);
       setNewStatus('');
       setStatusNotes('');
+
     } catch (err) {
-      setError('Failed to update match status');
+      console.error('Error updating match status:', err);
+      setError(`Failed to update match status: ${err.message || 'Unknown error'}`);
     } finally {
       setActionLoading(false);
+      setNewStatus('');
+      setStatusNotes('');
+      setShowStatusModal(false);
+      setSelectedMatch(null);
     }
   };
 
@@ -255,10 +475,10 @@ const BloodMatchingContent = () => {
       completed: { color: 'blue', icon: Check, label: 'Completed' },
       cancelled: { color: 'gray', icon: X, label: 'Cancelled' }
     };
-    
+
     const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
-    
+
     return (
       <span className={`status-badge ${config.color}`}>
         <Icon size={14} />
@@ -273,9 +493,9 @@ const BloodMatchingContent = () => {
       medium: { color: 'orange', label: 'Medium' },
       high: { color: 'red', label: 'High' }
     };
-    
+
     const config = urgencyConfig[urgency] || urgencyConfig.medium;
-    
+
     return (
       <span className={`urgency-badge ${config.color}`}>
         {config.label}
@@ -295,12 +515,77 @@ const BloodMatchingContent = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const handleExport = async () => {
+    try {
+      // Show loading state
+      const exportButton = document.querySelector('.btn-secondary');
+      const originalContent = exportButton?.innerHTML;
+
+      if (exportButton) {
+        exportButton.disabled = true;
+        exportButton.innerHTML = '<Loader className="animate-spin h-4 w-4 mr-2" /> Exporting...';
+      }
+
+      const response = await bloodMatchingService.exportMatches({
+        search: searchTerm,
+        status: filters.status,
+        blood_group: filters.blood_group,
+        urgency: filters.urgency
+      });
+
+      // Create a download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `blood-matches-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Reset button state
+      if (exportButton) {
+        setTimeout(() => {
+          exportButton.disabled = false;
+          exportButton.innerHTML = originalContent;
+        }, 500);
+      }
+
+    } catch (err) {
+      console.error('Error exporting matches:', err);
+      alert(`Failed to export matches: ${err.response?.data?.message || err.message || 'Please try again'}`);
+
+      // Reset button on error
+      const exportButton = document.querySelector('.btn-secondary');
+      if (exportButton) {
+        exportButton.disabled = false;
+        exportButton.innerHTML = '<Download className="h-4 w-4 mr-2" /> Export';
+      }
+    }
+  };
+
+  // Show loading state
   if (loading && matches.length === 0) {
     return (
       <div className="blood-matching-loading">
         <div className="loading-content">
           <div className="loading-spinner"></div>
           <div className="loading-text">Loading blood matches...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error && !loading && matches.length === 0) {
+    return (
+      <div className="blood-matching-error">
+        <div className="error-content">
+          <AlertCircle size={32} />
+          <div className="error-message">{error}</div>
+          <button className="retry-button" onClick={fetchMatches}>
+            <RefreshCw size={16} />
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -316,11 +601,11 @@ const BloodMatchingContent = () => {
             <h1>Blood Matching</h1>
           </div>
           <div className="header-actions">
-            <button className="btn-secondary">
+            <button className="btn-secondary" onClick={handleExport}>
               <Download size={16} />
               Export
             </button>
-            <button className="btn-primary" onClick={fetchMatches}>
+            <button className="btn-primary" onClick={() => { fetchStats(); fetchMatches(); }}>
               <RefreshCw size={16} />
               Refresh
             </button>
@@ -335,7 +620,7 @@ const BloodMatchingContent = () => {
             <Target size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{pagination.total}</div>
+            <div className="stat-value">{stats.total}</div>
             <div className="stat-label">Total Matches</div>
           </div>
         </div>
@@ -345,7 +630,7 @@ const BloodMatchingContent = () => {
           </div>
           <div className="stat-content">
             <div className="stat-value">
-              {matches.filter(m => m.status === 'pending').length}
+              {stats.pending}
             </div>
             <div className="stat-label">Pending</div>
           </div>
@@ -356,7 +641,7 @@ const BloodMatchingContent = () => {
           </div>
           <div className="stat-content">
             <div className="stat-value">
-              {matches.filter(m => m.status === 'accepted').length}
+              {stats.accepted}
             </div>
             <div className="stat-label">Accepted</div>
           </div>
@@ -367,7 +652,7 @@ const BloodMatchingContent = () => {
           </div>
           <div className="stat-content">
             <div className="stat-value">
-              {matches.filter(m => m.status === 'completed').length}
+              {stats.completed}
             </div>
             <div className="stat-label">Completed</div>
           </div>
@@ -387,7 +672,7 @@ const BloodMatchingContent = () => {
             />
           </div>
         </div>
-        
+
         <div className="filters-section">
           <div className="filter-group">
             <label>Status</label>
@@ -403,7 +688,7 @@ const BloodMatchingContent = () => {
               ))}
             </select>
           </div>
-          
+
           <div className="filter-group">
             <label>Blood Group</label>
             <select
@@ -416,7 +701,7 @@ const BloodMatchingContent = () => {
               ))}
             </select>
           </div>
-          
+
           <div className="filter-group">
             <label>Urgency</label>
             <select
@@ -431,10 +716,10 @@ const BloodMatchingContent = () => {
               ))}
             </select>
           </div>
-          
-          <button className="clear-filters" onClick={clearFilters}>
+
+          <button className="clear-filters" onClick={resetFilters}>
             <RefreshCw size={16} />
-            Clear Filters
+            Reset
           </button>
         </div>
       </div>
@@ -447,24 +732,40 @@ const BloodMatchingContent = () => {
             <span className="table-count">({pagination.total} matches)</span>
           </div>
         </div>
-        
+
         <div className="table-wrapper">
           <table className="matches-table">
             <thead>
               <tr>
-                <th>Donor</th>
-                <th>Hospital</th>
-                <th>Patient</th>
-                <th>Blood Group</th>
-                <th>Match Score</th>
-                <th>Status</th>
-                <th>Urgency</th>
-                <th>Matched Date</th>
+                <th onClick={() => requestSort('donor_name')}>
+                  Donor {renderSortIndicator('donor_name')}
+                </th>
+                <th onClick={() => requestSort('hospital_name')}>
+                  Hospital {renderSortIndicator('hospital_name')}
+                </th>
+                <th onClick={() => requestSort('patient_name')}>
+                  Patient {renderSortIndicator('patient_name')}
+                </th>
+                <th onClick={() => requestSort('blood_group')}>
+                  Blood Group {renderSortIndicator('blood_group')}
+                </th>
+                <th onClick={() => requestSort('match_score')}>
+                  Match Score {renderSortIndicator('match_score')}
+                </th>
+                <th onClick={() => requestSort('status')}>
+                  Status {renderSortIndicator('status')}
+                </th>
+                <th onClick={() => requestSort('urgency')}>
+                  Urgency {renderSortIndicator('urgency')}
+                </th>
+                <th onClick={() => requestSort('matched_at')}>
+                  Matched Date {renderSortIndicator('matched_at')}
+                </th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {matches.map((match) => (
+              {sortedMatches().map((match) => (
                 <tr key={match.id}>
                   <td>
                     <div className="donor-info">
@@ -505,8 +806,8 @@ const BloodMatchingContent = () => {
                     <div className={`match-score ${getMatchScoreColor(match.match_score)}`}>
                       <div className="score-value">{match.match_score}%</div>
                       <div className="score-bar">
-                        <div 
-                          className="score-fill" 
+                        <div
+                          className="score-fill"
                           style={{ width: `${match.match_score}%` }}
                         />
                       </div>
@@ -527,10 +828,9 @@ const BloodMatchingContent = () => {
                         aria-label="View Details"
                         className="action-btn view"
                         onClick={() => handleViewDetails(match)}
-                        title="View Details"
+                        title="View full details of this match"
                       >
-                        {/* use icon class so sizing/stroke can be controlled by CSS for consistent look */}
-                        <Eye className="icon view-icon" aria-hidden="true" />
+                        <Eye className="icon" size={18} />
                       </button>
                       {match.status === 'pending' && (
                         <>
@@ -539,18 +839,18 @@ const BloodMatchingContent = () => {
                             aria-label="Accept Match"
                             className="action-btn accept"
                             onClick={() => handleStatusChange(match, 'accepted')}
-                            title="Accept Match"
+                            title="Accept this match"
                           >
-                            <Check size={16} />
+                            <Check className="icon" size={18} />
                           </button>
                           <button
                             type="button"
                             aria-label="Decline Match"
                             className="action-btn decline"
                             onClick={() => handleStatusChange(match, 'declined')}
-                            title="Decline Match"
+                            title="Decline this match"
                           >
-                            <X size={16} />
+                            <X className="icon" size={18} />
                           </button>
                         </>
                       )}
@@ -560,9 +860,20 @@ const BloodMatchingContent = () => {
                           aria-label="Mark as Completed"
                           className="action-btn complete"
                           onClick={() => handleStatusChange(match, 'completed')}
-                          title="Mark as Completed"
+                          title="Mark this match as completed"
                         >
-                          <CheckCircle size={16} />
+                          <CheckSquare className="icon" size={18} />
+                        </button>
+                      )}
+                      {match.status !== 'pending' && match.status !== 'accepted' && match.status !== 'completed' && (
+                        <button
+                          type="button"
+                          aria-label="Delete Match"
+                          className="action-btn delete"
+                          onClick={() => handleStatusChange(match, 'cancelled')}
+                          title="Cancel this match"
+                        >
+                          <XSquare className="icon" size={18} />
                         </button>
                       )}
                     </div>
@@ -571,13 +882,23 @@ const BloodMatchingContent = () => {
               ))}
             </tbody>
           </table>
+          
+          {matches.length === 0 && !loading && (
+            <div className="no-matches">
+              <div className="no-matches-icon">
+                <Heart size={48} />
+              </div>
+              <h3>No matches found</h3>
+              <p>Try adjusting your search or filter criteria</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="pagination">
-          <button 
+          <button
             className="pagination-btn"
             disabled={pagination.page === 1}
             onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
@@ -585,12 +906,12 @@ const BloodMatchingContent = () => {
             <ChevronLeft size={16} />
             Previous
           </button>
-          
+
           <div className="pagination-info">
             Page {pagination.page} of {pagination.pages}
           </div>
-          
-          <button 
+
+          <button
             className="pagination-btn"
             disabled={pagination.page === pagination.pages}
             onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
@@ -615,7 +936,7 @@ const BloodMatchingContent = () => {
                 <p><strong>Patient:</strong> {selectedMatch?.patient_name}</p>
                 <p><strong>New Status:</strong> {newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</p>
               </div>
-              
+
               <div className="form-group">
                 <label>Notes (Optional)</label>
                 <textarea
@@ -627,14 +948,14 @@ const BloodMatchingContent = () => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
+              <button
                 className="btn-secondary"
                 onClick={() => setShowStatusModal(false)}
                 disabled={actionLoading}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 className="btn-primary"
                 onClick={confirmStatusChange}
                 disabled={actionLoading}
@@ -674,7 +995,7 @@ const BloodMatchingContent = () => {
                     <strong>Phone:</strong> {selectedMatch?.donor_phone}
                   </div>
                 </div>
-                
+
                 <div className="detail-section">
                   <h4>Hospital Information</h4>
                   <div className="detail-item">
@@ -684,7 +1005,7 @@ const BloodMatchingContent = () => {
                     <strong>City:</strong> {selectedMatch?.hospital_city}
                   </div>
                 </div>
-                
+
                 <div className="detail-section">
                   <h4>Patient Information</h4>
                   <div className="detail-item">
@@ -700,11 +1021,11 @@ const BloodMatchingContent = () => {
                     <strong>Urgency:</strong> {getUrgencyBadge(selectedMatch?.urgency)}
                   </div>
                 </div>
-                
+
                 <div className="detail-section">
                   <h4>Match Information</h4>
                   <div className="detail-item">
-                    <strong>Match Score:</strong> 
+                    <strong>Match Score:</strong>
                     <span className={`match-score-badge ${getMatchScoreColor(selectedMatch?.match_score)}`}>
                       {selectedMatch?.match_score}%
                     </span>
@@ -734,7 +1055,7 @@ const BloodMatchingContent = () => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
+              <button
                 className="btn-secondary"
                 onClick={() => setShowDetailsModal(false)}
               >

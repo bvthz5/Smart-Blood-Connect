@@ -590,47 +590,30 @@
 .action-buttons {
   display: flex;
   gap: 0.5rem;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  min-width: 150px;
 }
 
 .action-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none;
   cursor: pointer;
-  transition: transform 0.12s ease, color 0.12s ease;
-  background: transparent; /* remove background color */
-  box-shadow: none; /* remove shadow */
+  transition: all 0.2s ease;
+  background: transparent;
+  color: var(--color-textSecondary);
   position: relative;
-  overflow: visible;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .action-btn:hover {
-  transform: scale(1.06);
-}
-
-/* Icon color variants (no background) */
-.action-btn.view svg {
-  color: var(--color-primary);
-}
-.action-btn.accept svg {
-  color: var(--color-success);
-}
-.action-btn.decline svg {
-  color: var(--color-error);
-}
-.action-btn.complete svg {
-  color: var(--color-primary);
-}
-
-/* Hover color intensification */
-.action-btn.view:hover svg {
-  color: color-mix(in srgb, var(--color-primary) 80%, black 20%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 .action-btn.accept:hover svg {
   color: color-mix(in srgb, var(--color-success) 80%, black 20%);

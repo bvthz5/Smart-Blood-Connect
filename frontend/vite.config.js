@@ -13,7 +13,7 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
-    host: '127.0.0.1', // localhost only
+    host: true, // listen on all network interfaces
     // Optimize HMR for better performance
     hmr: {
       overlay: false, // Disable error overlay to reduce performance impact
@@ -33,10 +33,11 @@ export default defineConfig({
     },
     proxy: {
       '^/api/admin': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:5000', // Updated to match actual backend port
         changeOrigin: true,
         secure: false,
         ws: true,
+        xfwd: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
             if (req.method === 'OPTIONS') {
@@ -52,7 +53,7 @@ export default defineConfig({
         },
       },
       '^/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:5000', // Updated to match actual backend port
         changeOrigin: true,
         secure: false,
         ws: true,

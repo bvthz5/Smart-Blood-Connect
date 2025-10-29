@@ -1,5 +1,10 @@
 {
   "dependencies": {
-    "frontend": "file:.."
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "date-fns": "^4.1.0",
+    "frontend": "file:..",
+    "lucide-react": "^0.548.0",
+    "react-tooltip": "^5.30.0"
   }
 }
