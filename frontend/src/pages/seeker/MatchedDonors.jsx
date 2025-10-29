@@ -44,8 +44,8 @@ const MatchedDonors = () => {
                 ) : rows.length === 0 ? (
                   <tr><td colSpan={5}>No matches</td></tr>
                 ) : (
-                  rows.map((r) => (
-                    <tr key={r.id}>
+                  rows.map((r, index) => (
+                    <tr key={r.id || r.obfuscated_id || index}>
                       <td>{r.obfuscated_id || `D-${r.id}`}</td>
                       <td>{r.blood_group}</td>
                       <td>{r.distance_km ? `${r.distance_km} km` : '-'}</td>

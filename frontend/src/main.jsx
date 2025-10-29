@@ -5,30 +5,25 @@ import App from "./App";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Provider } from 'react-redux';
 import { store } from './store';
-import "./index.css"; // Keep the original index.css import
-// global styles (was tailwind previously)
+import "./index.css";
 import './styles/global.css';
-// performance optimizations
 import './styles/performance.css';
 
-// Disable GSAP completely to eliminate performance violations
-// gsap.registerPlugin(ScrollTrigger);
+// CRITICAL: Suppress extension errors BEFORE anything else loads
+window.addEventListener('error', (event) => {
+  if (event.error && event.error.message && 
+      event.error.message.includes('message channel closed before a response was received')) {
+    event.preventDefault();
+    return false;
+  }
+}, true); // Use capture phase to catch errors early
 
-// Configure GSAP for better performance - DISABLED
-// gsap.config({
-//   force3D: true,
-//   nullTargetWarn: false,
-//   trialWarn: false
-// });
-
-// Optimize ScrollTrigger settings - DISABLED
-// ScrollTrigger.config({
-//   ignoreMobileResize: true,
-//   autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
-//   syncInterval: 16 // Limit to 60fps
-// });
-
-// Remove intrusive development-time overrides to avoid message channel issues
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason && event.reason.message && 
+      event.reason.message.includes('message channel closed before a response was received')) {
+    event.preventDefault();
+  }
+}, true); // Use capture phase
 
 // Optimized rendering to reduce message handler overhead
 const renderApp = () => {
@@ -82,40 +77,22 @@ const initializeApp = () => {
   }
 };
 
-// Global error handler for extension conflicts and performance monitoring
-// DISABLE all error handling to eliminate performance overhead
-// window.addEventListener('error', (event) => {
-//   // Suppress async listener errors from browser extensions
-//   if (event.error && event.error.message && 
-//       event.error.message.includes('message channel closed before a response was received')) {
-//     console.warn('Suppressed extension async listener error:', event.error.message);
-//     event.preventDefault();
-//     return false;
-//   }
-  
-//   // Log performance violations for debugging
-//   if (event.error && event.error.message && 
-//       event.error.message.includes('Violation')) {
-//     console.warn('Performance violation detected:', event.error.message);
-//   }
-// });
+// Additional error handlers for debugging (errors already suppressed above)
+window.addEventListener('error', (event) => {
+  // Log performance violations for debugging
+  if (event.error && event.error.message && 
+      event.error.message.includes('Violation')) {
+    console.warn('Performance violation detected:', event.error.message);
+  }
+});
 
-// window.addEventListener('unhandledrejection', (event) => {
-//   // Suppress promise rejections from extension conflicts
-//   if (event.reason && event.reason.message && 
-//       event.reason.message.includes('message channel closed before a response was received')) {
-//     console.warn('Suppressed extension promise rejection:', event.reason.message);
-//     event.preventDefault();
-//   }
-  
-//   // Log performance-related promise rejections
-//   if (event.reason && event.reason.message && 
-//       event.reason.message.includes('Violation')) {
-//     console.warn('Performance violation in promise:', event.reason.message);
-//   }
-// });
-
-// Keep browser APIs and console intact to avoid breaking extension messaging and devtools
+window.addEventListener('unhandledrejection', (event) => {
+  // Log performance-related promise rejections
+  if (event.reason && event.reason.message && 
+      event.reason.message.includes('Violation')) {
+    console.warn('Performance violation in promise:', event.reason.message);
+  }
+});
 
 // Initialize app when DOM is ready
 if (document.readyState === 'loading') {

@@ -386,5 +386,65 @@ IMPORTANT:
 SmartBlood Admin Panel
         """
 
+    def send_email(self, to, subject, html, text=None):
+        """
+        Generic method to send an email with HTML content
+        
+        Args:
+            to: Recipient email address
+            subject: Email subject line
+            html: HTML content of the email
+            text: Plain text content (optional, will extract from HTML if not provided)
+        
+        Returns:
+            bool: True if sent successfully, False otherwise
+        """
+        try:
+            import smtplib
+            
+            current_app.logger.info(f"[EMAIL SERVICE] Sending email to {to}: {subject}")
+            
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = f"{self.sender_name} <{self.sender_email}>"
+            message["To"] = to
+            
+            # Add text part (use simple HTML strip if not provided)
+            if text is None:
+                import re
+                text = re.sub('<[^<]+?>', '', html)  # Simple HTML tag removal
+            
+            text_part = MIMEText(text, "plain")
+            html_part = MIMEText(html, "html")
+            
+            message.attach(text_part)
+            message.attach(html_part)
+            
+            # Send email with proper TLS/SSL handling
+            context = ssl.create_default_context()
+            use_ssl = getattr(EmailConfig, 'SMTP_USE_SSL', False)
+            use_tls = getattr(EmailConfig, 'SMTP_USE_TLS', True)
+            
+            if use_ssl:
+                with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context, timeout=20) as server:
+                    server.login(self.sender_email, self.sender_password)
+                    server.sendmail(self.sender_email, to, message.as_string())
+            else:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=20) as server:
+                    server.ehlo()
+                    if use_tls:
+                        server.starttls(context=context)
+                        server.ehlo()
+                    server.login(self.sender_email, self.sender_password)
+                    server.sendmail(self.sender_email, to, message.as_string())
+            
+            current_app.logger.info(f"Email sent successfully to {to}")
+            return True
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to send email to {to}: {str(e)}")
+            return False
+
 # Create global instance
 email_service = EmailService()

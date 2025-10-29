@@ -159,17 +159,16 @@ def match_donors():
         if save_predictions:
             try:
                 for pred in predictions[:top_k]:
-                    match_prediction = MatchPrediction(
-                        request_id=request_id,
-                        donor_id=pred['donor_id'],
-                        match_score=pred['match_score'],
-                        availability_score=pred['availability_score'],
-                        response_time_hours=pred['response_time_hours'],
-                        reliability_score=pred['reliability_score'],
-                        model_version='1.0.0',
-                        feature_vector=pred['features'],
-                        rank=pred['rank']
-                    )
+                    match_prediction = MatchPrediction()  # type: ignore[call-arg]
+                    match_prediction.request_id = request_id  # type: ignore[misc]
+                    match_prediction.donor_id = pred['donor_id']  # type: ignore[misc]
+                    match_prediction.match_score = pred['match_score']  # type: ignore[misc]
+                    match_prediction.availability_score = pred['availability_score']  # type: ignore[misc]
+                    match_prediction.response_time_hours = pred['response_time_hours']  # type: ignore[misc]
+                    match_prediction.reliability_score = pred['reliability_score']  # type: ignore[misc]
+                    match_prediction.model_version = '1.0.0'  # type: ignore[misc]
+                    match_prediction.feature_vector = pred['features']  # type: ignore[misc]
+                    match_prediction.rank = pred['rank']  # type: ignore[misc]
                     db.session.add(match_prediction)
                 
                 db.session.commit()
@@ -183,15 +182,14 @@ def match_donors():
         total_time = (datetime.now() - start_time).total_seconds() * 1000
         
         # Log prediction
-        log_entry = ModelPredictionLog(
-            model_name='donor_matching_pipeline',
-            model_version='1.0.0',
-            endpoint='/api/ml/match',
-            input_data={'request_id': request_id, 'top_k': top_k},
-            prediction_output={'matches_count': len(predictions[:top_k])},
-            inference_time_ms=total_time,
-            success=True
-        )
+        log_entry = ModelPredictionLog()  # type: ignore[call-arg]
+        log_entry.model_name = 'donor_matching_pipeline'  # type: ignore[misc]
+        log_entry.model_version = '1.0.0'  # type: ignore[misc]
+        log_entry.endpoint = '/api/ml/match'  # type: ignore[misc]
+        log_entry.input_data = {'request_id': request_id, 'top_k': top_k}  # type: ignore[misc]
+        log_entry.prediction_output = {'matches_count': len(predictions[:top_k])}  # type: ignore[misc]
+        log_entry.inference_time_ms = total_time  # type: ignore[misc]
+        log_entry.success = True  # type: ignore[misc]
         db.session.add(log_entry)
         db.session.commit()
         
@@ -211,16 +209,15 @@ def match_donors():
         
         # Log failed prediction
         try:
-            log_entry = ModelPredictionLog(
-                model_name='donor_matching_pipeline',
-                model_version='1.0.0',
-                endpoint='/api/ml/match',
-                input_data=data,
-                prediction_output=None,
-                inference_time_ms=0,
-                success=False,
-                error_message=str(e)
-            )
+            log_entry = ModelPredictionLog()  # type: ignore[call-arg]
+            log_entry.model_name = 'donor_matching_pipeline'  # type: ignore[misc]
+            log_entry.model_version = '1.0.0'  # type: ignore[misc]
+            log_entry.endpoint = '/api/ml/match'  # type: ignore[misc]
+            log_entry.input_data = data  # type: ignore[misc]
+            log_entry.prediction_output = None  # type: ignore[misc]
+            log_entry.inference_time_ms = 0  # type: ignore[misc]
+            log_entry.success = False  # type: ignore[misc]
+            log_entry.error_message = str(e)  # type: ignore[misc]
             db.session.add(log_entry)
             db.session.commit()
         except:
@@ -346,3 +343,158 @@ def prediction_history():
         'predictions': result,
         'total': len(result)
     }), 200
+
+
+@ml_bp.route('/demand-forecast', methods=['GET'])
+def get_demand_forecast():
+    """
+    Get blood demand forecasts by district and blood group
+    
+    Query Parameters:
+    - district: Filter by district (optional)
+    - blood_group: Filter by blood group (optional)
+    - days: Number of days ahead to forecast (default: 30)
+    - start_date: Start date for forecast range (YYYY-MM-DD, optional)
+    - end_date: End date for forecast range (YYYY-MM-DD, optional)
+    
+    Returns:
+    {
+        "forecasts": [
+            {
+                "district": "Thiruvananthapuram",
+                "blood_group": "O+",
+                "forecast_date": "2025-10-28",
+                "predicted_demand": 12.5,
+                "confidence_lower": 10.0,
+                "confidence_upper": 15.0,
+                "model_version": "1.0.0"
+            }
+        ],
+        "total": 100,
+        "summary": {
+            "total_demand": 450.5,
+            "peak_date": "2025-11-05",
+            "peak_demand": 18.2
+        }
+    }
+    """
+    from datetime import date, timedelta
+    from app.models import DemandForecast
+    
+    try:
+        # Get query parameters
+        district = request.args.get('district', '').strip()
+        blood_group = request.args.get('blood_group', '').strip()
+        days = int(request.args.get('days', 30))
+        start_date_str = request.args.get('start_date', '')
+        end_date_str = request.args.get('end_date', '')
+        
+        # Build query
+        query = DemandForecast.query
+        
+        if district:
+            query = query.filter(DemandForecast.district == district)
+        
+        if blood_group:
+            query = query.filter(DemandForecast.blood_group == blood_group)
+        
+        # Date filtering
+        if start_date_str:
+            try:
+                start_date = datetime.fromisoformat(start_date_str).date()
+                query = query.filter(DemandForecast.forecast_date >= start_date)
+            except ValueError:
+                return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
+        else:
+            # Default: start from today
+            query = query.filter(DemandForecast.forecast_date >= date.today())
+        
+        if end_date_str:
+            try:
+                end_date = datetime.fromisoformat(end_date_str).date()
+                query = query.filter(DemandForecast.forecast_date <= end_date)
+            except ValueError:
+                return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
+        else:
+            # Default: forecast for next 'days' days
+            end_date = date.today() + timedelta(days=days)
+            query = query.filter(DemandForecast.forecast_date <= end_date)
+        
+        # Order by date
+        forecasts = query.order_by(DemandForecast.forecast_date.asc()).all()
+        
+        # Format results
+        result = []
+        total_demand = 0
+        peak_demand = 0
+        peak_date = None
+        
+        for forecast in forecasts:
+            forecast_data = {
+                'id': forecast.id,
+                'district': forecast.district,
+                'blood_group': forecast.blood_group,
+                'forecast_date': forecast.forecast_date.isoformat(),
+                'predicted_demand': round(forecast.predicted_demand, 2),
+                'confidence_lower': round(forecast.confidence_lower, 2) if forecast.confidence_lower else None,
+                'confidence_upper': round(forecast.confidence_upper, 2) if forecast.confidence_upper else None,
+                'model_version': forecast.model_version,
+                'created_at': forecast.created_at.isoformat()
+            }
+            result.append(forecast_data)
+            
+            # Calculate summary statistics
+            total_demand += forecast.predicted_demand
+            if forecast.predicted_demand > peak_demand:
+                peak_demand = forecast.predicted_demand
+                peak_date = forecast.forecast_date.isoformat()
+        
+        # Summary statistics
+        summary = {
+            'total_forecasts': len(result),
+            'total_predicted_demand': round(total_demand, 2),
+            'average_daily_demand': round(total_demand / len(result), 2) if result else 0,
+            'peak_demand': round(peak_demand, 2),
+            'peak_date': peak_date
+        }
+        
+        return jsonify({
+            'forecasts': result,
+            'total': len(result),
+            'summary': summary,
+            'filters': {
+                'district': district or 'all',
+                'blood_group': blood_group or 'all',
+                'days': days
+            }
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Demand forecast error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@ml_bp.route('/demand-forecast/districts', methods=['GET'])
+def get_forecast_districts():
+    """
+    Get list of districts with available forecasts
+    
+    Returns:
+    {
+        "districts": ["Thiruvananthapuram", "Kollam", ...],
+        "total": 14
+    }
+    """
+    from app.models import DemandForecast
+    
+    try:
+        districts = db.session.query(DemandForecast.district).distinct().all()
+        district_list = sorted([d[0] for d in districts if d[0]])
+        
+        return jsonify({
+            'districts': district_list,
+            'total': len(district_list)
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Districts fetch error: {str(e)}")
+        return jsonify({'error': str(e)}), 500

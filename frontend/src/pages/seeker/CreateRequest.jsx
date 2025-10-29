@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SeekerLayout from '../../components/seeker/SeekerLayout';
 import SeekerNavbar from '../../components/seeker/SeekerNavbar';
@@ -8,25 +8,23 @@ import tokenStorage from '../../utils/tokenStorage';
 import { redirectToLogin } from '../../utils/authRedirect';
 import { 
   User, Droplet, Hash, AlertCircle, Phone, 
-  Calendar, FileText, Upload, CheckCircle, 
-  XCircle, Loader, Save
+  Calendar, FileText, CheckCircle, 
+  XCircle, Loader, Send, ArrowLeft, Activity
 } from 'lucide-react';
 import './CreateRequest.css';
 
 const CreateRequest = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({ 
-    patientName: '', 
-    bloodGroup: '', 
-    unitsRequired: '', 
+    patient_name: '', 
+    blood_group: '', 
+    units_required: '', 
     urgency: '', 
-    contactPerson: '', 
-    contactPhone: '', 
+    contact_person: '', 
+    contact_phone: '', 
     description: '', 
-    requiredBy: '',
-    attachedFile: null
+    required_by: ''
   });
-  const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -38,43 +36,99 @@ const CreateRequest = () => {
     const totalFields = 7; // Required fields count
     let filledFields = 0;
     
-    if (form.patientName.trim()) filledFields++;
-    if (form.bloodGroup) filledFields++;
-    if (form.unitsRequired) filledFields++;
+    if (form.patient_name?.trim()) filledFields++;
+    if (form.blood_group) filledFields++;
+    if (form.units_required && parseInt(form.units_required) > 0) filledFields++;
     if (form.urgency) filledFields++;
-    if (form.contactPerson.trim()) filledFields++;
-    if (form.contactPhone.trim()) filledFields++;
-    if (form.requiredBy) filledFields++;
+    if (form.contact_person?.trim()) filledFields++;
+    if (form.contact_phone?.trim()) filledFields++;
+    if (form.required_by) filledFields++;
     
     setFormProgress((filledFields / totalFields) * 100);
   }, [form]);
 
-  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   const urgencyLevels = [
-    { value: 'low', label: 'Low', color: '#4CAF50' },
-    { value: 'medium', label: 'Medium', color: '#FFC107' },
-    { value: 'high', label: 'High', color: '#F44336' }
+    { value: 'critical', label: 'Critical', color: '#C62828', bg: '#FFEBEE' },
+    { value: 'high', label: 'High', color: '#F44336', bg: '#FFCDD2' },
+    { value: 'medium', label: 'Medium', color: '#FF8F00', bg: '#FFF3E0' },
+    { value: 'low', label: 'Low', color: '#2E7D32', bg: '#E8F5E9' }
   ];
 
+  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+
+  // Validate phone number (international format supported)
   const validatePhone = (phone) => {
-    const phoneRegex = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
-    return phoneRegex.test(phone);
+    // Accepts formats: +91XXXXXXXXXX, 0XXXXXXXXXX, XXXXXXXXXX
+    const phoneRegex = /^[+]?[0-9]{10,15}$/;
+    return phoneRegex.test(phone.replace(/[\s-()]/g, ''));
+  };
+
+  // Validate future date
+  const validateFutureDate = (dateString) => {
+    if (!dateString) return false;
+    const selectedDate = new Date(dateString);
+    const now = new Date();
+    return selectedDate > now;
+  };
+
+  // Validate patient name (max 255 chars, non-empty)
+  const validatePatientName = (name) => {
+    return name && name.trim().length > 0 && name.trim().length <= 255;
+  };
+
+  // Validate units (1-20)
+  const validateUnits = (units) => {
+    const num = parseInt(units);
+    return !isNaN(num) && num >= 1 && num <= 20;
   };
 
   const validateForm = () => {
     const errors = {};
     
-    if (!form.patientName.trim()) errors.patientName = 'Patient name is required';
-    if (!form.bloodGroup) errors.bloodGroup = 'Please select a blood group';
-    if (!form.unitsRequired || form.unitsRequired < 1) errors.unitsRequired = 'Units must be at least 1';
-    if (!form.urgency) errors.urgency = 'Please select urgency level';
-    if (!form.contactPerson.trim()) errors.contactPerson = 'Contact person is required';
-    if (!form.contactPhone.trim()) {
-      errors.contactPhone = 'Contact phone is required';
-    } else if (!validatePhone(form.contactPhone)) {
-      errors.contactPhone = 'Invalid phone number format';
+    // Patient Name - required, non-empty, max 255 chars
+    if (!form.patient_name?.trim()) {
+      errors.patient_name = 'Patient name is required';
+    } else if (form.patient_name.trim().length > 255) {
+      errors.patient_name = 'Patient name must not exceed 255 characters';
     }
-    if (!form.requiredBy) errors.requiredBy = 'Required date/time is needed';
+    
+    // Blood Group - required
+    if (!form.blood_group) {
+      errors.blood_group = 'Please select a blood group';
+    }
+    
+    // Units Required - required, integer, > 0, <= 20
+    if (!form.units_required) {
+      errors.units_required = 'Units required is mandatory';
+    } else if (!validateUnits(form.units_required)) {
+      errors.units_required = 'Units must be between 1 and 20';
+    }
+    
+    // Required By - required, must be in future
+    if (!form.required_by) {
+      errors.required_by = 'Required date/time is mandatory';
+    } else if (!validateFutureDate(form.required_by)) {
+      errors.required_by = 'Date must be in the future';
+    }
+    
+    // Urgency - required
+    if (!form.urgency) {
+      errors.urgency = 'Please select urgency level';
+    }
+    
+    // Contact Person - required
+    if (!form.contact_person?.trim()) {
+      errors.contact_person = 'Contact person is required';
+    } else if (form.contact_person.trim().length > 255) {
+      errors.contact_person = 'Contact person name must not exceed 255 characters';
+    }
+    
+    // Contact Phone - required, validated pattern
+    if (!form.contact_phone?.trim()) {
+      errors.contact_phone = 'Contact phone is required';
+    } else if (!validatePhone(form.contact_phone)) {
+      errors.contact_phone = 'Invalid phone number (use format: +91XXXXXXXXXX or 10-15 digits)';
+    }
     
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -82,24 +136,13 @@ const CreateRequest = () => {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm(prev => ({ ...prev, [name]: value }));
     // Clear field error when user types
     if (fieldErrors[name]) {
-      setFieldErrors({ ...fieldErrors, [name]: '' });
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
-
-  const onFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('File size must be less than 5MB');
-        return;
-      }
-      setForm({ ...form, attachedFile: file });
-      setFileName(file.name);
-    }
+    // Clear general error
+    if (error) setError('');
   };
 
   const submit = async (e) => {
@@ -107,56 +150,62 @@ const CreateRequest = () => {
     setError('');
     setSuccess(false);
     
+    // Validate form
     if (!validateForm()) {
-      setError('Please fill in all required fields correctly');
+      setError('Please fix all validation errors before submitting');
+      // Scroll to first error
+      const firstErrorField = document.querySelector('.form-input.error, .form-textarea.error');
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstErrorField.focus();
+      }
       return;
     }
 
     setLoading(true);
     
     try {
-      // Map form to backend expected format
+      // Prepare request data matching backend API specification
       const requestData = {
-        patient_ref: form.patientName,
-        blood_group: form.bloodGroup,
-        units: parseInt(form.unitsRequired),
-        urgency: form.urgency.toUpperCase(),
-        needed_by: form.requiredBy,
-        contact_person: form.contactPerson,
-        contact_phone: form.contactPhone,
-        description: form.description || '',
-        ward: form.contactPerson // Using contact person as ward for now
+        patient_name: form.patient_name.trim(),
+        blood_group: form.blood_group,
+        units_required: parseInt(form.units_required),
+        urgency: form.urgency,
+        required_by: form.required_by,
+        contact_person: form.contact_person.trim(),
+        contact_phone: form.contact_phone.trim(),
+        description: form.description?.trim() || ''
       };
 
-      // If file attached, handle file upload here
-      // For now, we'll store the request without file
+      const response = await seekerService.createRequest(requestData);
       
-      await seekerService.createRequest(requestData);
+      // Get request ID from response
+      const requestId = response.request_id || response.id;
       
-      setSuccess(true);
-      setError('');
-      
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        setForm({ 
-          patientName: '', 
-          bloodGroup: '', 
-          unitsRequired: '', 
-          urgency: '', 
-          contactPerson: '', 
-          contactPhone: '', 
-          description: '', 
-          requiredBy: '',
-          attachedFile: null
+      if (requestId) {
+        setSuccess(true);
+        setError('');
+        
+        // Navigate to dedicated search results page
+        navigate(`/seeker/donor-search/${requestId}`, {
+          state: {
+            requestData: response,
+            timestamp: Date.now()
+          }
         });
-        setFileName('');
-        setSuccess(false);
-        navigate('/seeker/requests');
-      }, 2000);
+      } else {
+        throw new Error('No request ID returned');
+      }
       
     } catch (err) {
       console.error('Request creation error:', err);
-      setError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to create request. Please try again.');
+      const errorMessage = err?.response?.data?.message || 
+                          err?.response?.data?.error || 
+                          'Failed to create request. Please try again.';
+      setError(errorMessage);
+      
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -174,94 +223,120 @@ const CreateRequest = () => {
   return (
     <SeekerLayout navbar={<SeekerNavbar onLogout={onLogout} />} sidebar={<SeekerSidebar />}>
       <div className="create-request-container">
-        {/* Header */}
+        {/* Stunning Header */}
         <div className="request-header">
           <div className="header-content">
-            <Droplet className="header-icon" />
-            <div>
+            <div className="header-icon-wrapper">
+              <Droplet className="header-icon" />
+              <div className="icon-pulse"></div>
+            </div>
+            <div className="header-text">
               <h1 className="header-title">Create Blood Request</h1>
-              <p className="header-subtitle">Fill in the details to raise a new blood request</p>
+              <p className="header-subtitle">Submit a new blood requirement with detailed information</p>
+            </div>
+          </div>
+          <div className="header-decoration"></div>
+        </div>
+
+        {/* Alert Messages */}
+        {success && (
+          <div className="alert alert-success" role="alert">
+            <CheckCircle size={22} />
+            <div>
+              <strong>Success!</strong>
+              <p>Blood request created successfully. Redirecting to requests list...</p>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="alert alert-error" role="alert">
+            <AlertCircle size={22} />
+            <div>
+              <strong>Error</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Form Progress Indicator */}
+        <div className="form-progress-card">
+          <div className="progress-header">
+            <Activity size={18} />
+            <span className="progress-label">Form Completion</span>
+            <span className="progress-percentage">{Math.round(formProgress)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${formProgress}%` }}>
+              <div className="progress-shimmer"></div>
             </div>
           </div>
         </div>
 
-        {/* Success Message */}
-        {success && (
-          <div className="alert alert-success">
-            <CheckCircle size={20} />
-            <span>Request created successfully! Redirecting...</span>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="alert alert-error">
-            <XCircle size={20} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form Progress */}
-        <div className="form-progress">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: '#666' }}>Form Completion</span>
-            <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#FF5252' }}>{Math.round(formProgress)}%</span>
-          </div>
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${formProgress}%` }}></div>
-          </div>
-        </div>
-
-        {/* Form */}
-        <form className="request-form" onSubmit={submit}>
+        {/* Professional Form */}
+        <form className="request-form" onSubmit={submit} noValidate>
           {/* Patient Information Section */}
           <div className="form-section">
             <div className="section-header">
-              <User size={20} />
-              <h3>Patient Information</h3>
+              <div className="section-icon">
+                <User size={20} />
+              </div>
+              <div>
+                <h3 className="section-title">Patient Information</h3>
+                <p className="section-subtitle">Details about the patient requiring blood</p>
+              </div>
             </div>
             
             <div className="form-grid">
+              {/* Patient Name */}
               <div className="form-group">
-                <label className="form-label">
-                  Patient Name <span className="required">*</span>
+                <label htmlFor="patient_name" className="form-label">
+                  Patient Name <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="input-wrapper">
-                  <User className="input-icon" size={18} />
-                  <input
-                    type="text"
-                    name="patientName"
-                    value={form.patientName}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.patientName ? 'error' : ''}`}
-                    placeholder="Enter patient's full name"
-                  />
-                </div>
-                {fieldErrors.patientName && (
-                  <span className="error-message">{fieldErrors.patientName}</span>
+                <input
+                  type="text"
+                  id="patient_name"
+                  name="patient_name"
+                  value={form.patient_name}
+                  onChange={onChange}
+                  className={`form-input ${fieldErrors.patient_name ? 'error' : ''}`}
+                  placeholder="Enter patient's full name"
+                  maxLength={255}
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.patient_name}
+                  aria-describedby={fieldErrors.patient_name ? "patient_name_error" : undefined}
+                />
+                {fieldErrors.patient_name && (
+                  <span id="patient_name_error" className="error-message" role="alert">
+                    {fieldErrors.patient_name}
+                  </span>
                 )}
               </div>
 
+              {/* Blood Group */}
               <div className="form-group">
-                <label className="form-label">
-                  Blood Group <span className="required">*</span>
+                <label htmlFor="blood_group" className="form-label">
+                  Blood Group <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="input-wrapper">
-                  <Droplet className="input-icon" size={18} />
-                  <select
-                    name="bloodGroup"
-                    value={form.bloodGroup}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.bloodGroup ? 'error' : ''}`}
-                  >
-                    <option value="">Select blood group</option>
-                    {bloodGroups.map(bg => (
-                      <option key={bg} value={bg}>{bg}</option>
-                    ))}
-                  </select>
-                </div>
-                {fieldErrors.bloodGroup && (
-                  <span className="error-message">{fieldErrors.bloodGroup}</span>
+                <select
+                  id="blood_group"
+                  name="blood_group"
+                  value={form.blood_group}
+                  onChange={onChange}
+                  className={`form-input form-select ${fieldErrors.blood_group ? 'error' : ''}`}
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.blood_group}
+                  aria-describedby={fieldErrors.blood_group ? "blood_group_error" : undefined}
+                >
+                  <option value="">Select blood group</option>
+                  {bloodGroups.map(bg => (
+                    <option key={bg} value={bg}>{bg}</option>
+                  ))}
+                </select>
+                {fieldErrors.blood_group && (
+                  <span id="blood_group_error" className="error-message" role="alert">
+                    {fieldErrors.blood_group}
+                  </span>
                 )}
               </div>
             </div>
@@ -270,82 +345,104 @@ const CreateRequest = () => {
           {/* Request Details Section */}
           <div className="form-section">
             <div className="section-header">
-              <AlertCircle size={20} />
-              <h3>Request Details</h3>
+              <div className="section-icon">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="section-title">Request Details</h3>
+                <p className="section-subtitle">Quantity, urgency, and timeline information</p>
+              </div>
             </div>
             
             <div className="form-grid">
+              {/* Units Required */}
               <div className="form-group">
-                <label className="form-label">
-                  Units Required <span className="required">*</span>
+                <label htmlFor="units_required" className="form-label">
+                  Units Required <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="input-wrapper">
-                  <Hash className="input-icon" size={18} />
-                  <input
-                    type="number"
-                    name="unitsRequired"
-                    min="1"
-                    max="20"
-                    value={form.unitsRequired}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.unitsRequired ? 'error' : ''}`}
-                    placeholder="Number of units"
-                  />
-                </div>
-                {fieldErrors.unitsRequired && (
-                  <span className="error-message">{fieldErrors.unitsRequired}</span>
+                <input
+                  type="number"
+                  id="units_required"
+                  name="units_required"
+                  min="1"
+                  max="20"
+                  value={form.units_required}
+                  onChange={onChange}
+                  className={`form-input ${fieldErrors.units_required ? 'error' : ''}`}
+                  placeholder="Enter number of units (1-20)"
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.units_required}
+                  aria-describedby={fieldErrors.units_required ? "units_required_error" : undefined}
+                />
+                {fieldErrors.units_required && (
+                  <span id="units_required_error" className="error-message" role="alert">
+                    {fieldErrors.units_required}
+                  </span>
                 )}
               </div>
 
+              {/* Required By */}
               <div className="form-group">
-                <label className="form-label">
-                  Urgency Level <span className="required">*</span>
+                <label htmlFor="required_by" className="form-label">
+                  Required By <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="urgency-selector">
+                <input
+                  type="datetime-local"
+                  id="required_by"
+                  name="required_by"
+                  value={form.required_by}
+                  onChange={onChange}
+                  className={`form-input ${fieldErrors.required_by ? 'error' : ''}`}
+                  min={new Date().toISOString().slice(0, 16)}
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.required_by}
+                  aria-describedby={fieldErrors.required_by ? "required_by_error" : undefined}
+                />
+                {fieldErrors.required_by && (
+                  <span id="required_by_error" className="error-message" role="alert">
+                    {fieldErrors.required_by}
+                  </span>
+                )}
+              </div>
+
+              {/* Urgency Level - Full Width */}
+              <div className="form-group full-width">
+                <label className="form-label" id="urgency-group-label">
+                  Urgency Level <span className="required" aria-label="required">*</span>
+                </label>
+                <div className="urgency-selector" role="radiogroup" aria-labelledby="urgency-group-label" aria-required="true">
                   {urgencyLevels.map(level => (
-                    <label key={level.value} className="urgency-option">
+                    <label 
+                      key={level.value} 
+                      className={`urgency-option ${form.urgency === level.value ? 'selected' : ''}`}
+                      htmlFor={`urgency-${level.value}`}
+                    >
                       <input
                         type="radio"
+                        id={`urgency-${level.value}`}
                         name="urgency"
                         value={level.value}
                         checked={form.urgency === level.value}
                         onChange={onChange}
                         aria-label={`Urgency level: ${level.label}`}
+                        className="urgency-radio"
                       />
                       <span 
                         className="urgency-badge"
                         style={{ 
                           borderColor: level.color,
-                          color: level.value === 'low' ? '#2E7D32' : 
-                                 level.value === 'medium' ? '#FF8F00' : '#C62828'
+                          color: level.color,
+                          background: form.urgency === level.value ? level.bg : 'white'
                         }}
                       >
-                        {level.label}
+                        <span className="urgency-icon"></span>
+                        <span className="urgency-text">{level.label}</span>
                       </span>
                     </label>
                   ))}
                 </div>
                 {fieldErrors.urgency && (
-                  <span className="error-message" role="alert">{fieldErrors.urgency}</span>
-                )}
-              </div>
-
-              <div className="form-group full-width">
-                <label className="form-label">
-                  Required By <span className="required">*</span>
-                </label>
-                <div className="input-wrapper">
-                  <Calendar className="input-icon" size={18} />
-                  <input
-                    type="datetime-local"
-                    name="requiredBy"
-                    value={form.requiredBy}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.requiredBy ? 'error' : ''}`}
-                  />
-                </div>
-                {fieldErrors.requiredBy && (
-                  <span className="error-message">{fieldErrors.requiredBy}</span>
+                  <span className="error-message" role="alert" id="urgency_error">{fieldErrors.urgency}</span>
                 )}
               </div>
             </div>
@@ -354,48 +451,62 @@ const CreateRequest = () => {
           {/* Contact Information Section */}
           <div className="form-section">
             <div className="section-header">
-              <Phone size={20} />
-              <h3>Contact Information</h3>
+              <div className="section-icon">
+                <Phone size={20} />
+              </div>
+              <div>
+                <h3 className="section-title">Contact Information</h3>
+                <p className="section-subtitle">Hospital representative contact details</p>
+              </div>
             </div>
             
             <div className="form-grid">
+              {/* Contact Person */}
               <div className="form-group">
-                <label className="form-label">
-                  Contact Person <span className="required">*</span>
+                <label htmlFor="contact_person" className="form-label">
+                  Contact Person <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="input-wrapper">
-                  <User className="input-icon" size={18} />
-                  <input
-                    type="text"
-                    name="contactPerson"
-                    value={form.contactPerson}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.contactPerson ? 'error' : ''}`}
-                    placeholder="Hospital representative name"
-                  />
-                </div>
-                {fieldErrors.contactPerson && (
-                  <span className="error-message">{fieldErrors.contactPerson}</span>
+                <input
+                  type="text"
+                  id="contact_person"
+                  name="contact_person"
+                  value={form.contact_person}
+                  onChange={onChange}
+                  className={`form-input ${fieldErrors.contact_person ? 'error' : ''}`}
+                  placeholder="Hospital representative name"
+                  maxLength={255}
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.contact_person}
+                  aria-describedby={fieldErrors.contact_person ? "contact_person_error" : undefined}
+                />
+                {fieldErrors.contact_person && (
+                  <span id="contact_person_error" className="error-message" role="alert">
+                    {fieldErrors.contact_person}
+                  </span>
                 )}
               </div>
 
+              {/* Contact Phone */}
               <div className="form-group">
-                <label className="form-label">
-                  Contact Phone <span className="required">*</span>
+                <label htmlFor="contact_phone" className="form-label">
+                  Contact Phone <span className="required" aria-label="required">*</span>
                 </label>
-                <div className="input-wrapper">
-                  <Phone className="input-icon" size={18} />
-                  <input
-                    type="tel"
-                    name="contactPhone"
-                    value={form.contactPhone}
-                    onChange={onChange}
-                    className={`form-input ${fieldErrors.contactPhone ? 'error' : ''}`}
-                    placeholder="+91 XXXXX XXXXX"
-                  />
-                </div>
-                {fieldErrors.contactPhone && (
-                  <span className="error-message">{fieldErrors.contactPhone}</span>
+                <input
+                  type="tel"
+                  id="contact_phone"
+                  name="contact_phone"
+                  value={form.contact_phone}
+                  onChange={onChange}
+                  className={`form-input ${fieldErrors.contact_phone ? 'error' : ''}`}
+                  placeholder="+91 XXXXX XXXXX"
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.contact_phone}
+                  aria-describedby={fieldErrors.contact_phone ? "contact_phone_error" : undefined}
+                />
+                {fieldErrors.contact_phone && (
+                  <span id="contact_phone_error" className="error-message" role="alert">
+                    {fieldErrors.contact_phone}
+                  </span>
                 )}
               </div>
             </div>
@@ -404,41 +515,31 @@ const CreateRequest = () => {
           {/* Additional Information Section */}
           <div className="form-section">
             <div className="section-header">
-              <FileText size={20} />
-              <h3>Additional Information</h3>
+              <div className="section-icon">
+                <FileText size={20} />
+              </div>
+              <div>
+                <h3 className="section-title">Additional Information</h3>
+                <p className="section-subtitle">Optional notes and special requirements</p>
+              </div>
             </div>
             
             <div className="form-group full-width">
-              <label className="form-label">
-                Description (Optional)
+              <label htmlFor="description" className="form-label">
+                Description <span className="optional">(Optional)</span>
               </label>
               <textarea
+                id="description"
                 name="description"
                 value={form.description}
                 onChange={onChange}
                 className="form-textarea"
-                placeholder="Additional notes, diagnosis, or special needs..."
-                rows="4"
+                placeholder="Additional notes, diagnosis, special requirements, or any other relevant information..."
+                rows="5"
+                maxLength="1000"
               />
-            </div>
-
-            <div className="form-group full-width">
-              <label className="form-label">
-                Attach File (Optional)
-              </label>
-              <div className="file-upload-wrapper">
-                <input
-                  type="file"
-                  id="file-upload"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={onFileChange}
-                  className="file-input"
-                />
-                <label htmlFor="file-upload" className="file-upload-label">
-                  <Upload size={20} />
-                  <span>{fileName || 'Upload prescription or doctor note'}</span>
-                  <span className="file-hint">PDF, JPG, PNG, DOC (Max 5MB)</span>
-                </label>
+              <div className="char-count">
+                {form.description?.length || 0} / 1000 characters
               </div>
             </div>
           </div>
@@ -450,24 +551,26 @@ const CreateRequest = () => {
               className="btn-secondary"
               onClick={handleCancel}
               disabled={loading}
+              aria-label="Cancel and go back"
             >
-              <XCircle size={18} />
-              Cancel
+              <ArrowLeft size={18} />
+              <span>Cancel</span>
             </button>
             <button 
               type="submit" 
               className="btn-primary"
               disabled={loading}
+              aria-label="Submit blood request"
             >
               {loading ? (
                 <>
                   <Loader className="spin" size={18} />
-                  Submitting...
+                  <span>Submitting...</span>
                 </>
               ) : (
                 <>
-                  <Save size={18} />
-                  Submit Request
+                  <Send size={18} />
+                  <span>Submit Request</span>
                 </>
               )}
             </button>

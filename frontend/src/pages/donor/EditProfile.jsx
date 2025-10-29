@@ -7,7 +7,7 @@ export default function EditProfile(){
   const [form, setForm] = useState(null);
   const { encodedId } = useParams();
 
-  useEffect(()=>{ load(); }, []);
+  useEffect(()=>{ load(); }, [encodedId]);
   async function load(){
     try{
       let res;

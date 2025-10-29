@@ -263,3 +263,21 @@ class ModelPredictionLog(db.Model):
     error_message = db.Column(db.Text)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Notification(db.Model):
+    """Store user notifications for blood requests and system events"""
+    __tablename__ = "notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # blood_request, system, reminder
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    data = db.Column(db.JSON)  # Additional data (request_id, match_id, token, etc.)
+    is_read = db.Column(db.Boolean, default=False)
+    read_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    user = db.relationship("User", backref="notifications")

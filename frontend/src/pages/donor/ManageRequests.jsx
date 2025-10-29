@@ -120,17 +120,18 @@ const ManageRequests = () => {
     // Create embedded map URL
     const mapUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dOWWgU6xq4j0tY&origin=${donorLat},${donorLng}&destination=${hospitalName}&mode=driving`;
     
-    mapContainer.innerHTML = `
-      <iframe
-        width="100%"
-        height="400"
-        style="border:0; border-radius: 12px;"
-        loading="lazy"
-        allowfullscreen
-        referrerpolicy="no-referrer-when-downgrade"
-        src="${mapUrl}">
-      </iframe>
-    `;
+    // Clear previous content and safely set new content
+    mapContainer.innerHTML = '';
+    const iframe = document.createElement('iframe');
+    iframe.width = '100%';
+    iframe.height = '400';
+    iframe.style.border = '0';
+    iframe.style.borderRadius = '12px';
+    iframe.loading = 'lazy';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    iframe.src = mapUrl;
+    mapContainer.appendChild(iframe);
   }
 
   function openMapView(request) {
