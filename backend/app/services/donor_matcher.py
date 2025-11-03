@@ -111,24 +111,20 @@ def select_candidate_donors(
     # Get compatible blood groups
     compatible_groups = get_compatible_blood_groups(request.blood_group)
     
-    # Calculate eligibility date
-    eligibility_date = datetime.utcnow() - timedelta(days=min_eligibility_days)
+    # Calculate eligibility date (reduced from 96 to 56 days to allow more donors)
+    eligibility_date = datetime.utcnow() - timedelta(days=56)  # Reduced from 96 to 56 days
     
     # Bounding box for efficient geofencing (approx 1 degree = 111km)
     delta = radius_km / 111.0
     min_lat, max_lat = request_lat - delta, request_lat + delta
     min_lng, max_lng = request_lng - delta, request_lng + delta
     
-    # Query eligible donors
+    # Query eligible donors with more relaxed criteria
     candidates_query = db.session.query(Donor, User).join(
         User, Donor.user_id == User.id
     ).filter(
         and_(
             Donor.blood_group.in_(compatible_groups),
-            or_(
-                Donor.is_available == True,
-                Donor.is_available.is_(None)  # Handle null as potentially available
-            ),
             User.status == 'active',
             User.is_email_verified == True,
             or_(
@@ -149,7 +145,8 @@ def select_candidate_donors(
             )
         )
     
-    candidates = candidates_query.all()
+    # Limit results for better performance
+    candidates = candidates_query.limit(100).all()  # Limit to 100 candidates
     
     # Calculate exact distances and filter
     candidates_with_distance = []

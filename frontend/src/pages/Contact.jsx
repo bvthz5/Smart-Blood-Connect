@@ -1,4 +1,3 @@
-// src/pages/Contact.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
@@ -23,7 +22,8 @@ export default function Contact() {
   const [submitStatus, setSubmitStatus] = useState(null);
   
   const heroRef = useRef(null);
-  const contactRefs = useRef([]);
+  const formRef = useRef(null);
+  const emergencyRef = useRef(null);
 
   // Get language from localStorage
   useEffect(() => {
@@ -49,30 +49,47 @@ export default function Contact() {
 
   // Animation setup
   useEffect(() => {
-    if (!heroRef.current) return;
-
     // Hero animation
-    gsap.fromTo(heroRef.current, 
-      { opacity: 0, y: 50 },
-      { opacity: 1, y: 0, duration: 1, ease: "power3.out" }
-    );
+    if (heroRef.current) {
+      gsap.fromTo(heroRef.current, 
+        { opacity: 0, y: 50 },
+        { opacity: 1, y: 0, duration: 1, ease: "power3.out" }
+      );
+    }
 
-    // Contact sections animation
-    ScrollTrigger.batch(contactRefs.current, {
-      onEnter: (elements) => {
-        gsap.fromTo(elements,
-          { opacity: 0, y: 40 },
-          { 
-            opacity: 1, 
-            y: 0, 
-            duration: 0.8, 
-            stagger: 0.2,
-            ease: "power3.out"
+    // Form section animation
+    if (formRef.current) {
+      gsap.fromTo(formRef.current, 
+        { opacity: 0, y: 40 },
+        { 
+          opacity: 1, 
+          y: 0, 
+          duration: 0.8, 
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: formRef.current,
+            start: "top 85%"
           }
-        );
-      },
-      start: "top 85%"
-    });
+        }
+      );
+    }
+
+    // Emergency section animation
+    if (emergencyRef.current) {
+      gsap.fromTo(emergencyRef.current, 
+        { opacity: 0, y: 40 },
+        { 
+          opacity: 1, 
+          y: 0, 
+          duration: 0.8, 
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: emergencyRef.current,
+            start: "top 85%"
+          }
+        }
+      );
+    }
 
     return () => {
       ScrollTrigger.getAll().forEach(trigger => trigger.kill());
@@ -120,82 +137,6 @@ export default function Contact() {
     }
   };
 
-  const contactInfo = language === 'en' ? [
-    {
-      icon: 'MapPin',
-      title: 'Office Address',
-      details: [
-        'SmartBlood Connect Headquarters',
-        'Technopark Campus, Trivandrum',
-        'Kerala, India - 695581'
-      ]
-    },
-    {
-      icon: '📞',
-      title: 'Phone Numbers',
-      details: [
-        'Emergency Hotline: +91 9847 000 000',
-        'Support: +91 471 234 5678',
-        'General Inquiries: +91 471 234 5679'
-      ]
-    },
-    {
-      icon: 'Email',
-      title: 'Email Addresses',
-      details: [
-        'support@smartbloodconnect.com',
-        'emergency@smartbloodconnect.com',
-        'partnerships@smartbloodconnect.com'
-      ]
-    },
-    {
-      icon: '⏰',
-      title: 'Working Hours',
-      details: [
-        'Emergency Services: 24/7',
-        'Support Team: 8 AM - 8 PM',
-        'Office Hours: 9 AM - 6 PM'
-      ]
-    }
-  ] : [
-    {
-      icon: 'MapPin',
-      title: 'ഓഫീസ് വിലാസം',
-      details: [
-        'സ്മാർട്ട് ബ്ലഡ് കണക്ട് ആസ്ഥാനം',
-        'ടെക്നോപാർക്ക് കാമ്പസ്, തിരുവനന്തപുരം',
-        'കേരളം, ഇന്ത്യ - 695581'
-      ]
-    },
-    {
-      icon: '📞',
-      title: 'ഫോൺ നമ്പറുകൾ',
-      details: [
-        'അടിയന്തര ഹോട്ട്‌ലൈൻ: +91 9847 000 000',
-        'പിന്തുണ: +91 471 234 5678',
-        'പൊതു അന്വേഷണങ്ങൾ: +91 471 234 5679'
-      ]
-    },
-    {
-      icon: 'Email',
-      title: 'ഇമെയിൽ വിലാസങ്ങൾ',
-      details: [
-        'support@smartbloodconnect.com',
-        'emergency@smartbloodconnect.com',
-        'partnerships@smartbloodconnect.com'
-      ]
-    },
-    {
-      icon: '⏰',
-      title: 'പ്രവർത്തന സമയം',
-      details: [
-        'അടിയന്തര സേവനങ്ങൾ: 24/7',
-        'പിന്തുണ ടീം: രാവിലെ 8 - വൈകുന്നേരം 8',
-        'ഓഫീസ് സമയം: രാവിലെ 9 - വൈകുന്നേരം 6'
-      ]
-    }
-  ];
-
   const inquiryTypes = language === 'en' ? [
     { value: 'general', label: 'General Inquiry' },
     { value: 'support', label: 'Technical Support' },
@@ -232,33 +173,10 @@ export default function Contact() {
         </div>
       </section>
 
-      {/* Contact Information */}
-      <section className="contact-info-section">
-        <div className="container">
-          <div className="contact-grid">
-            {contactInfo.map((info, index) => (
-              <div
-                key={index}
-                ref={el => contactRefs.current[index] = el}
-                className="contact-card"
-              >
-                <div className="card-icon">{info.icon}</div>
-                <h3 className="card-title">{info.title}</h3>
-                <div className="card-details">
-                  {info.details.map((detail, detailIndex) => (
-                    <p key={detailIndex} className="detail-item">{detail}</p>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Contact Form */}
       <section className="contact-form-section">
         <div className="container">
-          <div ref={el => contactRefs.current[4] = el} className="form-container">
+          <div ref={formRef} className="form-container">
             <div className="form-header">
               <h2>
                 {language === 'en' ? 'Send us a Message' : 'ഞങ്ങൾക്ക് ഒരു സന്ദേശം അയയ്ക്കുക'}
@@ -399,7 +317,7 @@ export default function Contact() {
       {/* Emergency Contact */}
       <section className="emergency-section">
         <div className="container">
-          <div ref={el => contactRefs.current[5] = el} className="emergency-content">
+          <div ref={emergencyRef} className="emergency-content">
             <div className="emergency-icon">🚨</div>
             <h2>
               {language === 'en' ? 'Emergency Blood Request?' : 'അടിയന്തര രക്ത അഭ്യർത്ഥന?'}

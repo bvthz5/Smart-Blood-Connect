@@ -23,6 +23,11 @@ def upgrade():
     op.add_column('donation_history', sa.Column('notes', sa.Text))
     op.add_column('donation_history', sa.Column('created_at', sa.DateTime, server_default=sa.text('CURRENT_TIMESTAMP')))
     op.add_column('donation_history', sa.Column('updated_at', sa.DateTime, server_default=sa.text('CURRENT_TIMESTAMP')))
+    
+    # Add certificate fields
+    op.add_column('donation_history', sa.Column('certificate_number', sa.String(100), unique=True, nullable=True))
+    op.add_column('donation_history', sa.Column('certificate_url', sa.String(500), nullable=True))
+    op.add_column('donation_history', sa.Column('certificate_generated_at', sa.DateTime, nullable=True))
 
 def downgrade():
     # Remove the columns if needed to rollback
@@ -31,3 +36,8 @@ def downgrade():
     op.drop_column('donation_history', 'notes')
     op.drop_column('donation_history', 'created_at')
     op.drop_column('donation_history', 'updated_at')
+    
+    # Remove certificate fields
+    op.drop_column('donation_history', 'certificate_number')
+    op.drop_column('donation_history', 'certificate_url')
+    op.drop_column('donation_history', 'certificate_generated_at')

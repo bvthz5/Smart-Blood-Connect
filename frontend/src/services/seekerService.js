@@ -48,9 +48,17 @@ const seekerService = {
     return res.data;
   },
   listMatches: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    const res = await api.get(`/api/seeker/matches${query ? `?${query}` : ''}`);
-    return res.data;
+    try {
+      const query = new URLSearchParams(params).toString();
+      const res = await api.get(`/api/seeker/matches${query ? `?${query}` : ''}`);
+      return res.data;
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || 'Failed to fetch matches');
+    }
   },
   getHospital: async () => {
     const res = await api.get('/api/seeker/hospital');

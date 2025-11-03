@@ -73,9 +73,8 @@ const BloodMatchingContent = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
-  const [socket, setSocket] = useState(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+  // Removed socket state since WebSocket functionality is being disabled
+  // Removed reconnectAttempts ref since WebSocket functionality is being disabled
 
   // Blood groups, urgency levels, and status options for filters
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -158,110 +157,10 @@ const BloodMatchingContent = () => {
     return sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />;
   };
 
-  // Initialize WebSocket connection with Socket.IO
-  const initializeWebSocket = useCallback(() => {
-    try {
-      // Import socket.io-client dynamically to avoid SSR issues
-      const io = require('socket.io-client');
-      
-      if (socket) {
-        socket.disconnect();
-      }
-      
-      // Create a new Socket.IO connection
-      const socketIo = io({
-        path: '/socket.io',
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
-      });
-      
-      // Connection established
-      socketIo.on('connect', () => {
-        console.log('Socket.IO Connected');
-        reconnectAttempts.current = 0;
-        
-        // Subscribe to match updates
-        socketIo.emit('subscribe_to_matches', { user_id: 'admin' });
-      });
-      
-      // Handle match updates
-      socketIo.on('match_updated', (data) => {
-        console.log('Match update received:', data);
-        
-        if (data.match) {
-          // Update the specific match in the list
-          setMatches(prevMatches => 
-            prevMatches.map(match => 
-              match.id === data.match.id ? { ...match, ...data.match } : match
-            )
-          );
-          
-          // If the updated match is currently selected, update it
-          if (selectedMatch && selectedMatch.id === data.match.id) {
-            setSelectedMatch(prev => ({ ...prev, ...data.match }));
-          }
-          
-          // Show a toast notification
-          toast.info(`Match ${data.match.id} status updated to ${data.match.status}`);
-          
-          // Refresh stats
-          fetchStats();
-        }
-      });
-      
-      // Handle errors
-      socketIo.on('connect_error', (error) => {
-        console.error('Socket.IO connection error:', error);
-        
-        // Attempt to reconnect with exponential backoff
-        const attempts = reconnectAttempts.current + 1;
-        reconnectAttempts.current = attempts;
-        
-        if (attempts <= 5) {
-          const delay = Math.min(1000 * Math.pow(2, attempts), 30000); // Max 30s delay
-          console.log(`Reconnection attempt ${attempts} in ${delay}ms`);
-          
-          setTimeout(() => {
-            if (socketIo && !socketIo.connected) {
-              socketIo.connect();
-            }
-          }, delay);
-        }
-      });
-      
-      // Handle disconnection
-      socketIo.on('disconnect', (reason) => {
-        console.log('Socket.IO Disconnected:', reason);
-        
-        if (reason === 'io server disconnect') {
-          // The server has forcibly disconnected the socket, try to reconnect
-          socketIo.connect();
-        }
-      });
-      
-      // Store the socket instance in state
-      setSocket(socketIo);
-      
-      // Cleanup function
-      return () => {
-        if (socketIo) {
-          socketIo.disconnect();
-        }
-      };
-    } catch (error) {
-      console.error('Failed to initialize WebSocket:', error);
-    }
-  }, [selectedMatch]);
+  // Removed initializeWebSocket function since WebSocket functionality is being disabled
 
   useEffect(() => {
-    // Initialize WebSocket connection
-    initializeWebSocket();
-    
-    // Initial data fetch
+    // Initial data fetch without WebSocket connection
     const loadInitialData = async () => {
       try {
         await Promise.all([fetchStats(), fetchMatches()]);
@@ -273,12 +172,7 @@ const BloodMatchingContent = () => {
     
     loadInitialData();
     
-    // Cleanup WebSocket on unmount
-    return () => {
-      if (socket) {
-        socket.close();
-      }
-    };
+    // Removed WebSocket cleanup since WebSocket functionality is being disabled
   }, []);
 
   // Handle pagination, search, and filter changes
@@ -341,37 +235,32 @@ const BloodMatchingContent = () => {
         throw new Error('Invalid response format from server');
       }
 
-      // The API returns data in the format { matches: [...], pagination: { total, page, pages, per_page } }
-      if (!response || !response.matches) {
-        throw new Error('Invalid response from server');
-      }
+      // Transform the data to match the expected format
+      const transformedMatches = response.matches.map(match => ({
+        ...match,
+        // Ensure match_score is a number
+        match_score: typeof match.match_score === 'number' ? match.match_score : parseFloat(match.match_score) || 0,
+        // Ensure dates are properly formatted
+        matched_at: match.matched_at || match.created_at || new Date().toISOString(),
+        created_at: match.created_at || match.matched_at || new Date().toISOString()
+      }));
 
-      setMatches(response.matches);
+      setMatches(transformedMatches);
+      
+      // Update pagination from response
       setPagination(prev => ({
         ...prev,
         total: response.total || 0,
-        pages: response.pages || 1
+        pages: response.pages || 1,
+        page: response.page || prev.page,
+        per_page: response.per_page || prev.per_page
       }));
-      setError(null); // Clear any existing errors
 
+      setLoading(false);
     } catch (err) {
       console.error('Error fetching matches:', err);
-      let errorMessage = 'Failed to fetch matches. Please check your connection and try again.';
-      
-      if (err.response?.status === 401) {
-        errorMessage = 'Your session has expired. Please log in again.';
-        // Handle logout/redirect if needed
-      } else if (err.response?.status === 403) {
-        errorMessage = 'You do not have permission to access this resource.';
-      } else if (err.response?.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
-      setError(errorMessage);
+      setError(err.message || 'Failed to fetch matches');
       setMatches([]);
-    } finally {
       setLoading(false);
     }
   };
@@ -765,7 +654,26 @@ const BloodMatchingContent = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedMatches().map((match) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="9" className="loading-cell">
+                    <div className="table-loading">
+                      <Loader className="spinner" size={32} />
+                      <p>Loading matches...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : sortedMatches().length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="no-data-cell">
+                    <div className="no-matches-inline">
+                      <Heart size={32} />
+                      <p>No matches found</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                sortedMatches().map((match) => (
                 <tr key={match.id}>
                   <td>
                     <div className="donor-info">
@@ -834,24 +742,6 @@ const BloodMatchingContent = () => {
                       </button>
                       {match.status === 'pending' && (
                         <>
-                          <button
-                            type="button"
-                            aria-label="Accept Match"
-                            className="action-btn accept"
-                            onClick={() => handleStatusChange(match, 'accepted')}
-                            title="Accept this match"
-                          >
-                            <Check className="icon" size={18} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Decline Match"
-                            className="action-btn decline"
-                            onClick={() => handleStatusChange(match, 'declined')}
-                            title="Decline this match"
-                          >
-                            <X className="icon" size={18} />
-                          </button>
                         </>
                       )}
                       {match.status === 'accepted' && (
@@ -866,32 +756,18 @@ const BloodMatchingContent = () => {
                         </button>
                       )}
                       {match.status !== 'pending' && match.status !== 'accepted' && match.status !== 'completed' && (
-                        <button
-                          type="button"
-                          aria-label="Delete Match"
-                          className="action-btn delete"
-                          onClick={() => handleStatusChange(match, 'cancelled')}
-                          title="Cancel this match"
-                        >
-                          <XSquare className="icon" size={18} />
-                        </button>
+                        <>
+                        </>
                       )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
           
-          {matches.length === 0 && !loading && (
-            <div className="no-matches">
-              <div className="no-matches-icon">
-                <Heart size={48} />
-              </div>
-              <h3>No matches found</h3>
-              <p>Try adjusting your search or filter criteria</p>
-            </div>
-          )}
+          {/* Removed duplicate empty state since it's now in the tbody */}
         </div>
       </div>
 

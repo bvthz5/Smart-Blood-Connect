@@ -688,46 +688,64 @@ function AlertsCampsSection({ language }) {
 // Component for Testimonials
 function TestimonialsSection({ language }) {
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
+  const [testimonials, setTestimonials] = useState([])
+  const [loading, setLoading] = useState(true)
   
-  // Use only dummy values for testimonials
-  const testimonials = [
-    {
-      id: 1,
-      quote: language === 'en' 
-        ? "SmartBlood saved my father's life by connecting us with a donor within hours. The platform is truly life-saving!"
-        : "സ്മാർട്ട് ബ്ലഡ് എന്റെ പിതാവിന്റെ ജീവൻ രക്ഷിച്ചു, ഒരു മണിക്കൂറിനുള്ളിൽ ഒരു ദാനിയെ കണ്ടെത്തി ബന്ധിപ്പിച്ചു.",
-      author: language === 'en' ? "Priya S." : "പ്രിയ എസ്.",
-      role: language === 'en' ? "Patient's Family" : "രോഗിയുടെ കുടുംബാംഗം",
-      rating: 5
-    },
-    {
-      id: 2,
-      quote: language === 'en' 
-        ? "As a regular donor, this platform makes it so easy to help when needed most. I've donated 12 times through SmartBlood!"
-        : "ഒരു പതിവ് ദാനിയായി, ആവശ്യമുള്ളപ്പോൾ സഹായിക്കാൻ ഈ പ്ലാറ്റ്ഫോം വളരെ എളുപ്പമാക്കി.",
-      author: language === 'en' ? "Rajesh K." : "രാജേഷ് കെ.",
-      role: language === 'en' ? "Blood Donor" : "രക്തദാനി",
-      rating: 5,
-      donations: language === 'en' ? "12 donations" : "12 തവണ ദാനം"
-    },
-    {
-      id: 3,
-      quote: language === 'en' 
-        ? "The real-time matching system has revolutionized our blood bank operations. We've saved 200+ lives this month alone."
-        : "റിയൽ-ടൈം മാച്ചിംഗ് സിസ്റ്റം ഞങ്ങളുടെ ബ്ലഡ് ബാങ്ക് പ്രവർത്തനങ്ങളെ മാറ്റിമറിച്ചു.",
-      author: language === 'en' ? "Dr. Meera" : "ഡോ. മീര",
-      role: language === 'en' ? "Hospital Administrator" : "ആശുപത്രി അഡ്മിനിസ്ട്രേറ്റർ",
-      rating: 5,
-      impact: language === 'en' ? "200+ lives saved this month" : "ഈ മാസം 200+ ജീവിതങ്ങൾ രക്ഷിച്ചു"
+  // Fetch testimonials from backend
+  useEffect(() => {
+    const fetchTestimonials = async () => {
+      try {
+        setLoading(true)
+        
+        const response = await import('../services/homepageService')
+        const backendTestimonials = await response.getCachedHomepageTestimonials()
+        
+        if (backendTestimonials && backendTestimonials.success && backendTestimonials.data.length > 0) {
+          setTestimonials(backendTestimonials.data)
+        } else {
+          // Use empty array instead of default mock data
+          setTestimonials([])
+        }
+      } catch (err) {
+        console.error('Error fetching testimonials:', err)
+        // Use empty array instead of default mock data on error
+        setTestimonials([])
+      } finally {
+        setLoading(false)
+      }
     }
-  ]
+
+    fetchTestimonials()
+  }, [language])
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [testimonials.length])
+    let timeoutId;
+    if (testimonials.length > 0) {
+      timeoutId = setTimeout(() => {
+        setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)
+      }, 3000)
+    }
+    return () => clearTimeout(timeoutId)
+  }, [currentTestimonial, testimonials.length])
+
+  if (loading) {
+    return (
+      <section className="testimonials-section-new">
+        <div className="container">
+          <div className="section-header-centered">
+            <h2 className="section-title-modern">
+              {language === 'en' ? 'What People Say' : 'ആളുകൾ പറയുന്നത്'}
+            </h2>
+          </div>
+          <div className="testimonials-carousel">
+            <div className="testimonial-card loading">
+              <div className="loading-placeholder"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="testimonials-section-new">
@@ -738,27 +756,34 @@ function TestimonialsSection({ language }) {
           </h2>
         </div>
         <div className="testimonials-carousel">
-          <div className="testimonial-card">
-            <div className="testimonial-header">
-              <div className="testimonial-avatar">👤</div>
-              <div className="testimonial-info">
-                <h4 className="testimonial-author">{testimonials[currentTestimonial].author}</h4>
-                <p className="testimonial-role">{testimonials[currentTestimonial].role}</p>
-                <div className="testimonial-rating">
-                  {'★'.repeat(testimonials[currentTestimonial].rating || 5)}
+          {testimonials.length > 0 ? (
+            <div className="testimonial-card">
+              <div className="testimonial-header">
+                <div className="testimonial-avatar">{testimonials[currentTestimonial].image || '👤'}</div>
+                <div className="testimonial-info">
+                  <h4 className="testimonial-author">{testimonials[currentTestimonial].author}</h4>
+                  <p className="testimonial-role">{testimonials[currentTestimonial].role}</p>
+                  <div className="testimonial-rating">
+                    {'★'.repeat(testimonials[currentTestimonial].rating || 5)}
+                  </div>
                 </div>
               </div>
+              <div className="testimonial-content">
+                <p className="testimonial-quote">"{testimonials[currentTestimonial].quote}"</p>
+                <p className="testimonial-location">📍 {testimonials[currentTestimonial].location}</p>
+                {testimonials[currentTestimonial].donations && (
+                  <p className="testimonial-stats">🩸 {testimonials[currentTestimonial].donations}</p>
+                )}
+                {testimonials[currentTestimonial].impact && (
+                  <p className="testimonial-stats">🎯 {testimonials[currentTestimonial].impact}</p>
+                )}
+              </div>
             </div>
-            <div className="testimonial-content">
-              <p className="testimonial-quote">"{testimonials[currentTestimonial].quote}"</p>
-              {testimonials[currentTestimonial].donations && (
-                <p className="testimonial-stats">🩸 {testimonials[currentTestimonial].donations}</p>
-              )}
-              {testimonials[currentTestimonial].impact && (
-                <p className="testimonial-stats">🎯 {testimonials[currentTestimonial].impact}</p>
-              )}
+          ) : (
+            <div className="no-data-message">
+              {language === 'en' ? 'No testimonials available' : 'അഭിപ്രായങ്ങൾ ലഭ്യമല്ല'}
             </div>
-          </div>
+          )}
           
           {testimonials.length > 1 && (
             <div className="carousel-dots">

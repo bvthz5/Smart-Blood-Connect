@@ -108,14 +108,38 @@ def predict_donor_availability(features: Dict[str, Any]) -> float:
             features.get('urgency_numeric', 2),  # 0=low, 1=medium, 2=high, 3=critical
         ]
         
-        # Get probability
-        proba = model.predict_proba([feature_vector])[0]
-        return round(float(proba[1] if len(proba) > 1 else proba[0]), 4)
+        # Get probability with timeout to prevent hanging
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Model prediction timeout")
+        
+        # Set timeout for 5 seconds
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(5)
+        
+        try:
+            proba = model.predict_proba([feature_vector])[0]
+            signal.alarm(0)  # Cancel the alarm
+            return round(float(proba[1] if len(proba) > 1 else proba[0]), 4)
+        except TimeoutError:
+            signal.alarm(0)  # Cancel the alarm
+            current_app.logger.warning("Model prediction timed out, using fallback")
+            raise Exception("Prediction timeout")
         
     except Exception as e:
         current_app.logger.error(f"Availability prediction failed: {str(e)}")
-        # Fallback score
-        return 0.5
+        # Fallback score based on simple heuristics
+        base_score = 0.7 if features.get('is_available', True) else 0.3
+        # Adjust based on reliability
+        reliability_factor = features.get('reliability_score', 0.5)
+        # Adjust based on recent notifications (avoid spamming)
+        notification_penalty = min(features.get('recent_notifications', 0) * 0.1, 0.3)
+        # Adjust based on days since last donation (more recent = less likely to donate again)
+        days_factor = min(features.get('days_since_last_donation', 365) / 365.0, 1.0)
+        
+        score = base_score * (0.5 + 0.5 * reliability_factor) * (1 - notification_penalty) * days_factor
+        return round(max(min(score, 1.0), 0.1), 4)
 
 
 def predict_response_time(features: Dict[str, Any]) -> float:
@@ -147,9 +171,32 @@ def predict_response_time(features: Dict[str, Any]) -> float:
             features.get('time_of_day', 12),  # hour 0-23
         ]
         
-        hours = model.predict([feature_vector])[0]
-        return round(float(max(hours, 0.5)), 2)
+        # Get prediction with timeout
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Model prediction timeout")
+        
+        # Set timeout for 5 seconds
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(5)
+        
+        try:
+            hours = model.predict([feature_vector])[0]
+            signal.alarm(0)  # Cancel the alarm
+            return round(float(max(hours, 0.5)), 2)
+        except TimeoutError:
+            signal.alarm(0)  # Cancel the alarm
+            current_app.logger.warning("Response time prediction timed out, using fallback")
+            raise Exception("Prediction timeout")
         
     except Exception as e:
         current_app.logger.error(f"Response time prediction failed: {str(e)}")
-        return 12.0  # Fallback: 12 hours
+        # Fallback calculation
+        base_hours = 24 - (features.get('urgency_numeric', 2) * 6)
+        distance_factor = 1 + (features.get('distance_km', 0) * 0.1)
+        age_factor = 1 + abs(features.get('donor_age', 30) - 30) * 0.01
+        reliability_factor = 2 - features.get('reliability_score', 0.5)
+        
+        hours = base_hours * distance_factor * age_factor * reliability_factor
+        return round(float(max(min(hours, 48), 1)), 2)  # Between 1 and 48 hours

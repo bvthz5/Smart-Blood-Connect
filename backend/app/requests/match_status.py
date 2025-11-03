@@ -153,10 +153,10 @@ def determine_search_status(request, match_count):
     age_seconds = (datetime.utcnow() - request.created_at).total_seconds()
     
     if match_count == 0:
-        if age_seconds < 10:
+        if age_seconds < 5:  # Reduced from 10 to 5 seconds
             return "running"  # Still searching
-        elif age_seconds < 60:
-            return "running"  # Give it up to 60 seconds
+        elif age_seconds < 30:  # Reduced from 60 to 30 seconds
+            return "running"  # Give it up to 30 seconds
         else:
             return "none_found"  # Search complete, no donors found
     
@@ -168,14 +168,14 @@ def determine_search_status(request, match_count):
         )
     ).count()
     
-    if notified_count > 0 and notified_count >= min(match_count, 10):
-        return "done"  # Top 10 notified, search complete
+    if notified_count > 0 and notified_count >= min(match_count, 5):  # Reduced from 10 to 5
+        return "done"  # Top 5 notified, search complete
     
     # Still finding or processing matches
-    if age_seconds < 30:
+    if age_seconds < 15:  # Reduced from 30 to 15 seconds
         return "running"
     else:
-        return "done"  # After 30 seconds, consider it done even if not all notified
+        return "done"  # After 15 seconds, consider it done even if not all notified
 
 
 def get_district_coordinates():

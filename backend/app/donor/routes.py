@@ -1,8 +1,9 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, send_file
 from app.extensions import db
 from app.models import User, Donor, Match, DonationHistory, Hospital, MatchPrediction, ModelPredictionLog
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
+import os
 from app.utils.id_encoder import encode_id, decode_id, IDEncodingError
 from app.ml.feature_builder import FeatureBuilder
 from app.ml.model_client import model_client
@@ -449,7 +450,7 @@ def get_donation_details(donation_id):
                 "address": hospital.address,
                 "city": hospital.city,
                 "district": hospital.district,
-                "phone": hospital.contact_phone,
+                "phone": hospital.phone,  # Fixed: use hospital.phone not hospital.contact_phone
                 "lat": None,  # Add when hospital model has lat/lng
                 "lng": None
             }
@@ -471,14 +472,18 @@ def get_donation_details(donation_id):
         .filter(DonationHistory.donation_date <= donation.donation_date)\
         .count()
     
-    # Check for certificate
+    # Check for certificate (now stored in DonationHistory)
     certificate_url = None
-    certificate_number = None
-    # TODO: Query certificates table when implemented
-    # cert = Certificate.query.filter_by(donation_id=donation.id).first()
-    # if cert:
-    #     certificate_url = cert.certificate_url
-    #     certificate_number = cert.certificate_number
+    certificate_number = donation.certificate_number
+    if donation.certificate_url:
+        # Return relative URL path for frontend
+        certificate_url = f"/api/donors/certificates/{os.path.basename(donation.certificate_url)}"
+    certificate_generated_at = donation.certificate_generated_at.isoformat() if donation.certificate_generated_at else None
+    
+    # Calculate next eligible donation date
+    donor_gender = donor.gender.lower() if donor.gender else None
+    waiting_days = 90 if donor_gender == 'male' else 120 if donor_gender == 'female' else 90
+    next_eligible_date = donation.donation_date + timedelta(days=waiting_days)
     
     # Get badges earned (if any)
     badges_earned = []
@@ -512,6 +517,9 @@ def get_donation_details(donation_id):
         "contact_phone": request_data.get("contact_phone") if request_data else None,
         "certificate_url": certificate_url,
         "certificate_number": certificate_number,
+        "certificate_generated_at": certificate_generated_at,
+        "next_eligible_date": next_eligible_date.isoformat() if next_eligible_date else None,
+        "waiting_period_days": waiting_days,
         "badges_earned": badges_earned,
         "notes": None,  # Can add notes field to DonationHistory model
         "created_at": donation.created_at.isoformat() if hasattr(donation, 'created_at') and donation.created_at else None
@@ -555,6 +563,113 @@ def record_donation():
     db.session.commit()
     
     return jsonify({"message": "Donation recorded", "donation_id": donation.id}), 201
+
+
+@donor_bp.route("/donations/<int:donation_id>/certificate", methods=["POST"])
+@jwt_required()
+def generate_certificate(donation_id):
+    """Generate certificate for a donation"""
+    user, donor, err = _get_current_donor()
+    if err:
+        return err
+    
+    # Get the donation and verify it belongs to current donor
+    donation = DonationHistory.query.filter_by(id=donation_id, donor_id=donor.id).first()
+    if not donation:
+        return jsonify({"error": "Donation not found"}), 404
+    
+    # Check if certificate already exists
+    if donation.certificate_url and donation.certificate_number:
+        return jsonify({
+            "message": "Certificate already exists",
+            "certificate_url": f"/api/donors/certificates/{os.path.basename(donation.certificate_url)}",
+            "certificate_number": donation.certificate_number
+        }), 200
+    
+    # Get hospital details
+    hospital = Hospital.query.get(donation.hospital_id) if donation.hospital_id else None
+    
+    # Calculate next eligible donation date
+    # Standard waiting periods: 90 days for males, 120 days for females
+    donation_date = donation.donation_date
+    donor_gender = donor.gender.lower() if donor.gender else None
+    
+    if donor_gender == 'male':
+        waiting_days = 90
+    elif donor_gender == 'female':
+        waiting_days = 120
+    else:
+        waiting_days = 90  # Default to male waiting period
+    
+    next_eligible_date = donation_date + timedelta(days=waiting_days)
+    
+    # Prepare donation data for certificate generation
+    from app.services.certificate_service import get_certificate_service
+    cert_service = get_certificate_service()
+    
+    donor_name = f"{user.first_name} {user.last_name or ''}".strip()
+    
+    donation_data = {
+        'donor_name': donor_name,
+        'donor_id': donor.id,
+        'blood_group': donor.blood_group,
+        'donation_date': donation.donation_date,
+        'hospital_name': hospital.name if hospital else 'Unknown Hospital',
+        'hospital_city': hospital.city if hospital else '',
+        'hospital_district': hospital.district if hospital else '',
+        'units': donation.units,
+        'donation_id': donation.id,
+        'hospital_id': donation.hospital_id or 0,
+        'next_eligible_date': next_eligible_date,
+        'gender': donor_gender
+    }
+    
+    try:
+        # Generate certificate PDF
+        filename, certificate_number = cert_service.generate_certificate_pdf(donation_data)
+        
+        # Update donation record with certificate info
+        donation.certificate_number = certificate_number
+        donation.certificate_url = filename  # Store just filename, not full path
+        donation.certificate_generated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Certificate generated successfully",
+            "certificate_url": f"/api/donors/certificates/{filename}",
+            "certificate_number": certificate_number
+        }), 201
+        
+    except Exception as e:
+        current_app.logger.exception("Failed to generate certificate")
+        return jsonify({"error": "Failed to generate certificate", "details": str(e)}), 500
+
+
+@donor_bp.route("/certificates/<filename>", methods=["GET"])
+def download_certificate(filename):
+    """Download certificate PDF file"""
+    try:
+        from app.services.certificate_service import get_certificate_service
+        cert_service = get_certificate_service()
+        
+        # Get full path to certificate
+        filepath = cert_service.get_certificate_path(filename)
+        
+        if not os.path.exists(filepath):
+            return jsonify({"error": "Certificate not found"}), 404
+        
+        # Send file with proper MIME type and download disposition
+        return send_file(
+            filepath,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        current_app.logger.exception("Failed to download certificate")
+        return jsonify({"error": "Failed to download certificate"}), 500
 
 
 @donor_bp.route("/notifications", methods=["GET"])
@@ -789,6 +904,196 @@ def update_donor_location():
             "lng": float(donor.location_lng)
         }
     })
+
+
+@donor_bp.route("/accept-request/<int:match_id>", methods=["GET"])
+def accept_blood_request(match_id):
+    """
+    Accept a blood request (via email link or direct access)
+    """
+    try:
+        # Get match
+        match = Match.query.get(match_id)
+        if not match:
+            return jsonify({"error": "Request not found"}), 404
+        
+        # Verify token if provided
+        token = request.args.get('token')
+        if token and match.notes and f"token:{token}" not in match.notes:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        # Update match status
+        match.status = 'accepted'
+        match.confirmed_at = datetime.utcnow()
+        
+        # Update request status if it's still pending
+        blood_request = Request.query.get(match.request_id)
+        if blood_request and blood_request.status == 'pending':
+            blood_request.status = 'in_progress'
+        
+        db.session.commit()
+        
+        # Send notification to admin/hospital
+        try:
+            from app.services.email_service import email_service
+            from flask import current_app
+            
+            # Get donor and request info
+            donor = Donor.query.get(match.donor_id)
+            request_obj = Request.query.get(match.request_id)
+            hospital = Hospital.query.get(request_obj.hospital_id) if request_obj.hospital_id else None
+            
+            if request_obj:
+                # Notify hospital staff if exists
+                if hospital and hospital.email:
+                    email_html = f"""
+                    <h2>Donor Accepted Blood Request</h2>
+                    <p>A donor has accepted your blood request:</p>
+                    <ul>
+                        <li>Donor: {donor.user.first_name} {donor.user.last_name if donor.user.last_name else ''}</li>
+                        <li>Patient: {request_obj.patient_name}</li>
+                        <li>Blood Group: {request_obj.blood_group}</li>
+                        <li>Units Needed: {request_obj.units_required}</li>
+                        <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                    </ul>
+                    <p>Please coordinate with the donor for the donation process.</p>
+                    <p><small>Smart Blood Connect</small></p>
+                    """
+                    
+                    email_service.send_email(
+                        to=hospital.email,
+                        subject=f'Donor Accepted: {request_obj.blood_group} Blood Request for {request_obj.patient_name}',
+                        html=email_html
+                    )
+                
+                # Notify admin
+                admin_email = current_app.config.get('ADMIN_EMAIL')
+                if admin_email:
+                    email_html = f"""
+                    <h2>Donor Accepted Blood Request</h2>
+                    <p>A donor has accepted a blood request:</p>
+                    <ul>
+                        <li>Donor: {donor.user.first_name} {donor.user.last_name if donor.user.last_name else ''}</li>
+                        <li>Patient: {request_obj.patient_name}</li>
+                        <li>Blood Group: {request_obj.blood_group}</li>
+                        <li>Units Needed: {request_obj.units_required}</li>
+                        <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                    </ul>
+                    <p><small>Smart Blood Connect</small></p>
+                    """
+                    
+                    email_service.send_email(
+                        to=admin_email,
+                        subject=f'Donor Accepted: {request_obj.blood_group} Blood Request',
+                        html=email_html
+                    )
+        except Exception as e:
+            current_app.logger.error(f"Failed to send acceptance notification: {str(e)}")
+        
+        return jsonify({
+            "message": "Request accepted successfully",
+            "match_id": match_id,
+            "status": "accepted"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to accept request: {str(e)}")
+        return jsonify({"error": "Failed to accept request"}), 500
+
+
+@donor_bp.route("/reject-request/<int:match_id>", methods=["GET"])
+def reject_blood_request(match_id):
+    """
+    Reject a blood request (via email link or direct access)
+    """
+    try:
+        # Get match
+        match = Match.query.get(match_id)
+        if not match:
+            return jsonify({"error": "Request not found"}), 404
+        
+        # Verify token if provided
+        token = request.args.get('token')
+        if token and match.notes and f"token:{token}" not in match.notes:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        # Update match status
+        match.status = 'declined'
+        
+        # Update request status if needed
+        blood_request = Request.query.get(match.request_id)
+        
+        db.session.commit()
+        
+        # Send notification to admin/hospital
+        try:
+            from app.services.email_service import email_service
+            from flask import current_app
+            
+            # Get donor and request info
+            donor = Donor.query.get(match.donor_id)
+            request_obj = Request.query.get(match.request_id)
+            hospital = Hospital.query.get(request_obj.hospital_id) if request_obj.hospital_id else None
+            
+            if request_obj:
+                # Notify hospital staff if exists
+                if hospital and hospital.email:
+                    email_html = f"""
+                    <h2>Donor Declined Blood Request</h2>
+                    <p>A donor has declined your blood request:</p>
+                    <ul>
+                        <li>Donor: {donor.user.first_name} {donor.user.last_name if donor.user.last_name else ''}</li>
+                        <li>Patient: {request_obj.patient_name}</li>
+                        <li>Blood Group: {request_obj.blood_group}</li>
+                        <li>Units Needed: {request_obj.units_required}</li>
+                        <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                    </ul>
+                    <p>You may need to find another donor for this request.</p>
+                    <p><small>Smart Blood Connect</small></p>
+                    """
+                    
+                    email_service.send_email(
+                        to=hospital.email,
+                        subject=f'Donor Declined: {request_obj.blood_group} Blood Request for {request_obj.patient_name}',
+                        html=email_html
+                    )
+                
+                # Notify admin
+                admin_email = current_app.config.get('ADMIN_EMAIL')
+                if admin_email:
+                    email_html = f"""
+                    <h2>Donor Declined Blood Request</h2>
+                    <p>A donor has declined a blood request:</p>
+                    <ul>
+                        <li>Donor: {donor.user.first_name} {donor.user.last_name if donor.user.last_name else ''}</li>
+                        <li>Patient: {request_obj.patient_name}</li>
+                        <li>Blood Group: {request_obj.blood_group}</li>
+                        <li>Units Needed: {request_obj.units_required}</li>
+                        <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                    </ul>
+                    <p><small>Smart Blood Connect</small></p>
+                    """
+                    
+                    email_service.send_email(
+                        to=admin_email,
+                        subject=f'Donor Declined: {request_obj.blood_group} Blood Request',
+                        html=email_html
+                    )
+        except Exception as e:
+            current_app.logger.error(f"Failed to send rejection notification: {str(e)}")
+        
+        return jsonify({
+            "message": "Request declined successfully",
+            "match_id": match_id,
+            "status": "declined"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to reject request: {str(e)}")
+        return jsonify({"error": "Failed to reject request"}), 500
+
 
 @donor_bp.route("/analytics", methods=["GET"])
 @jwt_required()

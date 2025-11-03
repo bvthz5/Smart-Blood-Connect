@@ -522,7 +522,13 @@ def send_contact_otp():
         return (p[:-4].replace(p[:-4], "*"*max(0, len(p[:-4]))) + p[-4:]) if isinstance(p, str) and len(p) >= 4 else "****"
 
     masked = mask_email(dest) if channel == "email" else mask_phone(dest)
-    resp = {"message": "otp sent", "channel": channel, "masked": masked, "expires_in": int((expires - datetime.utcnow()).total_seconds())}
+    resp = {
+        "message": "otp sent",
+        "channel": channel,
+        "masked": masked,
+        "expires_in": int((expires - datetime.utcnow()).total_seconds()),
+        "otp_key": otp_key,
+    }
     if current_app.config.get('DEBUG', False):
         resp["debug_code"] = code
         resp["twilio_sent"] = bool(sent)

@@ -63,6 +63,122 @@
   transform: translateX(-5px);
 }
 
+/* Next Eligible Date Banner */
+.eligible-date-banner {
+  max-width: 1200px;
+  margin: 0 auto 30px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 2px solid #4caf50;
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.15);
+  animation: fadeInUp 0.5s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.eligible-date-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4caf50, #81c784, #4caf50);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.banner-icon {
+  font-size: 3rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.banner-content {
+  flex: 1;
+}
+
+.banner-content h3 {
+  font-size: 1.2rem;
+  color: #2e7d32;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.eligible-date {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1b5e20;
+  margin: 8px 0;
+}
+
+.waiting-period {
+  font-size: 0.95rem;
+  color: #558b2f;
+  font-style: italic;
+}
+
+.banner-decoration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blood-drop {
+  font-size: 2.5rem;
+  animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Responsive design for banner */
+@media (max-width: 768px) {
+  .eligible-date-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .banner-icon {
+    font-size: 2.5rem;
+  }
+  
+  .eligible-date {
+    font-size: 1.5rem;
+  }
+  
+  .banner-decoration {
+    display: none;
+  }
+}
+
 /* Loading & Error States */
 .loading-spinner,
 .error-state {

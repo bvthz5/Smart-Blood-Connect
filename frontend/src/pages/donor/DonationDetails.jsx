@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getDonationDetails } from '../../services/api';
+import { getDonationDetails, generateCertificate } from '../../services/api';
 import './donation-details.css';
 
 /**
@@ -16,6 +16,7 @@ export default function DonationDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [generatingCertificate, setGeneratingCertificate] = useState(false);
 
   useEffect(() => {
     fetchDonationDetails();
@@ -35,20 +36,42 @@ export default function DonationDetails() {
   };
 
   const handleDownloadCertificate = async () => {
-    if (!donation?.certificate_url) {
-      setToast('Certificate not available');
-      setTimeout(() => setToast(''), 3000);
-      return;
-    }
-
     try {
-      // Open certificate in new tab for download
-      window.open(donation.certificate_url, '_blank');
+      // If certificate doesn't exist, generate it first
+      if (!donation?.certificate_url) {
+        setGeneratingCertificate(true);
+        setToast('Generating certificate...');
+        
+        const response = await generateCertificate(id);
+        
+        // Update donation state with new certificate info
+        setDonation({
+          ...donation,
+          certificate_url: response.data.certificate_url,
+          certificate_number: response.data.certificate_number
+        });
+        
+        setToast('Certificate generated successfully!');
+        
+        // Download the newly generated certificate
+        const certificateUrl = `${window.location.origin}${response.data.certificate_url}`;
+        window.open(certificateUrl, '_blank');
+        
+        setGeneratingCertificate(false);
+        setTimeout(() => setToast(''), 3000);
+        return;
+      }
+
+      // Certificate already exists, just download it
+      const certificateUrl = `${window.location.origin}${donation.certificate_url}`;
+      window.open(certificateUrl, '_blank');
       setToast('Certificate opened in new tab');
       setTimeout(() => setToast(''), 3000);
+      
     } catch (err) {
-      console.error('Failed to download certificate:', err);
-      setToast('Failed to download certificate');
+      console.error('Failed to download/generate certificate:', err);
+      setToast(err.response?.data?.error || 'Failed to process certificate');
+      setGeneratingCertificate(false);
       setTimeout(() => setToast(''), 3000);
     }
   };
@@ -120,6 +143,29 @@ export default function DonationDetails() {
         <h1>Donation Details</h1>
       </div>
 
+      {/* Next Eligible Date Banner */}
+      {donation.next_eligible_date && (
+        <div className="eligible-date-banner">
+          <div className="banner-icon">📅</div>
+          <div className="banner-content">
+            <h3>Next Eligible Donation Date</h3>
+            <p className="eligible-date">
+              {new Date(donation.next_eligible_date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </p>
+            <span className="waiting-period">
+              (Waiting period: {donation.waiting_period_days || 90} days)
+            </span>
+          </div>
+          <div className="banner-decoration">
+            <div className="blood-drop">💧</div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="details-content">
         {/* Certificate Card */}
@@ -133,9 +179,9 @@ export default function DonationDetails() {
             <button 
               onClick={handleDownloadCertificate}
               className="btn-primary"
-              disabled={!donation.certificate_url}
+              disabled={generatingCertificate}
             >
-              📥 Download Certificate
+              {generatingCertificate ? '⏳ Generating...' : (donation.certificate_url ? '📥 Download Certificate' : '🎖️ Generate Certificate')}
             </button>
             <button onClick={handleShare} className="btn-secondary">
               🔗 Share Achievement

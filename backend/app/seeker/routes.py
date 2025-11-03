@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.models import db, User, Hospital, HospitalStaff, Request, Match
+from app.models import db, User, Hospital, HospitalStaff, Request, Match, Donor, MatchPrediction
 
 seeker_bp = Blueprint('seeker', __name__, url_prefix='/api/seeker')
 
@@ -238,22 +238,57 @@ def list_matches():
     if not hospital:
         return jsonify({"error": "invalid hospital"}), 500
 
-    rows = db.session.query(Match, Request).join(Request, Match.request_id == Request.id)\
-        .filter(Request.hospital_id == hospital.id)\
-        .order_by(Match.matched_at.desc()).limit(100).all()
+    # Get query parameters
+    request_id = request.args.get('request_id', type=int)
+    
+    # Build base query - this already filters by hospital_id
+    query = db.session.query(Match, Request).join(Request, Match.request_id == Request.id)\
+        .filter(Request.hospital_id == hospital.id)
+    
+    # If specific request_id is provided, filter by that as well
+    if request_id:
+        query = query.filter(Request.id == request_id)
+    
+    rows = query.order_by(Match.matched_at.desc()).limit(100).all()
 
     out = []
     for m, r in rows:
-        out.append({
+        # Get donor information
+        donor = Donor.query.get(m.donor_id)
+        donor_user = User.query.get(donor.user_id) if donor else None
+        
+        # Get match prediction information for additional scores
+        match_prediction = None
+        if hasattr(m, 'request_id'):
+            match_prediction = MatchPrediction.query.filter_by(
+                request_id=m.request_id, 
+                donor_id=m.donor_id
+            ).first()
+        
+        match_obj = {
             'match_id': m.id,
             'request_id': r.id,
             'status': m.status,
-            'match_score': getattr(m, 'match_score', None),
+            'match_score': getattr(m, 'match_score', None) or (match_prediction.match_score if match_prediction else None),
+            'availability_score': match_prediction.availability_score if match_prediction else None,
+            'reliability_score': match_prediction.reliability_score if match_prediction else (getattr(donor, 'reliability_score', None) if donor else None),
+            'response_time_hours': match_prediction.response_time_hours if match_prediction else None,
+            'distance_km': match_prediction.feature_vector.get('distance_km', 0) if match_prediction and match_prediction.feature_vector else 0,
             'notified_at': m.matched_at.isoformat() if m.matched_at else None,
             'confirmed_at': m.confirmed_at.isoformat() if m.confirmed_at else None,
             'completed_at': m.completed_at.isoformat() if m.completed_at else None,
             'blood_group': r.blood_group,
             'urgency': r.urgency,
-        })
+            'units_required': r.units_required,
+            'patient_name': r.patient_name,
+            'donor_name': f"{donor_user.first_name} {donor_user.last_name}" if donor_user else "Unknown Donor",
+            'donor_blood_group': getattr(donor, 'blood_group', 'N/A') if donor else 'N/A',
+            'donor_phone': donor_user.phone if donor_user and match_prediction and match_prediction.notified else None,
+            'donor_email': donor_user.email if donor_user and match_prediction and match_prediction.notified else None,
+            'donor_city': getattr(donor_user, 'city', 'N/A') if donor_user else 'N/A',
+            'donor_district': getattr(donor_user, 'district', 'N/A') if donor_user else 'N/A',
+            'last_donation_date': donor.last_donation_date.isoformat() if donor and donor.last_donation_date else None,
+        }
+        out.append(match_obj)
     return jsonify({ 'items': out }), 200
 

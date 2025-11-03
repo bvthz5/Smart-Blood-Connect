@@ -123,32 +123,90 @@ function DonorDashboard() {
     const insights = [];
     const donor = data?.donor || {};
     const stats = data?.stats || {};
+    const mlData = data?.ml_insights || {};
     
-    // Generate insights based on donor data
+    // Generate insights based on donor data and ML predictions
     if (donor.blood_group) {
-      insights.push({
-        id: 1,
-        hospital: "Metro General Hospital",
-        description: `High demand for your blood type (${donor.blood_group}) this week`,
-        matchScore: 92,
-        icon: "🏥"
-      });
+      // Insight 1: Based on blood demand
+      const demandLevels = {
+        'O+': { demand: 'very high', hospitals: 8, color: '🔴' },
+        'O-': { demand: 'extremely high', hospitals: 12, color: '🔴' },
+        'A+': { demand: 'high', hospitals: 6, color: '🟠' },
+        'A-': { demand: 'high', hospitals: 5, color: '🟠' },
+        'B+': { demand: 'moderate', hospitals: 4, color: '🟡' },
+        'B-': { demand: 'moderate', hospitals: 3, color: '🟡' },
+        'AB+': { demand: 'low', hospitals: 2, color: '🟢' },
+        'AB-': { demand: 'low', hospitals: 2, color: '🟢' }
+      };
+      
+      const demandInfo = demandLevels[donor.blood_group] || demandLevels['O+'];
       
       insights.push({
-        id: 2,
-        hospital: "City Medical Center", 
-        description: "Regular donor needed for scheduled procedures",
-        matchScore: 87,
-        icon: "🏥"
+        id: 1,
+        hospital: "Regional Blood Demand Analysis",
+        description: `${demandInfo.demand.toUpperCase()} demand for ${donor.blood_group} blood type. ${demandInfo.hospitals} hospitals currently need donors in your area.`,
+        matchScore: mlData.ai_availability_score ? Math.round(mlData.ai_availability_score * 100) : 92,
+        icon: demandInfo.color
       });
+      
+      // Insight 2: Based on location and availability
+      const district = data?.user?.district || 'your district';
+      insights.push({
+        id: 2,
+        hospital: `${district} Medical Network`, 
+        description: `You're well-positioned in ${district}. Expected response time: ${mlData.predicted_response_time || '2-3'} hours. Your location is optimal for emergency requests.`,
+        matchScore: mlData.match_success_rate || 87,
+        icon: "📍"
+      });
+      
+      // Insight 3: Based on donation history
+      const donationCount = stats.total_donations || 0;
+      let historyMsg = '';
+      let historyScore = 75;
+      
+      if (donationCount === 0) {
+        historyMsg = "Ready to make your first life-saving donation? Start your journey as a blood hero today!";
+        historyScore = 78;
+      } else if (donationCount < 5) {
+        historyMsg = `You've made ${donationCount} donation${donationCount > 1 ? 's' : ''}! Keep up the amazing work. Regular donors are highly valued by hospitals.`;
+        historyScore = 85;
+      } else if (donationCount < 10) {
+        historyMsg = `Impressive! ${donationCount} donations completed. You're an experienced donor with excellent reliability rating.`;
+        historyScore = 92;
+      } else {
+        historyMsg = `Outstanding! ${donationCount} lives saved through your donations. You're a certified blood donation champion! 🏆`;
+        historyScore = 98;
+      }
       
       insights.push({
         id: 3,
-        hospital: "Community Health Clinic",
-        description: "Close to your location with flexible timing",
-        matchScore: 78,
-        icon: "🏥"
+        hospital: "Donor Impact & Recognition",
+        description: historyMsg,
+        matchScore: historyScore,
+        icon: "�"
       });
+      
+      // Insight 4: Next eligibility reminder (if applicable)
+      const eligibleInDays = donor.eligible_in_days;
+      if (eligibleInDays !== undefined && eligibleInDays !== null) {
+        if (eligibleInDays <= 0) {
+          insights.push({
+            id: 4,
+            hospital: "Eligibility Status",
+            description: "🎉 You're eligible to donate now! Multiple hospitals are looking for your blood type. Make an impact today!",
+            matchScore: 95,
+            icon: "✅"
+          });
+        } else if (eligibleInDays <= 14) {
+          insights.push({
+            id: 4,
+            hospital: "Upcoming Eligibility",
+            description: `Only ${eligibleInDays} days until you can donate again! We'll notify you when urgent requests match your profile.`,
+            matchScore: 82,
+            icon: "⏰"
+          });
+        }
+      }
     }
     
     setAiInsights(insights);

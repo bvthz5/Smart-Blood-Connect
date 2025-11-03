@@ -1,22 +1,11 @@
 // Lightweight Socket.IO client wrapper
 // Safe to import even if socket.io-client is not installed in production builds
 
-let io;
-try {
-  // Dynamically require to avoid bundling errors if not installed
-  // eslint-disable-next-line global-require, import/no-extraneous-dependencies
-  io = require('socket.io-client');
-} catch (_) {
-  io = null;
-}
+import io from 'socket.io-client';
 
 let socket = null;
 
 export function connectSocket(options = {}) {
-  if (!io) {
-    console.warn('[socket] socket.io-client not installed; realtime disabled');
-    return null;
-  }
   if (socket && socket.connected) return socket;
 
   // Prefer relative path so Vite dev proxy forwards to backend

@@ -25,10 +25,8 @@ const SeekerSidebar = () => {
         <NavLink to="/seeker/matches" className="link">🔍 <span>Donor Matches</span></NavLink>
         <NavLink to="/seeker/notifications" className="link">🔔 <span>Notifications</span></NavLink>
         <NavLink to="/seeker/hospital" className="link">🧑‍⚕️ <span>Hospital Staff</span></NavLink>
-        <NavLink to="/seeker/settings" className="link">⚙️ <span>Settings</span></NavLink>
       </nav>
       <div className="side-bottom">
-        <NavLink to="/contact" className="link">❓ <span>Help & Support</span></NavLink>
         <button className="link" onClick={()=>{ localStorage.removeItem('seeker_token'); localStorage.removeItem('token'); localStorage.removeItem('seeker_refresh_token'); window.location.href='/seeker/login'; }}>🚪 <span>Logout</span></button>
       </div>
 

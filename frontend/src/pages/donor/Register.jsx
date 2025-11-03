@@ -20,6 +20,7 @@ export default function Register() {
   const [otpSent, setOtpSent] = useState(false);
   const [userId, setUserId] = useState(null);
   const [otp, setOtp] = useState("");
+  const [phoneOtpKey, setPhoneOtpKey] = useState("");
 
   // Contact verification (email + phone)
   const [emailCode, setEmailCode] = useState("");
@@ -95,20 +96,25 @@ export default function Register() {
         const looksEmail = !email || /.+@.+\..+/.test(email);
         const digits = phone.replace(/\D/g, '');
         const looksPhone = !phone || digits.length === 10;
-        if (!looksEmail && email) {
-          setFieldErrors((f)=>({ ...f, email: 'Enter a valid email address' }));
+        // If format invalid, show format error and stop
+        if (email && !looksEmail) {
+          setFieldErrors((f) => ({ ...f, email: 'Enter a valid email address' }));
           return;
         }
-        if (!looksPhone && phone) {
-          setFieldErrors((f)=>({ ...f, phone: 'Enter a valid 10-digit mobile number' }));
+        if (phone && !looksPhone) {
+          setFieldErrors((f) => ({ ...f, phone: 'Enter a valid 10-digit mobile number' }));
           return;
         }
+
+        // Formats look fine; check availability
         const res = await checkAvailability({ email: email || undefined, phone: digits || undefined });
         const { email_exists, phone_exists } = res.data || {};
-        setFieldErrors((f)=>({
+
+        // Clear format errors and set exists errors precisely
+        setFieldErrors((f) => ({
           ...f,
-          email: email_exists ? 'Email already exists' : (f.email && /exists/.test(f.email) ? '' : f.email),
-          phone: phone_exists ? 'Phone number already exists' : (f.phone && /exists/.test(f.phone) ? '' : f.phone),
+          email: email ? (email_exists ? 'Email already exists' : '') : '',
+          phone: phone ? (phone_exists ? 'Phone number already exists' : '') : '',
         }));
       } catch (_) { /* ignore transient errors */ }
     }, 400);
@@ -191,8 +197,9 @@ export default function Register() {
         district: additional.district,
         pincode: additional.pincode,
       };
-      const res = await registerDonor(payload);
-      setUserId(res.data.user_id);
+  const res = await registerDonor(payload);
+  setUserId(res.data.user_id);
+  if (res.data?.otp_key) setPhoneOtpKey(res.data.otp_key);
       setOtpSent(true);
       setStep(2);
     } catch(err){
@@ -207,7 +214,12 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const res = await verifyOtp({ user_id: userId, otp });
+      if (!phoneOtpKey) {
+        setError("Missing OTP session. Please resend SMS code.");
+        setLoading(false);
+        return;
+      }
+      const res = await verifyOtp({ user_id: userId, otp, otp_key: phoneOtpKey });
       localStorage.setItem("access_token", res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
 
@@ -235,7 +247,8 @@ export default function Register() {
     setError("");
     setPhoneSending(true);
     try {
-      await sendContactOtp({ user_id: userId, channel: "phone" });
+      const r = await sendContactOtp({ user_id: userId, channel: "phone" });
+      if (r?.data?.otp_key) setPhoneOtpKey(r.data.otp_key);
     } catch (err) {
       setError(err?.response?.data?.error || "Failed to send SMS OTP");
     } finally {
@@ -244,12 +257,14 @@ export default function Register() {
   }
 
   // Send OTP to email if provided
+  const [emailOtpKey, setEmailOtpKey] = useState("");
   async function sendEmailOtp() {
     if (!userId || !basic.email) return;
     setError("");
     setEmailSending(true);
     try {
-      await sendContactOtp({ user_id: userId, channel: "email" });
+      const r = await sendContactOtp({ user_id: userId, channel: "email" });
+      if (r?.data?.otp_key) setEmailOtpKey(r.data.otp_key);
     } catch (err) {
       setError(err?.response?.data?.error || "Failed to send Email OTP");
     } finally {
@@ -264,7 +279,12 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      await verifyEmailOtp({ user_id: userId, otp: emailCode });
+      if (!emailOtpKey) {
+        setError("Please send the Email code first.");
+        setLoading(false);
+        return;
+      }
+      await verifyEmailOtp({ user_id: userId, otp: emailCode, otp_key: emailOtpKey });
       setEmailVerified(true);
     } catch (err) {
       setError(err?.response?.data?.error || "Email OTP verification failed");

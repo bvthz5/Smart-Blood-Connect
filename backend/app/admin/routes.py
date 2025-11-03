@@ -2191,8 +2191,10 @@ def get_all_matches():
 @jwt_required()
 def update_match_status(match_id):
     """
-    Update match status (accept, decline, complete)
+    Update match status (accept, decline, complete, etc.)
     """
+    from flask import current_app
+    
     try:
         # Verify admin user
         current_user_id = get_jwt_identity()
@@ -2221,7 +2223,8 @@ def update_match_status(match_id):
         # Update match
         old_status = match.status
         match.status = new_status
-        match.notes = notes
+        if notes:
+            match.notes = notes
         
         # Set timestamps based on status
         from datetime import datetime
@@ -2231,13 +2234,69 @@ def update_match_status(match_id):
             match.confirmed_at = now
         elif new_status == 'completed' and old_status != 'completed':
             match.completed_at = now
+        elif new_status == 'declined' and old_status != 'declined':
+            match.confirmed_at = now
+        
+        # Update associated request status if needed
+        blood_request = Request.query.get(match.request_id)
+        if blood_request:
+            # If any match is accepted, set request to in_progress
+            if new_status == 'accepted':
+                blood_request.status = 'in_progress'
+            # If all matches are declined/cancelled, set request back to pending
+            elif new_status in ['declined', 'cancelled']:
+                # Check if all matches for this request are declined/cancelled
+                all_matches = Match.query.filter_by(request_id=match.request_id).all()
+                if all_matches and all(status in ['declined', 'cancelled'] for status in [m.status for m in all_matches]):
+                    blood_request.status = 'pending'  # Reset to pending to allow reassignment
         
         db.session.commit()
+        
+        # Send notification if status changed to accepted or declined
+        if new_status in ['accepted', 'declined']:
+            try:
+                from app.services.email_service import email_service
+                
+                # Get donor and request info
+                donor = Donor.query.get(match.donor_id)
+                request_obj = Request.query.get(match.request_id)
+                hospital = None
+                if request_obj and hasattr(request_obj, 'hospital_id') and request_obj.hospital_id:
+                    hospital = Hospital.query.get(request_obj.hospital_id)
+                
+                if donor and request_obj:
+                    donor_user = User.query.get(donor.user_id)
+                    
+                    # Notify donor of admin update
+                    if donor_user and donor_user.email and donor_user.is_email_verified:
+                        action = "accepted" if new_status == 'accepted' else "declined"
+                        email_html = f"""
+                        <h2>Blood Request {action.capitalize()}</h2>
+                        <p>Your response to the blood request has been confirmed by admin:</p>
+                        <ul>
+                            <li>Patient: {request_obj.patient_name}</li>
+                            <li>Blood Group: {request_obj.blood_group}</li>
+                            <li>Units Needed: {request_obj.units_required}</li>
+                            <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                            <li>Status: {action.capitalize()}</li>
+                        </ul>
+                        <p>Please contact the hospital for further details.</p>
+                        <p><small>Smart Blood Connect</small></p>
+                        """
+                        
+                        email_service.send_email(
+                            to=donor_user.email,
+                            subject=f'Blood Request {action.capitalize()}: {request_obj.blood_group} for {request_obj.patient_name}',
+                            html=email_html
+                        )
+            except Exception as e:
+                current_app.logger.error(f"Failed to send match status notification: {str(e)}")
         
         return jsonify({"message": "Match status updated successfully"}), 200
         
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(f"Failed to update match status: {str(e)}")
         return jsonify({"error": "Failed to update match status"}), 500
 
 
@@ -2440,6 +2499,141 @@ def is_compatible_blood_group(donor_group, required_group):
     return required_group in compatibility.get(donor_group, [])
 
 
+@admin_bp.route("/activity-table", methods=["GET"])
+@jwt_required()
+def get_activity_table():
+    """
+    Get activity table data with pagination
+    Returns donation history with donor, hospital, and request details
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        
+        if not admin_user:
+            return jsonify({
+                "error": "Unauthorized",
+                "message": "Admin access required"
+            }), 401
+        
+        # Get pagination parameters
+        try:
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 10))
+            status_filter = request.args.get('status', 'all')
+            
+            if page < 1:
+                page = 1
+            if per_page < 1 or per_page > 100:
+                per_page = 10
+        except ValueError:
+            return jsonify({
+                "error": "Invalid pagination parameters",
+                "message": "Page and per_page must be valid integers"
+            }), 400
+        
+        # Check if DonationHistory table has any records
+        total_records = db.session.query(DonationHistory).count()
+        
+        if total_records == 0:
+            # Return empty result if no donation history exists
+            return jsonify({
+                "activities": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "pages": 0,
+                "has_next": False,
+                "has_prev": False
+            }), 200
+        
+        # Build query - get donation history with joins
+        query = db.session.query(
+            DonationHistory.id,
+            DonationHistory.units,
+            DonationHistory.donation_date,
+            User.first_name.label('donor_first_name'),
+            User.last_name.label('donor_last_name'),
+            Donor.blood_group,
+            Hospital.name.label('hospital_name'),
+            Request.status.label('request_status'),
+            Request.urgency.label('priority')
+        ).join(
+            Donor, DonationHistory.donor_id == Donor.id
+        ).join(
+            User, Donor.user_id == User.id
+        ).join(
+            Hospital, DonationHistory.hospital_id == Hospital.id
+        ).outerjoin(
+            Request, DonationHistory.request_id == Request.id
+        )
+        
+        # Apply status filter if specified
+        if status_filter != 'all':
+            query = query.filter(Request.status == status_filter)
+        
+        # Order by donation date (most recent first)
+        query = query.order_by(DonationHistory.donation_date.desc())
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        paginated_query = query.limit(per_page).offset((page - 1) * per_page)
+        results = paginated_query.all()
+        
+        # Format response
+        activities = []
+        for row in results:
+            # Calculate time ago
+            time_diff = datetime.utcnow() - row.donation_date
+            if time_diff.days > 0:
+                time_ago = f"{time_diff.days} days ago"
+            elif time_diff.seconds // 3600 > 0:
+                time_ago = f"{time_diff.seconds // 3600} hours ago"
+            else:
+                time_ago = f"{time_diff.seconds // 60} minutes ago"
+            
+            # Format donor name
+            donor_name = f"{row.donor_first_name}"
+            if row.donor_last_name:
+                donor_name += f" {row.donor_last_name}"
+            
+            activities.append({
+                "id": row.id,
+                "donor": donor_name,
+                "hospital": row.hospital_name,
+                "bloodType": row.blood_group,
+                "units": row.units,
+                "status": row.request_status or "completed",
+                "priority": row.priority or "medium",
+                "time": time_ago
+            })
+        
+        # Calculate pagination metadata
+        pages = (total + per_page - 1) // per_page if total > 0 else 0
+        
+        return jsonify({
+            "activities": activities,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+            "has_next": page < pages,
+            "has_prev": page > 1
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error fetching activity table: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            "error": "Failed to fetch activity table",
+            "message": "An error occurred while retrieving activity data"
+        }), 500
+
+
 @admin_bp.route("/requests", methods=["GET"])
 @jwt_required()
 def get_all_requests():
@@ -2464,7 +2658,7 @@ def get_all_requests():
         per_page = int(request.args.get('per_page', 20))
         
         # Build query with joins
-        query = db.session.query(Request, Hospital).join(
+        query = db.session.query(Request, Hospital).outerjoin(
             Hospital, Request.hospital_id == Hospital.id
         )
         
@@ -2505,9 +2699,9 @@ def get_all_requests():
                     match_count = Match.query.filter_by(request_id=request_obj.id).count()
 
                 # Safely get hospital information
-                hospital_name = getattr(hospital, 'name', 'Unknown Hospital')
-                hospital_city = getattr(hospital, 'city', 'N/A')
-                hospital_district = getattr(hospital, 'district', 'N/A')
+                hospital_name = getattr(hospital, 'name', 'Unknown Hospital') if hospital else 'Unknown Hospital'
+                hospital_city = getattr(hospital, 'city', 'N/A') if hospital else 'N/A'
+                hospital_district = getattr(hospital, 'district', 'N/A') if hospital else 'N/A'
 
                 # Safely get request information
                 patient_name = getattr(request_obj, 'patient_name', 'Unknown Patient')
@@ -2707,9 +2901,11 @@ def update_request_status(request_id):
 @jwt_required()
 def assign_donor_to_request(request_id):
     """
-    Manually assign a donor to a request
+    Manually assign a donor to a request with notification
     """
     try:
+        from flask import current_app
+        
         # Verify admin user
         current_user_id = get_jwt_identity()
         admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
@@ -2750,23 +2946,94 @@ def assign_donor_to_request(request_id):
         )
         
         db.session.add(match)
+        db.session.flush()  # Get match ID without committing
+        
+        # Get donor user info for notification
+        donor_user = User.query.get(donor.user_id)
+        hospital = Hospital.query.get(request_obj.hospital_id) if request_obj.hospital_id else None
+        
+        if donor_user:
+            # Send notification to donor
+            try:
+                from app.services.email_service import email_service
+                from app.services.sms_service import sms_service
+                import secrets
+                
+                # Generate secure token for one-click accept/reject
+                token = secrets.token_urlsafe(32)
+                
+                # Store token in match for verification
+                match.notes = f"token:{token}"
+                
+                # Create accept/reject URLs
+                frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:3000')
+                accept_url = f"{frontend_url}/donor/accept-request/{match.id}?token={token}"
+                reject_url = f"{frontend_url}/donor/reject-request/{match.id}?token={token}"
+                
+                # Send email notification
+                if donor_user.email and donor_user.is_email_verified:
+                    email_html = f"""
+                    <h2>Urgent Blood Request</h2>
+                    <p>A patient urgently needs <strong>{request_obj.blood_group}</strong> blood.</p>
+                    <ul>
+                        <li>Patient: {request_obj.patient_name}</li>
+                        <li>Blood Group: {request_obj.blood_group}</li>
+                        <li>Units Needed: {request_obj.units_required}</li>
+                        <li>Urgency: {request_obj.urgency.upper()}</li>
+                        <li>Hospital: {hospital.name if hospital else 'N/A'}</li>
+                        <li>Required By: {request_obj.required_by.strftime('%Y-%m-%d %H:%M') if request_obj.required_by else 'ASAP'}</li>
+                    </ul>
+                    <p>
+                        <a href="{accept_url}" style="background:#4CAF50;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;margin-right:10px;">
+                            Accept Request
+                        </a>
+                        <a href="{reject_url}" style="background:#f44336;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+                            Decline Request
+                        </a>
+                    </p>
+                    <p>Thank you for saving lives!</p>
+                    <p><small>Smart Blood Connect</small></p>
+                    """
+                    
+                    email_service.send_email(
+                        to=donor_user.email,
+                        subject=f'Urgent: {request_obj.blood_group} Blood Needed for {request_obj.patient_name}',
+                        html=email_html
+                    )
+                
+                # Send SMS notification (guarded by feature flag)
+                if donor_user.phone and donor_user.is_phone_verified and current_app.config.get('ENABLE_SMS_NOTIFICATIONS', True):
+                    sms_message = (
+                        f"Urgent Blood Request: {request_obj.blood_group} blood needed for {request_obj.patient_name}. "
+                        f"Respond via app or email. Thank you!"
+                    )
+                    try:
+                        sms_service.send_sms(donor_user.phone, sms_message)
+                    except Exception as sms_err:
+                        current_app.logger.warning(f"SMS send failed for donor {donor_user.id}: {sms_err}")
+                
+                current_app.logger.info(f"Notification sent to donor {donor_id} for request {request_id}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to send notification to donor {donor_id}: {str(e)}")
+        
         db.session.commit()
         
         return jsonify({
-            "message": "Donor assigned successfully",
+            "message": "Donor assigned successfully and notified",
             "match_id": match.id
         }), 201
         
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(f"Failed to assign donor: {str(e)}")
         return jsonify({"error": "Failed to assign donor"}), 500
 
 
-@admin_bp.route("/donation-history", methods=["GET"])
+@admin_bp.route("/requests/<int:request_id>/available-donors", methods=["GET"])
 @jwt_required()
-def get_donation_history():
+def get_available_donors_for_request(request_id):
     """
-    Get All Donation History with search, filter, and pagination
+    Get available donors compatible with a request, sorted by location proximity
     """
     try:
         # Verify admin user
@@ -2776,342 +3043,229 @@ def get_donation_history():
         if not admin_user:
             return jsonify({"error": "Unauthorized"}), 401
         
-        # Get query parameters
-        search = request.args.get('search', '').strip()
-        donor_name = request.args.get('donor_name', '').strip()
-        hospital_name = request.args.get('hospital_name', '').strip()
-        blood_group = request.args.get('blood_group', '')
-        date_from = request.args.get('date_from', '')
-        date_to = request.args.get('date_to', '')
-        status = request.args.get('status', '')
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        # Get request
+        request_obj = Request.query.get(request_id)
+        if not request_obj:
+            return jsonify({"error": "Request not found"}), 404
         
-        # Build query with joins
-        query = db.session.query(DonationHistory, Donor, User, Hospital).join(
-            Donor, DonationHistory.donor_id == Donor.id
-        ).join(
+        # Get hospital for location-based matching
+        hospital = None
+        hospital_lat = None
+        hospital_lng = None
+        
+        if request_obj.hospital_id:
+            hospital = Hospital.query.get(request_obj.hospital_id)
+            if hospital:
+                # Prefer exact coordinates, fallback to district coordinates
+                if hasattr(hospital, 'location_lat') and hospital.location_lat and hasattr(hospital, 'location_lng') and hospital.location_lng:
+                    hospital_lat = float(hospital.location_lat)
+                    hospital_lng = float(hospital.location_lng)
+                else:
+                    # Fallback to district coordinates
+                    district_coords = {
+                        'Thiruvananthapuram': (8.5241, 76.9366),
+                        'Kollam': (8.8932, 76.6141),
+                        'Pathanamthitta': (9.2648, 76.7870),
+                        'Alappuzha': (9.4981, 76.3388),
+                        'Kottayam': (9.5916, 76.5222),
+                        'Idukki': (9.9186, 77.1025),
+                        'Ernakulam': (9.9312, 76.2673),
+                        'Kochi': (9.9312, 76.2673),
+                        'Thrissur': (10.5276, 76.2144),
+                        'Palakkad': (10.7867, 76.6548),
+                        'Malappuram': (11.0510, 76.0711),
+                        'Kozhikode': (11.2588, 75.7804),
+                        'Wayanad': (11.6854, 76.1320),
+                        'Kannur': (11.8745, 75.3704),
+                        'Kasaragod': (12.4996, 75.0041),
+                    }
+                    hospital_lat, hospital_lng = district_coords.get(hospital.district, (9.9312, 76.2673))
+        
+        # Get compatible donors based on blood group
+        compatible_blood_groups = get_compatible_blood_groups(request_obj.blood_group)
+        
+        # Query available donors with compatible blood groups
+        donors_query = db.session.query(Donor, User).join(
             User, Donor.user_id == User.id
-        ).join(
-            Hospital, DonationHistory.hospital_id == Hospital.id
+        ).filter(
+            Donor.blood_group.in_(compatible_blood_groups),
+            Donor.is_available == True
         )
         
-        # Apply filters
-        if search:
-            search_filter = or_(
-                User.first_name.ilike(f'%{search}%'),
-                User.last_name.ilike(f'%{search}%'),
-                Hospital.name.ilike(f'%{search}%'),
-                User.phone.ilike(f'%{search}%')
-            )
-            query = query.filter(search_filter)
+        donors_data = []
+        for donor, user in donors_query.all():
+            # Calculate eligibility based on last donation
+            from datetime import timedelta
+            is_eligible = True
+            days_since_donation = None
+            eligibility_reason = "Eligible to donate"
+            
+            if donor.last_donation_date:
+                days_since_donation = (datetime.utcnow().date() - donor.last_donation_date).days
+                min_days = 56  # Minimum 56 days between donations
+                if days_since_donation < min_days:
+                    is_eligible = False
+                    eligibility_reason = f"Last donated {days_since_donation} days ago (needs {min_days - days_since_donation} more days)"
+            
+            # Get donation history count
+            donation_count = DonationHistory.query.filter_by(
+                donor_id=donor.id,
+                status='completed'
+            ).count()
+            
+            # Get last 3 donations
+            recent_donations = db.session.query(DonationHistory, Hospital).join(
+                Hospital, DonationHistory.hospital_id == Hospital.id
+            ).filter(
+                DonationHistory.donor_id == donor.id
+            ).order_by(
+                DonationHistory.donation_date.desc()
+            ).limit(3).all()
+            
+            donation_history = []
+            for history, hosp in recent_donations:
+                donation_history.append({
+                    "date": history.donation_date.strftime('%Y-%m-%d') if history.donation_date else None,
+                    "hospital": hosp.name,
+                    "units": history.units,
+                    "status": history.status
+                })
+            
+            donor_info = {
+                "id": donor.id,
+                "name": f"{user.first_name} {user.last_name}".strip(),
+                "blood_group": donor.blood_group,
+                "city": getattr(user, 'city', 'N/A'),
+                "district": getattr(user, 'district', 'N/A'),
+                "is_available": donor.is_available,
+                "is_eligible": is_eligible,
+                "eligibility_reason": eligibility_reason,
+                "days_since_donation": days_since_donation,
+                "donation_count": donation_count,
+                "donation_history": donation_history,
+                "reliability_score": float(donor.reliability_score) if donor.reliability_score else 0.0,
+                "distance_km": None,
+                "phone": user.phone,
+                "email": user.email
+            }
+            
+            # Calculate distance if we have location data
+            if hospital_lat and hospital_lng:
+                donor_lat = None
+                donor_lng = None
+                
+                # Prefer exact donor coordinates
+                if hasattr(donor, 'location_lat') and donor.location_lat and hasattr(donor, 'location_lng') and donor.location_lng:
+                    donor_lat = float(donor.location_lat)
+                    donor_lng = float(donor.location_lng)
+                elif hasattr(user, 'district') and user.district:
+                    # Fallback to district coordinates
+                    district_coords = {
+                        'Thiruvananthapuram': (8.5241, 76.9366),
+                        'Kollam': (8.8932, 76.6141),
+                        'Pathanamthitta': (9.2648, 76.7870),
+                        'Alappuzha': (9.4981, 76.3388),
+                        'Kottayam': (9.5916, 76.5222),
+                        'Idukki': (9.9186, 77.1025),
+                        'Ernakulam': (9.9312, 76.2673),
+                        'Kochi': (9.9312, 76.2673),
+                        'Thrissur': (10.5276, 76.2144),
+                        'Palakkad': (10.7867, 76.6548),
+                        'Malappuram': (11.0510, 76.0711),
+                        'Kozhikode': (11.2588, 75.7804),
+                        'Wayanad': (11.6854, 76.1320),
+                        'Kannur': (11.8745, 75.3704),
+                        'Kasaragod': (12.4996, 75.0041),
+                    }
+                    donor_lat, donor_lng = district_coords.get(user.district, (9.9312, 76.2673))
+                
+                # Calculate distance if we have both coordinates
+                if donor_lat and donor_lng:
+                    from math import radians, cos, sin, asin, sqrt
+                    # Convert to radians
+                    lat1, lon1, lat2, lon2 = map(radians, [hospital_lat, hospital_lng, donor_lat, donor_lng])
+                    
+                    # Haversine formula
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * asin(sqrt(a))
+                    r = 6371  # Radius of earth in kilometers
+                    distance = round(c * r, 2)
+                    donor_info["distance_km"] = distance
+            
+            donors_data.append(donor_info)
         
-        if donor_name:
-            donor_filter = or_(
-                User.first_name.ilike(f'%{donor_name}%'),
-                User.last_name.ilike(f'%{donor_name}%')
-            )
-            query = query.filter(donor_filter)
-        
-        if hospital_name:
-            query = query.filter(Hospital.name.ilike(f'%{hospital_name}%'))
-        
-        if blood_group:
-            query = query.filter(Donor.blood_group == blood_group)
-        
-        if date_from:
-            from datetime import datetime
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
-                query = query.filter(DonationHistory.donation_date >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            from datetime import datetime
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-                # Add one day to include the entire day
-                from datetime import timedelta
-                date_to_obj = date_to_obj + timedelta(days=1)
-                query = query.filter(DonationHistory.donation_date < date_to_obj)
-            except ValueError:
-                pass
-        
-        # Order by donation date (newest first)
-        query = query.order_by(DonationHistory.donation_date.desc())
-        
-        # Get paginated results (SQLAlchemy query method)
-        donations_pagination = query.paginate(  # type: ignore
-            page=page,
-            per_page=per_page,
-            error_out=False
-        )
-        
-        donations_data = []
-        for donation, donor, user, hospital in donations_pagination.items:
-            donations_data.append({
-                "id": donation.id,
-                "donor": {
-                    "id": user.id,
-                    "name": f"{user.first_name} {user.last_name or ''}".strip(),
-                    "phone": user.phone,
-                    "email": user.email,
-                    "blood_group": donor.blood_group
-                },
-                "hospital": {
-                    "id": hospital.id,
-                    "name": hospital.name,
-                    "address": hospital.address,
-                    "phone": hospital.phone
-                },
-                "units": donation.units,
-                "donation_date": donation.donation_date.isoformat() if donation.donation_date else None,
-                "status": "completed",  # All donations in history are completed
-                "request_id": donation.request_id
-            })
+        # Sort donors by distance (closest first), then by name
+        donors_data.sort(key=lambda x: (x["distance_km"] or float('inf'), x["name"]))
         
         return jsonify({
-            "donations": donations_data,
-            "total": donations_pagination.total,
-            "page": page,
-            "per_page": per_page,
-            "pages": donations_pagination.pages
+            "donors": donors_data
         }), 200
         
     except Exception as e:
-        return jsonify({"error": "Failed to fetch donation history"}), 500
-
-
-@admin_bp.route("/donation-history/export", methods=["GET"])
-@jwt_required()
-def export_donation_history():
-    """
-    Export donation history to CSV
-    """
-    try:
-        # Verify admin user
-        current_user_id = get_jwt_identity()
-        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
-        
-        if not admin_user:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get query parameters (same as get_donation_history)
-        search = request.args.get('search', '').strip()
-        donor_name = request.args.get('donor_name', '').strip()
-        hospital_name = request.args.get('hospital_name', '').strip()
-        blood_group = request.args.get('blood_group', '')
-        date_from = request.args.get('date_from', '')
-        date_to = request.args.get('date_to', '')
-        
-        # Build query with joins (same as get_donation_history)
-        query = db.session.query(DonationHistory, Donor, User, Hospital).join(
-            Donor, DonationHistory.donor_id == Donor.id
-        ).join(
-            User, Donor.user_id == User.id
-        ).join(
-            Hospital, DonationHistory.hospital_id == Hospital.id
-        )
-        
-        # Apply filters (same as get_donation_history)
-        if search:
-            search_filter = or_(
-                User.first_name.ilike(f'%{search}%'),
-                User.last_name.ilike(f'%{search}%'),
-                Hospital.name.ilike(f'%{search}%'),
-                User.phone.ilike(f'%{search}%')
-            )
-            query = query.filter(search_filter)
-        
-        if donor_name:
-            donor_filter = or_(
-                User.first_name.ilike(f'%{donor_name}%'),
-                User.last_name.ilike(f'%{donor_name}%')
-            )
-            query = query.filter(donor_filter)
-        
-        if hospital_name:
-            query = query.filter(Hospital.name.ilike(f'%{hospital_name}%'))
-        
-        if blood_group:
-            query = query.filter(Donor.blood_group == blood_group)
-        
-        if date_from:
-            from datetime import datetime
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
-                query = query.filter(DonationHistory.donation_date >= date_from_obj)
-            except ValueError:
-                pass
-        
-        if date_to:
-            from datetime import datetime
-            try:
-                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-                from datetime import timedelta
-                date_to_obj = date_to_obj + timedelta(days=1)
-                query = query.filter(DonationHistory.donation_date < date_to_obj)
-            except ValueError:
-                pass
-        
-        # Order by donation date (newest first)
-        query = query.order_by(DonationHistory.donation_date.desc())
-        
-        # Get all results (no pagination for export)
-        donations = query.all()
-        
-        # Create CSV content
-        csv_content = "Donor Name,Donor Phone,Donor Email,Blood Group,Hospital Name,Hospital Address,Hospital Phone,Units,Donation Date,Request ID\n"
-        
-        for donation, donor, user, hospital in donations:
-            donor_name = f"{user.first_name} {user.last_name or ''}".strip()
-            donation_date = donation.donation_date.strftime('%Y-%m-%d %H:%M:%S') if donation.donation_date else ''
-            
-            csv_content += f'"{donor_name}","{user.phone}","{user.email}","{donor.blood_group}","{hospital.name}","{hospital.address}","{hospital.phone}","{donation.units}","{donation_date}","{donation.request_id}"\n'
-        
-        # Return CSV content
-        from flask import Response
-        return Response(
-            csv_content,
-            mimetype='text/csv',
-            headers={'Content-Disposition': 'attachment; filename=donation_history.csv'}
-        )
-        
-    except Exception as e:
-        return jsonify({"error": "Failed to export donation history"}), 500
-
-
-@admin_bp.route("/activity-table", methods=["GET"])
-@jwt_required()
-def get_activity_table():
-    """
-    Get activity table data with pagination
-    Returns donation history with donor, hospital, and request details
-    """
-    try:
-        # Verify admin user
-        current_user_id = get_jwt_identity()
-        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
-        
-        if not admin_user:
-            return jsonify({
-                "error": "Unauthorized",
-                "message": "Admin access required"
-            }), 401
-        
-        # Get pagination parameters
-        try:
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 10))
-            status_filter = request.args.get('status', 'all')
-            
-            if page < 1:
-                page = 1
-            if per_page < 1 or per_page > 100:
-                per_page = 10
-        except ValueError:
-            return jsonify({
-                "error": "Invalid pagination parameters",
-                "message": "Page and per_page must be valid integers"
-            }), 400
-        
-        # Check if DonationHistory table has any records
-        total_records = db.session.query(DonationHistory).count()
-        
-        if total_records == 0:
-            # Return empty result if no donation history exists
-            return jsonify({
-                "activities": [],
-                "total": 0,
-                "page": page,
-                "per_page": per_page,
-                "pages": 0,
-                "has_next": False,
-                "has_prev": False
-            }), 200
-        
-        # Build query - get donation history with joins
-        query = db.session.query(
-            DonationHistory.id,
-            DonationHistory.units,
-            DonationHistory.donation_date,
-            User.first_name.label('donor_first_name'),
-            User.last_name.label('donor_last_name'),
-            Donor.blood_group,
-            Hospital.name.label('hospital_name'),
-            Request.status.label('request_status'),
-            Request.urgency.label('priority')
-        ).join(
-            Donor, DonationHistory.donor_id == Donor.id
-        ).join(
-            User, Donor.user_id == User.id
-        ).join(
-            Hospital, DonationHistory.hospital_id == Hospital.id
-        ).outerjoin(
-            Request, DonationHistory.request_id == Request.id
-        )
-        
-        # Apply status filter if specified
-        if status_filter != 'all':
-            query = query.filter(Request.status == status_filter)
-        
-        # Order by donation date (most recent first)
-        query = query.order_by(DonationHistory.donation_date.desc())
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        paginated_query = query.limit(per_page).offset((page - 1) * per_page)
-        results = paginated_query.all()
-        
-        # Format response
-        activities = []
-        for row in results:
-            # Calculate time ago
-            time_diff = datetime.utcnow() - row.donation_date
-            if time_diff.days > 0:
-                time_ago = f"{time_diff.days} days ago"
-            elif time_diff.seconds // 3600 > 0:
-                time_ago = f"{time_diff.seconds // 3600} hours ago"
-            else:
-                time_ago = f"{time_diff.seconds // 60} minutes ago"
-            
-            # Format donor name
-            donor_name = f"{row.donor_first_name}"
-            if row.donor_last_name:
-                donor_name += f" {row.donor_last_name}"
-            
-            activities.append({
-                "id": row.id,
-                "donor": donor_name,
-                "hospital": row.hospital_name,
-                "bloodType": row.blood_group,
-                "units": row.units,
-                "status": row.request_status or "completed",
-                "priority": row.priority or "medium",
-                "time": time_ago
-            })
-        
-        # Calculate pagination metadata
-        pages = (total + per_page - 1) // per_page if total > 0 else 0
-        
+        current_app.logger.exception("Error fetching available donors")
         return jsonify({
-            "activities": activities,
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "pages": pages,
-            "has_next": page < pages,
-            "has_prev": page > 1
-        }), 200
-        
-    except Exception as e:
-        import traceback
-        print(f"Error fetching activity table: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({
-            "error": "Failed to fetch activity table",
-            "message": "An error occurred while retrieving activity data"
+            "error": "Failed to fetch available donors",
+            "details": str(e) if current_app.debug else None
         }), 500
+
+
+def get_compatible_blood_groups(blood_group):
+    """
+    Get list of compatible blood groups for donation
+    """
+    compatibility = {
+        'O+': ['O+', 'A+', 'B+', 'AB+'],
+        'O-': ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'],
+        'A+': ['A+', 'AB+'],
+        'A-': ['A+', 'A-', 'AB+', 'AB-'],
+        'B+': ['B+', 'AB+'],
+        'B-': ['B+', 'B-', 'AB+', 'AB-'],
+        'AB+': ['AB+'],
+        'AB-': ['AB+', 'AB-']
+    }
+    
+    return compatibility.get(blood_group, [blood_group])
+
+
+@admin_bp.route("/test-sms", methods=["POST"])
+@jwt_required()
+def admin_test_sms():
+    """
+    Admin-only: Send a test SMS to verify SMS configuration.
+    Body: { "to": "+919999999999", "message": "Optional custom text" }
+    Returns: { success, to, twilio_configured, debug_mode }
+    """
+    try:
+        # Verify admin user
+        current_user_id = get_jwt_identity()
+        admin_user = User.query.filter_by(id=current_user_id, role="admin").first()
+        if not admin_user:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        data = request.get_json() or {}
+        to = (data.get("to") or data.get("phone") or "").strip()
+        message = (data.get("message") or "Test SMS from SmartBlood").strip()
+
+        if not to:
+            return jsonify({"error": "'to' phone number is required"}), 400
+
+        # Import here to avoid circulars at import time
+        from app.services.sms_service import sms_service
+
+        sent = sms_service.send_sms(to, message)
+
+        debug_mode = bool(current_app.config.get('DEBUG', False))
+        twilio_configured = bool(getattr(sms_service, 'client', None) and getattr(sms_service, 'from_number', None))
+
+        return jsonify({
+            "success": bool(sent),
+            "to": to,
+            "twilio_configured": twilio_configured,
+            "debug_mode": debug_mode
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception("admin_test_sms failed")
+        return jsonify({"error": "Failed to send test SMS", "details": str(e) if current_app.debug else None}), 500

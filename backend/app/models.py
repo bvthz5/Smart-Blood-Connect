@@ -170,6 +170,12 @@ class DonationHistory(db.Model):
     status = db.Column(db.String(50), default="completed")  # completed, cancelled
     location = db.Column(db.String(255))  # Location where donation took place
     notes = db.Column(db.Text)  # Additional notes about the donation
+    
+    # Certificate fields
+    certificate_number = db.Column(db.String(100), unique=True, nullable=True)  # Unique certificate identifier
+    certificate_url = db.Column(db.String(500), nullable=True)  # Path to certificate PDF
+    certificate_generated_at = db.Column(db.DateTime, nullable=True)  # When certificate was generated
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
 import DashboardLayout from '../../components/admin/DashboardLayout';
 import {
@@ -24,12 +25,15 @@ import {
   Mail,
   Users,
   Loader,
-  Target
+  Target,
+  Trash2
 } from 'lucide-react';
+import { getAdminDonationRequests, getAdminRequestDetails, updateAdminRequestStatus } from '../../services/api';
 import './DonationRequests.css';
 
 const DonationRequestsContent = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,98 +52,11 @@ const DonationRequestsContent = () => {
   });
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [availableDonors, setAvailableDonors] = useState([]);
-  const [selectedDonor, setSelectedDonor] = useState('');
-
-  // Mock data for development
-  const mockRequests = [
-    {
-      id: 1,
-      hospital_name: 'City General Hospital',
-      hospital_city: 'Kochi',
-      hospital_district: 'Ernakulam',
-      patient_name: 'Sarah Johnson',
-      blood_group: 'O+',
-      units_required: 2,
-      urgency: 'high',
-      status: 'pending',
-      description: 'Emergency surgery required for patient',
-      contact_person: 'Dr. Smith',
-      contact_phone: '+91-9876543210',
-      required_by: '2024-01-25T10:00:00Z',
-      created_at: '2024-01-20T10:30:00Z',
-      updated_at: '2024-01-20T10:30:00Z',
-      match_count: 0
-    },
-    {
-      id: 2,
-      hospital_name: 'Metro Medical Center',
-      hospital_city: 'Thiruvananthapuram',
-      hospital_district: 'Thiruvananthapuram',
-      patient_name: 'Michael Brown',
-      blood_group: 'A+',
-      units_required: 1,
-      urgency: 'medium',
-      status: 'in_progress',
-      description: 'Regular blood transfusion needed',
-      contact_person: 'Dr. Davis',
-      contact_phone: '+91-9876543211',
-      required_by: '2024-01-28T14:00:00Z',
-      created_at: '2024-01-19T14:20:00Z',
-      updated_at: '2024-01-21T09:15:00Z',
-      match_count: 2
-    },
-    {
-      id: 3,
-      hospital_name: 'Regional Hospital',
-      hospital_city: 'Kozhikode',
-      hospital_district: 'Kozhikode',
-      patient_name: 'Lisa Anderson',
-      blood_group: 'B+',
-      units_required: 3,
-      urgency: 'low',
-      status: 'completed',
-      description: 'Scheduled surgery preparation',
-      contact_person: 'Dr. Wilson',
-      contact_phone: '+91-9876543212',
-      required_by: '2024-01-30T08:00:00Z',
-      created_at: '2024-01-18T09:15:00Z',
-      updated_at: '2024-01-22T16:45:00Z',
-      match_count: 3
-    },
-    {
-      id: 4,
-      hospital_name: 'City General Hospital',
-      hospital_city: 'Kochi',
-      hospital_district: 'Ernakulam',
-      patient_name: 'David Lee',
-      blood_group: 'AB+',
-      units_required: 1,
-      urgency: 'high',
-      status: 'cancelled',
-      description: 'Patient condition improved, no longer needed',
-      contact_person: 'Dr. Garcia',
-      contact_phone: '+91-9876543213',
-      required_by: '2024-01-23T12:00:00Z',
-      created_at: '2024-01-17T13:45:00Z',
-      updated_at: '2024-01-19T11:20:00Z',
-      match_count: 1
-    }
-  ];
-
-  const mockDonors = [
-    { id: 1, name: 'John Smith', blood_group: 'O+', city: 'Kochi', is_available: true },
-    { id: 2, name: 'Emily Davis', blood_group: 'A+', city: 'Thiruvananthapuram', is_available: true },
-    { id: 3, name: 'Robert Wilson', blood_group: 'B+', city: 'Kozhikode', is_available: true },
-    { id: 4, name: 'Maria Garcia', blood_group: 'AB+', city: 'Kochi', is_available: false }
-  ];
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-  const urgencyLevels = ['low', 'medium', 'high'];
+  const urgencyLevels = ['low', 'medium', 'high', 'critical'];
   const statusOptions = ['pending', 'in_progress', 'completed', 'cancelled', 'closed'];
 
   useEffect(() => {
@@ -148,47 +65,33 @@ const DonationRequestsContent = () => {
 
   const fetchRequests = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
+      const params = {
+        search: searchTerm,
+        blood_group: filters.blood_group,
+        hospital_id: filters.hospital_id,
+        urgency: filters.urgency,
+        status: filters.status,
+        page: pagination.page,
+        per_page: pagination.per_page
+      };
+
+      const response = await getAdminDonationRequests(params);
       
-      // Filter mock data based on search and filters
-      let filteredRequests = [...mockRequests];
-      
-      if (searchTerm) {
-        filteredRequests = filteredRequests.filter(request =>
-          request.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          request.hospital_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          request.contact_person.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      if (response.data && response.data.requests) {
+        setRequests(response.data.requests);
+        setPagination(prev => ({
+          ...prev,
+          total: response.data.total || 0,
+          pages: response.data.pages || 1
+        }));
+      } else {
+        throw new Error('Invalid response format from server');
       }
-      
-      if (filters.blood_group) {
-        filteredRequests = filteredRequests.filter(request => request.blood_group === filters.blood_group);
-      }
-      
-      if (filters.urgency) {
-        filteredRequests = filteredRequests.filter(request => request.urgency === filters.urgency);
-      }
-      
-      if (filters.status) {
-        filteredRequests = filteredRequests.filter(request => request.status === filters.status);
-      }
-      
-      setRequests(filteredRequests);
-      setPagination(prev => ({
-        ...prev,
-        total: filteredRequests.length,
-        pages: Math.ceil(filteredRequests.length / prev.per_page)
-      }));
     } catch (err) {
-      setError('Failed to fetch requests');
+      console.error('Error fetching requests:', err);
+      setError(err.message || 'Failed to fetch requests');
     } finally {
       setLoading(false);
     }
@@ -210,99 +113,50 @@ const DonationRequestsContent = () => {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  const handleViewDetails = (request) => {
-    setSelectedRequest(request);
-    setShowDetailsModal(true);
+  const handleViewDetails = async (request) => {
+    try {
+      const response = await getAdminRequestDetails(request.id);
+      setSelectedRequest(response.data);
+      setShowDetailsModal(true);
+    } catch (err) {
+      console.error('Error fetching request details:', err);
+      setError('Failed to fetch request details');
+    }
   };
 
   const handleAssignDonor = (request) => {
+    // Redirect to the Assign Donor page with the request ID
+    navigate(`/admin/assign-donor/${request.id}`);
+  };
+
+  const handleDeleteRequest = (request) => {
     setSelectedRequest(request);
-    // Filter available donors with compatible blood group
-    const compatibleDonors = mockDonors.filter(donor => 
-      donor.is_available && isCompatibleBloodGroup(donor.blood_group, request.blood_group)
-    );
-    setAvailableDonors(compatibleDonors);
-    setSelectedDonor('');
-    setShowAssignModal(true);
+    setShowDeleteConfirm(true);
   };
 
-  const handleStatusChange = (request, status) => {
-    setSelectedRequest(request);
-    setNewStatus(status);
-    setShowStatusModal(true);
-  };
-
-  const confirmStatusChange = async () => {
-    setActionLoading(true);
-    try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
-      
-      setRequests(prev => prev.map(request => 
-        request.id === selectedRequest.id 
-          ? { ...request, status: newStatus, updated_at: new Date().toISOString() }
-          : request
-      ));
-      
-      setShowStatusModal(false);
-      setSelectedRequest(null);
-      setNewStatus('');
-    } catch (err) {
-      setError('Failed to update request status');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const confirmAssignDonor = async () => {
-    if (!selectedDonor) return;
+  const confirmDeleteRequest = async () => {
+    if (!selectedRequest) return;
     
     setActionLoading(true);
     try {
-      // Simulate API call - use requestIdleCallback for better performance
-      await new Promise(resolve => {
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => resolve(), { timeout: 1000 });
-        } else {
-          setTimeout(resolve, 1000);
-        }
-      });
+      // Update request status to cancelled instead of deleting
+      await updateAdminRequestStatus(selectedRequest.id, 'cancelled');
       
+      // Update local state
       setRequests(prev => prev.map(request => 
         request.id === selectedRequest.id 
-          ? { ...request, match_count: request.match_count + 1, updated_at: new Date().toISOString() }
+          ? { ...request, status: 'cancelled', updated_at: new Date().toISOString() }
           : request
       ));
       
-      setShowAssignModal(false);
+      setShowDeleteConfirm(false);
       setSelectedRequest(null);
-      setSelectedDonor('');
     } catch (err) {
-      setError('Failed to assign donor');
+      console.error('Error cancelling request:', err);
+      setError('Failed to cancel request');
     } finally {
       setActionLoading(false);
     }
-  };
-
-  const isCompatibleBloodGroup = (donorGroup, requiredGroup) => {
-    const compatibility = {
-      'O+': ['O+', 'A+', 'B+', 'AB+'],
-      'O-': ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'],
-      'A+': ['A+', 'AB+'],
-      'A-': ['A+', 'A-', 'AB+', 'AB-'],
-      'B+': ['B+', 'AB+'],
-      'B-': ['B+', 'B-', 'AB+', 'AB-'],
-      'AB+': ['AB+'],
-      'AB-': ['AB+', 'AB-']
-    };
-    
-    return requiredGroup in compatibility.get(donorGroup, []);
   };
 
   const getStatusBadge = (status) => {
@@ -329,7 +183,8 @@ const DonationRequestsContent = () => {
     const urgencyConfig = {
       low: { color: 'green', label: 'Low' },
       medium: { color: 'orange', label: 'Medium' },
-      high: { color: 'red', label: 'High' }
+      high: { color: 'red', label: 'High' },
+      critical: { color: 'red', label: 'Critical' }
     };
     
     const config = urgencyConfig[urgency] || urgencyConfig.medium;
@@ -499,6 +354,13 @@ const DonationRequestsContent = () => {
           </div>
         </div>
         
+        {error && (
+          <div className="error-message">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
+        
         <div className="table-wrapper">
           <table className="requests-table">
             <thead>
@@ -557,7 +419,7 @@ const DonationRequestsContent = () => {
                   <td>
                     <div className="match-count">
                       <Users size={14} />
-                      {request.match_count}
+                      {request.match_count || 0}
                     </div>
                   </td>
                   <td>
@@ -587,10 +449,15 @@ const DonationRequestsContent = () => {
                       {(request.status === 'pending' || request.status === 'in_progress') && (
                         <button 
                           className="action-btn cancel"
-                          onClick={() => handleStatusChange(request, 'cancelled')}
+                          onClick={() => handleDeleteRequest(request)}
                           title="Cancel Request"
+                          disabled={actionLoading}
                         >
-                          <X size={16} />
+                          {actionLoading ? (
+                            <div className="loading-spinner"></div>
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
                         </button>
                       )}
                     </div>
@@ -599,6 +466,16 @@ const DonationRequestsContent = () => {
               ))}
             </tbody>
           </table>
+          
+          {requests.length === 0 && !loading && (
+            <div className="no-requests">
+              <div className="no-requests-icon">
+                <ClipboardList size={48} />
+              </div>
+              <h3>No requests found</h3>
+              <p>Try adjusting your search or filter criteria</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -630,7 +507,7 @@ const DonationRequestsContent = () => {
       )}
 
       {/* Details Modal */}
-      {showDetailsModal && (
+      {showDetailsModal && selectedRequest && (
         <div className="modal-overlay">
           <div className="modal large">
             <div className="modal-header">
@@ -641,66 +518,99 @@ const DonationRequestsContent = () => {
                 <div className="detail-section">
                   <h4>Hospital Information</h4>
                   <div className="detail-item">
-                    <strong>Name:</strong> {selectedRequest?.hospital_name}
+                    <strong>Name:</strong> {selectedRequest.hospital_name}
                   </div>
                   <div className="detail-item">
-                    <strong>City:</strong> {selectedRequest?.hospital_city}
+                    <strong>City:</strong> {selectedRequest.hospital_city}
                   </div>
                   <div className="detail-item">
-                    <strong>District:</strong> {selectedRequest?.hospital_district}
+                    <strong>District:</strong> {selectedRequest.hospital_district}
+                  </div>
+                  <div className="detail-item">
+                    <strong>Address:</strong> {selectedRequest.hospital_address}
+                  </div>
+                  <div className="detail-item">
+                    <strong>Phone:</strong> {selectedRequest.hospital_phone}
                   </div>
                 </div>
                 
                 <div className="detail-section">
                   <h4>Patient Information</h4>
                   <div className="detail-item">
-                    <strong>Name:</strong> {selectedRequest?.patient_name}
+                    <strong>Name:</strong> {selectedRequest.patient_name}
                   </div>
                   <div className="detail-item">
-                    <strong>Blood Group:</strong> {selectedRequest?.blood_group}
+                    <strong>Blood Group:</strong> {selectedRequest.blood_group}
                   </div>
                   <div className="detail-item">
-                    <strong>Units Required:</strong> {selectedRequest?.units_required}
+                    <strong>Units Required:</strong> {selectedRequest.units_required}
                   </div>
                   <div className="detail-item">
-                    <strong>Urgency:</strong> {getUrgencyBadge(selectedRequest?.urgency)}
+                    <strong>Urgency:</strong> {getUrgencyBadge(selectedRequest.urgency)}
                   </div>
                 </div>
                 
                 <div className="detail-section">
                   <h4>Contact Information</h4>
                   <div className="detail-item">
-                    <strong>Contact Person:</strong> {selectedRequest?.contact_person}
+                    <strong>Contact Person:</strong> {selectedRequest.contact_person}
                   </div>
                   <div className="detail-item">
-                    <strong>Phone:</strong> {selectedRequest?.contact_phone}
+                    <strong>Phone:</strong> {selectedRequest.contact_phone}
                   </div>
                   <div className="detail-item">
-                    <strong>Required By:</strong> {formatDate(selectedRequest?.required_by)}
+                    <strong>Required By:</strong> {formatDate(selectedRequest.required_by)}
                   </div>
                 </div>
                 
                 <div className="detail-section">
                   <h4>Request Information</h4>
                   <div className="detail-item">
-                    <strong>Status:</strong> {getStatusBadge(selectedRequest?.status)}
+                    <strong>Status:</strong> {getStatusBadge(selectedRequest.status)}
                   </div>
                   <div className="detail-item">
-                    <strong>Created At:</strong> {formatDate(selectedRequest?.created_at)}
+                    <strong>Created At:</strong> {formatDate(selectedRequest.created_at)}
                   </div>
                   <div className="detail-item">
-                    <strong>Updated At:</strong> {formatDate(selectedRequest?.updated_at)}
+                    <strong>Updated At:</strong> {formatDate(selectedRequest.updated_at)}
                   </div>
                   <div className="detail-item">
-                    <strong>Matches:</strong> {selectedRequest?.match_count}
+                    <strong>Matches:</strong> {selectedRequest.match_count || 0}
                   </div>
                 </div>
                 
-                {selectedRequest?.description && (
+                {selectedRequest.description && (
                   <div className="detail-section full-width">
                     <h4>Description</h4>
                     <div className="detail-item">
-                      {selectedRequest?.description}
+                      {selectedRequest.description}
+                    </div>
+                  </div>
+                )}
+                
+                {selectedRequest.matches && selectedRequest.matches.length > 0 && (
+                  <div className="detail-section full-width">
+                    <h4>Assigned Matches</h4>
+                    <div className="matches-list">
+                      {selectedRequest.matches.map((match) => (
+                        <div key={match.id} className="match-item">
+                          <div className="match-info">
+                            <div className="donor-name">{match.donor_name}</div>
+                            <div className="donor-contact">
+                              <Mail size={12} /> {match.donor_email} | 
+                              <Phone size={12} /> {match.donor_phone}
+                            </div>
+                          </div>
+                          <div className="match-details">
+                            <div className="blood-group">
+                              <Droplets size={14} /> {match.donor_blood_group}
+                            </div>
+                            <div className="match-status">
+                              {getStatusBadge(match.match_status)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -718,103 +628,46 @@ const DonationRequestsContent = () => {
         </div>
       )}
 
-      {/* Assign Donor Modal */}
-      {showAssignModal && (
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h3>Assign Donor</h3>
+              <h3>Cancel Request</h3>
             </div>
             <div className="modal-body">
-              <div className="assign-info">
-                <p><strong>Patient:</strong> {selectedRequest?.patient_name}</p>
-                <p><strong>Blood Group:</strong> {selectedRequest?.blood_group}</p>
-                <p><strong>Hospital:</strong> {selectedRequest?.hospital_name}</p>
-              </div>
-              
-              <div className="form-group">
-                <label>Select Compatible Donor</label>
-                <select
-                  value={selectedDonor}
-                  onChange={(e) => setSelectedDonor(e.target.value)}
-                >
-                  <option value="">Choose a donor...</option>
-                  {availableDonors.map(donor => (
-                    <option key={donor.id} value={donor.id}>
-                      {donor.name} ({donor.blood_group}) - {donor.city}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {availableDonors.length === 0 && (
-                <div className="no-donors">
-                  <AlertCircle size={20} />
-                  <p>No compatible donors available at the moment.</p>
+              <div className="delete-confirm-content">
+                <p>Are you sure you want to cancel this request?</p>
+                <div className="request-summary">
+                  <p><strong>Patient:</strong> {selectedRequest?.patient_name}</p>
+                  <p><strong>Hospital:</strong> {selectedRequest?.hospital_name}</p>
+                  <p><strong>Blood Group:</strong> {selectedRequest?.blood_group}</p>
                 </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button 
-                className="btn-secondary"
-                onClick={() => setShowAssignModal(false)}
-                disabled={actionLoading}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn-primary"
-                onClick={confirmAssignDonor}
-                disabled={actionLoading || !selectedDonor}
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader size={16} className="animate-spin" />
-                    Assigning...
-                  </>
-                ) : (
-                  'Assign Donor'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Change Modal */}
-      {showStatusModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>Update Request Status</h3>
-            </div>
-            <div className="modal-body">
-              <div className="status-change-info">
-                <p><strong>Patient:</strong> {selectedRequest?.patient_name}</p>
-                <p><strong>Hospital:</strong> {selectedRequest?.hospital_name}</p>
-                <p><strong>New Status:</strong> {newStatus.charAt(0).toUpperCase() + newStatus.slice(1).replace('_', ' ')}</p>
+                <p className="warning-text">
+                  This action will set the request status to "Cancelled". This cannot be undone.
+                </p>
               </div>
             </div>
             <div className="modal-footer">
               <button 
                 className="btn-secondary"
-                onClick={() => setShowStatusModal(false)}
+                onClick={() => setShowDeleteConfirm(false)}
                 disabled={actionLoading}
               >
                 Cancel
               </button>
               <button 
                 className="btn-danger"
-                onClick={confirmStatusChange}
+                onClick={confirmDeleteRequest}
                 disabled={actionLoading}
               >
                 {actionLoading ? (
                   <>
                     <Loader size={16} className="animate-spin" />
-                    Updating...
+                    Cancelling...
                   </>
                 ) : (
-                  'Update Status'
+                  'Cancel Request'
                 )}
               </button>
             </div>

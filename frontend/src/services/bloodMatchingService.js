@@ -14,16 +14,14 @@ const bloodMatchingService = {
     
     try {
       const response = await api.get(`/api/admin/matches?${queryParams.toString()}`);
-      // Ensure consistent response structure
+      // Return the response data directly as the backend returns the correct structure
       if (response.data && response.data.matches) {
         return {
           matches: response.data.matches,
-          pagination: response.data.pagination || {
-            page: params.page || 1,
-            per_page: params.per_page || 20,
-            total: response.data.matches.length,
-            pages: 1
-          }
+          total: response.data.total || 0,
+          pages: response.data.pages || 1,
+          page: response.data.page || params.page || 1,
+          per_page: response.data.per_page || params.per_page || 20
         };
       }
       throw new Error('Invalid response format from server');

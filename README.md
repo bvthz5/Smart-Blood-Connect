@@ -146,6 +146,9 @@ backend\.venv\Scripts\python backend\run.py
 - Health: http://127.0.0.1:5000/api/health
 - Swagger: http://127.0.0.1:5000/apidocs
 
+### 6a) Alternative: Run with development script (includes fallback for donor matching)
+Double-click `START_DEV.bat` to run the backend with synchronous donor matching when Redis is not available.
+
 ### 7) Frontend – install and run
 ```powershell
 # If npm is not recognized, add Node to PATH for this session
@@ -231,4 +234,3 @@ This project is licensed under the MIT License.
 - Contributors and the open‑source ecosystem
 
 > Built to support healthcare operations, accelerate donor‑seeker matching, and drive better outcomes.
-```

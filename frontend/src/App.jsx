@@ -39,6 +39,7 @@ import SeekerChangePassword from './pages/seeker/ChangePassword';
 import CreateRequest from './pages/seeker/CreateRequest';
 import ViewRequests from './pages/seeker/ViewRequests';
 import MatchedDonors from './pages/seeker/MatchedDonors';
+import DonorSearchResults from './pages/seeker/DonorSearchResults';
 import SeekerAnalytics from './pages/seeker/Analytics';
 import SeekerSettings from './pages/seeker/Settings';
 import SeekerHospitalProfile from './pages/seeker/HospitalProfile';
@@ -62,6 +63,7 @@ import AddHospital from './pages/admin/AddHospital';
 import EditHospital from './pages/admin/EditHospital';
 import BloodMatching from './pages/admin/BloodMatching';
 import DonationRequests from './pages/admin/DonationRequests';
+import AssignDonor from './pages/admin/AssignDonor';
 import DonationHistory from './pages/admin/DonationHistory';
 import AdminProfile from './pages/admin/AdminProfile';
 import AdminSettings from './pages/admin/AdminSettings';
@@ -203,6 +205,12 @@ function App() {
             </SeekerRouteGuard>
           } />
 
+          <Route path="/seeker/donor-search/:requestId" element={
+            <SeekerRouteGuard>
+              <DonorSearchResults />
+            </SeekerRouteGuard>
+          } />
+
           <Route path="/seeker/hospital" element={
             <SeekerRouteGuard>
               <SeekerHospitalProfile />
@@ -272,6 +280,11 @@ function App() {
           <Route path="/admin/requests" element={
             <AdminRouteGuard>
               <DonationRequests />
+            </AdminRouteGuard>
+          } />
+          <Route path="/admin/assign-donor/:requestId" element={
+            <AdminRouteGuard>
+              <AssignDonor />
             </AdminRouteGuard>
           } />
           <Route path="/admin/donation-history" element={

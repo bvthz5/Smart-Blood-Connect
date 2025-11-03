@@ -297,6 +297,10 @@ export async function getDonationDetails(donationId) {
   return api.get(`/api/donors/donations/${donationId}`);
 }
 
+export async function generateCertificate(donationId) {
+  return api.post(`/api/donors/donations/${donationId}/certificate`);
+}
+
 export async function respondToMatch(matchId, action) {
   return api.post("/api/donors/respond", { match_id: matchId, action });
 }
@@ -341,6 +345,42 @@ export async function adminGenerateMatches(payload) {
 
 export async function getAdminDashboard() {
   return api.get('/api/admin/dashboard');
+}
+
+// Admin Donation Requests functions
+export async function getAdminDonationRequests(params = {}) {
+  const queryParams = new URLSearchParams();
+  
+  if (params.search) queryParams.append('search', params.search);
+  if (params.blood_group) queryParams.append('blood_group', params.blood_group);
+  if (params.hospital_id) queryParams.append('hospital_id', params.hospital_id);
+  if (params.urgency) queryParams.append('urgency', params.urgency);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.page) queryParams.append('page', params.page);
+  if (params.per_page) queryParams.append('per_page', params.per_page);
+  
+  return api.get(`/api/admin/requests?${queryParams.toString()}`);
+}
+
+export async function getAdminRequestDetails(requestId) {
+  return api.get(`/api/admin/requests/${requestId}`);
+}
+
+export async function updateAdminRequestStatus(requestId, status, notes = '') {
+  return api.put(`/api/admin/requests/${requestId}/status`, {
+    status,
+    notes
+  });
+}
+
+export async function assignDonorToRequest(requestId, donorId) {
+  return api.post(`/api/admin/requests/${requestId}/assign-donor`, {
+    donor_id: donorId
+  });
+}
+
+export async function getAvailableDonorsForRequest(requestId) {
+  return api.get(`/api/admin/requests/${requestId}/available-donors`);
 }
 
 export default api;

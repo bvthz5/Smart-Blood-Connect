@@ -46,6 +46,7 @@ const DonorSearchResults = () => {
     let interval = null;
     let timeoutTimer = null;
     let durationTimer = null;
+    let currentController = null;
 
     // Update search duration
     durationTimer = setInterval(() => {
@@ -65,6 +66,9 @@ const DonorSearchResults = () => {
     }, POLL_TIMEOUT);
 
     const poll = async () => {
+      // Skip if component unmounted
+      if (!mounted) return;
+
       try {
         const token = localStorage.getItem('seeker_token') || localStorage.getItem('access_token');
         const headers = {
@@ -75,15 +79,24 @@ const DonorSearchResults = () => {
         }
 
         const qs = lastUpdatedRef.current ? `?since=${encodeURIComponent(lastUpdatedRef.current)}` : '';
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        // Create new AbortController for this request
+        currentController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          if (currentController) {
+            currentController.abort();
+          }
+        }, 5000);
         
         const response = await fetch(`/api/requests/${requestId}/match-status${qs}`, { 
           headers,
-          signal: controller.signal 
+          signal: currentController.signal 
         });
         
         clearTimeout(timeoutId);
+        
+        // Check if unmounted after fetch completes
+        if (!mounted) return;
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -91,6 +104,7 @@ const DonorSearchResults = () => {
 
         const data = await response.json();
         
+        // Check again if still mounted
         if (!mounted) return;
 
         // Update metadata
@@ -130,22 +144,31 @@ const DonorSearchResults = () => {
         }
 
       } catch (err) {
-        console.error('Poll error:', err);
+        // Only log and handle errors if component is still mounted
         if (mounted) {
-          if (err.name === 'AbortError') {
-            setError('Request timeout - retrying...');
-          } else {
+          // Don't show error for AbortError when component is unmounting
+          if (err.name !== 'AbortError') {
+            console.error('Poll error:', err);
             setError(err.message || 'Network error occurred');
           }
         }
       }
     };
 
+    // Start polling
     poll();
     interval = setInterval(poll, POLL_INTERVAL);
 
+    // Cleanup function
     return () => {
       mounted = false;
+      
+      // Abort any ongoing fetch
+      if (currentController) {
+        currentController.abort();
+      }
+      
+      // Clear all timers
       if (interval) clearInterval(interval);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (durationTimer) clearInterval(durationTimer);

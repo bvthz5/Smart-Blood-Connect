@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import and_
 from .match_status import get_match_status
+import threading
 
 req_bp = Blueprint("requests", __name__, url_prefix="/api/requests")
 
@@ -154,12 +155,14 @@ def create_request():
         def enqueue_matching_task():
             try:
                 # Lazy import to avoid circular dependency
-                from app.tasks.donor_matching import match_donors_for_request
+                from app.tasks.donor_matching import _match_donors_for_request_impl
                 
                 current_app.logger.info(f"Attempting to enqueue donor matching for request {r.id}")
                 
                 # Try to enqueue with a short timeout to avoid blocking
                 try:
+                    # Import the Celery task
+                    from app.tasks.donor_matching import match_donors_for_request
                     # Use apply_async for truly async execution
                     result = match_donors_for_request.apply_async(  # pyright: ignore[reportFunctionMemberAccess]
                         args=[r.id],
@@ -169,11 +172,17 @@ def create_request():
                     )
                     current_app.logger.info(f"Task enqueued successfully: {result.id}")
                 except Exception as task_error:
-                    # If task enqueueing fails (Redis down, etc.), log but don't crash
+                    # If task enqueueing fails (Redis down, etc.), run synchronously as fallback
                     current_app.logger.warning(
-                        f"Could not enqueue task (Celery/Redis may not be running): {str(task_error)}"
+                        f"Celery/Redis not available, running donor matching synchronously: {str(task_error)}"
                     )
-                    current_app.logger.info("Request created successfully, but auto-matching disabled")
+                    try:
+                        # Run matching synchronously as fallback
+                        match_result = _match_donors_for_request_impl(r.id, radius_km=20.0, top_k=10)
+                        current_app.logger.info(f"Synchronous donor matching completed: {match_result}")
+                    except Exception as sync_error:
+                        current_app.logger.error(f"Synchronous donor matching failed: {str(sync_error)}")
+                    current_app.logger.info("Request created successfully with synchronous matching")
                     
             except ImportError:
                 current_app.logger.warning("Celery tasks not available, skipping auto-matching")
@@ -181,7 +190,6 @@ def create_request():
                 current_app.logger.warning(f"Unexpected error enqueueing task: {str(e)}")
         
         # Run task enqueueing in background thread with timeout
-        import threading
         thread = threading.Thread(target=enqueue_matching_task, daemon=True)
         thread.start()
         # Don't wait for thread to complete - return immediately

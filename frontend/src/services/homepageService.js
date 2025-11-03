@@ -57,6 +57,39 @@ export const getHomepageAlerts = async () => {
 };
 
 /**
+ * Get urgent blood requests for carousel
+ * @returns {Promise} Urgent requests data
+ */
+export const getUrgentRequests = async () => {
+  try {
+    const response = await api.get('/api/homepage/alerts');
+    
+    // Validate response structure
+    if (!response || !response.data) {
+      console.warn('[homepageService] Invalid response structure from urgent requests API');
+      return { success: false, data: [] };
+    }
+    
+    // Handle both direct array and { success, data } formats
+    if (response.data.success === false) {
+      console.warn('[homepageService] API returned error:', response.data.error);
+      return { success: false, data: [] };
+    }
+    
+    // Filter for urgent requests only (type: 'alert')
+    const urgentRequests = (response.data.data || response.data).filter(item => item.type === 'alert');
+    
+    return { success: true, data: urgentRequests };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[homepageService] Error fetching urgent requests:', error?.response?.data?.error || error?.message || error);
+    
+    // Return safe fallback instead of throwing
+    return { success: false, data: [], error: error?.message || 'Failed to fetch urgent requests' };
+  }
+};
+
+/**
  * Get testimonials from donors and recipients
  * @returns {Promise} Testimonials data
  */
@@ -265,6 +298,33 @@ export const getCachedHomepageAlerts = async () => {
   return data || [];
 };
 
+export const getCachedUrgentRequests = async () => {
+  const cacheKey = 'urgent-requests';
+  let data = homepageCache.get(cacheKey);
+  
+  if (!data) {
+    try {
+      const response = await getUrgentRequests();
+      
+      // Validate response before caching
+      if (response && response.success !== false) {
+        data = response.data || response;
+        homepageCache.set(cacheKey, data);
+      } else {
+        // Return empty array instead of caching error state
+        console.warn('[homepageService] Not caching failed urgent requests response');
+        return [];
+      }
+    } catch (error) {
+      console.error('[homepageService] Error in cached urgent requests:', error);
+      // Return empty array instead of throwing
+      return [];
+    }
+  }
+  
+  return data || [];
+};
+
 export const getCachedHomepageTestimonials = async () => {
   const cacheKey = 'homepage-testimonials';
   let data = homepageCache.get(cacheKey);
@@ -355,6 +415,7 @@ export const handleApiError = (error, fallbackMessage = 'Something went wrong') 
 export default {
   getHomepageStats,
   getHomepageAlerts,
+  getUrgentRequests,
   getHomepageTestimonials,
   getBloodAvailability,
   getFeaturedHospitals,
@@ -362,6 +423,7 @@ export default {
   getAllHomepageData,
   getCachedHomepageStats,
   getCachedHomepageAlerts,
+  getCachedUrgentRequests,
   getCachedHomepageTestimonials,
   homepageCache,
   formatNumber,
