@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import useGeolocation, { calculateDistance, formatCoordinates } from "../../hooks/useGeolocation";
-import MapComponent from "../../components/MapComponent";
+import SimpleMap from "../../components/SimpleMap";
 import { getNearbyRequests } from "../../services/api";
 import "./nearby-requests.css";
 
@@ -61,8 +61,89 @@ const NearbyRequests = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(4); // Show 4 requests per page (spec)
   
-  // Requests data from backend
-  const [requests, setRequests] = useState([]);
+  // Requests data from backend - Initialize with mock data
+  const [requests, setRequests] = useState([
+    {
+      id: 1,
+      hospital_name: "Medical Trust Hospital",
+      blood_group: "O+",
+      urgency: "high",
+      units_required: 2,
+      address: "MG Road, Kochi",
+      lat: 9.9312,
+      lng: 76.2673
+    },
+    {
+      id: 2,
+      hospital_name: "Amrita Institute of Medical Sciences",
+      blood_group: "O+",
+      urgency: "medium",
+      units_required: 1,
+      address: "Ponekkara, Kochi",
+      lat: 10.0219,
+      lng: 76.3242
+    },
+    {
+      id: 3,
+      hospital_name: "Lakeshore Hospital",
+      blood_group: "A+",
+      urgency: "high",
+      units_required: 3,
+      address: "NH Bypass, Kochi",
+      lat: 9.9674,
+      lng: 76.2838
+    },
+    {
+      id: 4,
+      hospital_name: "Rajagiri Hospital",
+      blood_group: "B+",
+      urgency: "low",
+      units_required: 1,
+      address: "Chunangamveli, Kochi",
+      lat: 10.0272,
+      lng: 76.3517
+    },
+    {
+      id: 5,
+      hospital_name: "Cochin Hospital",
+      blood_group: "AB+",
+      urgency: "high",
+      units_required: 2,
+      address: "Kaloor, Kochi",
+      lat: 9.9895,
+      lng: 76.2953
+    },
+    {
+      id: 6,
+      hospital_name: "Aster Medcity",
+      blood_group: "A-",
+      urgency: "medium",
+      units_required: 1,
+      address: "Cheranalloor, Kochi",
+      lat: 9.9397,
+      lng: 76.3251
+    },
+    {
+      id: 7,
+      hospital_name: "KIMS Hospital",
+      blood_group: "O-",
+      urgency: "high",
+      units_required: 3,
+      address: "Edappally, Kochi",
+      lat: 10.0245,
+      lng: 76.3084
+    },
+    {
+      id: 8,
+      hospital_name: "VPS Lakeshore",
+      blood_group: "B-",
+      urgency: "low",
+      units_required: 1,
+      address: "Maradu, Kochi",
+      lat: 9.9625,
+      lng: 76.3004
+    }
+  ]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState(null);
   
@@ -556,12 +637,9 @@ const NearbyRequests = () => {
               ⛶ Full Screen
             </button>
           </div>
-          <MapComponent
+          <SimpleMap
             userLocation={location}
             requests={mapRequests}
-            onMarkerClick={(request) => setSelectedRequest(request)}
-            height="400px"
-            invalidateToken={`${debouncedMaxDistance}-${mapRequests.length}`}
           />
         </div>
 

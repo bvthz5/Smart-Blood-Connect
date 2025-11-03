@@ -60,89 +60,63 @@ function MapClickHandler({ onClick }) {
 }
 
 /**
- * MapSizeFix - Ensures map is always visible and properly sized
- * Fixes common issues with map not displaying or disappearing
- * @param {string} token - Token to trigger re-calculation when dependencies change
+ * MapSizeFix - Simple and effective visibility fix
  */
-function MapSizeFix({ token }) {
+function MapSizeFix() {
   const map = useMap();
   
   useEffect(() => {
     if (!map) return;
     
-    let mounted = true;
+    console.log('🗺️ MapSizeFix: Map instance received');
     
-    // Initial size fixes at different intervals to ensure proper rendering
+    // Aggressive immediate render
+    map.invalidateSize(true);
+    
+    // Set Kerala bounds immediately
+    const keralaBounds = L.latLngBounds(
+      [8.2, 74.8],
+      [12.8, 77.5]
+    );
+    map.setMaxBounds(keralaBounds);
+    
+    // Multiple invalidation attempts
     const timers = [
       setTimeout(() => {
-        if (!mounted) return;
-        try {
-          map.invalidateSize(true);
-          const container = map.getContainer();
-          if (container) {
-            container.style.display = 'block';
-            container.style.opacity = '1';
-            container.style.visibility = 'visible';
-          }
-        } catch (e) {
-          // Silent error handling
-        }
-      }, 100),
-      
-      setTimeout(() => {
-        if (!mounted) return;
-        try {
-          map.invalidateSize(true);
-          const tilePane = map.getPane('tilePane');
-          if (tilePane) {
-            tilePane.style.opacity = '1';
-            tilePane.style.visibility = 'visible';
-          }
-        } catch (e) {
-          // Silent error handling
-        }
-      }, 500),
-    ];
-
-    // Handle window resize events
-    const handleResize = () => {
-      if (!mounted) return;
-      try {
+        console.log('🗺️ MapSizeFix: First invalidation');
         map.invalidateSize(true);
-      } catch (e) {
-        // Silent error handling
-      }
-    };
+      }, 50),
+      setTimeout(() => {
+        console.log('🗺️ MapSizeFix: Second invalidation + fit bounds');
+        map.invalidateSize(true);
+        map.fitBounds(keralaBounds);
+      }, 100),
+      setTimeout(() => {
+        console.log('🗺️ MapSizeFix: Third invalidation');
+        map.invalidateSize(true);
+      }, 300),
+      setTimeout(() => {
+        console.log('🗺️ MapSizeFix: Fourth invalidation');
+        map.invalidateSize(true);
+      }, 500),
+      setTimeout(() => {
+        console.log('🗺️ MapSizeFix: Final invalidation');
+        map.invalidateSize(true);
+      }, 1000),
+    ];
     
-    window.addEventListener('resize', handleResize);
-
-    // Periodic check to ensure map stays visible (every 3 seconds)
+    // Force continuous visibility
     const interval = setInterval(() => {
-      if (!mounted) return;
-      try {
-        const container = map.getContainer();
-        if (container) {
-          container.style.opacity = '1';
-          container.style.visibility = 'visible';
-        }
-        const tilePane = map.getPane('tilePane');
-        if (tilePane) {
-          tilePane.style.opacity = '1';
-          tilePane.style.visibility = 'visible';
-        }
-      } catch (e) {
-        // Silent error handling
-      }
-    }, 3000);
-
-    // Cleanup function
+      map.invalidateSize(false);
+    }, 2000);
+    
+    console.log('🗺️ MapSizeFix: Complete! Kerala bounds set.');
+    
     return () => {
-      mounted = false;
       timers.forEach(clearTimeout);
-      window.removeEventListener('resize', handleResize);
       clearInterval(interval);
     };
-  }, [map, token]);
+  }, [map]);
   
   return null;
 }
@@ -175,7 +149,7 @@ const MapComponent = ({
   userLocation,
   requests = [],
   onMarkerClick,
-  height = '400px',
+  height = '600px', // Increased default from 400px to 600px
   centerFallback = [9.9312, 76.2673], // Kochi, India
   showConnections = false,
   fullPage = false,
@@ -185,6 +159,7 @@ const MapComponent = ({
   // STATE
   // ============================================================================
   const [clickedPosition, setClickedPosition] = useState(null);
+  const [mapReady, setMapReady] = useState(false);
   
   // ============================================================================
   // LOCATION NORMALIZATION
@@ -194,9 +169,10 @@ const MapComponent = ({
   const userLng = userLocation?.lng ?? userLocation?.longitude ?? null;
   const hasUser = userLat != null && userLng != null;
 
-  // Determine map center and zoom level
-  const center = hasUser ? [userLat, userLng] : centerFallback;
-  const zoom = hasUser ? 13 : 10;
+  // Determine map center and zoom level - KERALA CENTER
+  const keralaCenter = [10.8505, 76.2711]; // Center of Kerala
+  const center = hasUser ? [userLat, userLng] : keralaCenter;
+  const zoom = hasUser ? 10 : 7; // Zoom 7 shows full Kerala
 
   // ============================================================================
   // MARKER PROCESSING
@@ -228,21 +204,32 @@ const MapComponent = ({
       }
     : { 
         width: '100%', 
-        height: height || '400px', 
-        minHeight: '400px', 
-        display: 'block' 
+        height: height || '600px', // Increased from 400px
+        minHeight: '600px', // Increased from 400px
+        display: 'block',
+        position: 'relative'
       };
       
   const mapBoxStyle = { 
-    height: height || '400px', 
+    height: height || '600px', // Increased from 400px
     width: '100%', 
-    minHeight: '400px', 
-    display: 'block' 
+    minHeight: '600px', // Increased from 400px
+    display: 'block',
+    position: 'relative'
   };
 
   // ============================================================================
   // RENDER
   // ============================================================================
+  
+  console.log('🗺️ MapComponent rendering:', {
+    hasUser,
+    requestCount: requestMarkers.length,
+    center,
+    zoom,
+    height
+  });
+  
   return (
     <div 
       className={`${fullPage ? 'map-fullpage ' : ''}interactive-map-component`} 
@@ -252,43 +239,33 @@ const MapComponent = ({
         <MapContainer
           center={center}
           zoom={zoom}
-          style={{ height: height || '400px', width: '100%' }}
+          style={{ height: height || '600px', width: '100%' }} // Increased from 400px
           className="leaflet-map-container"
           scrollWheelZoom={true}
-          fadeAnimation={false}
-          zoomAnimation={false}
-          markerZoomAnimation={false}
-          trackResize={true}
-          doubleClickZoom={true}
-          dragging={true}
           zoomControl={true}
           attributionControl={true}
-          preferCanvas={false}
+          minZoom={7}
+          maxZoom={15}
+          bounds={[[8.2, 74.8], [12.8, 77.5]]}
+          maxBounds={[[8.2, 74.8], [12.8, 77.5]]}
+          maxBoundsViscosity={1.0}
         >
           {/* Map size fix component */}
-          <MapSizeFix 
-            token={JSON.stringify({ 
-              invalidateToken, 
-              reqs: requestMarkers.length, 
-              hasUser 
-            })} 
-          />
+          <MapSizeFix />
         
-          {/* Tile layer - OpenStreetMap */}
+          {/* Tile layer - OpenStreetMap with CORS fix */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            subdomains={['a', 'b', 'c']}
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            crossOrigin={true}
             maxZoom={19}
             minZoom={3}
-            opacity={1}
-            className="map-tiles"
-            keepBuffer={2}
-            maxNativeZoom={19}
             tileSize={256}
+            zoomOffset={0}
+            detectRetina={true}
             updateWhenIdle={false}
-            updateWhenZooming={false}
-            errorTileUrl="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Crect width='256' height='256' fill='%23e5e7eb'/%3E%3C/svg%3E"
+            updateWhenZooming={true}
+            keepBuffer={2}
           />
 
           {/* Click handler */}

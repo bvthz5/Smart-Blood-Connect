@@ -1,0 +1,102 @@
+.simple-map-wrapper {
+  width: 100%;
+  max-width: 1400px; /* Decreased from full width */
+  height: 600px;
+  margin: 0 auto; /* Center the map */
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  background: #f0f0f0;
+  /* FORCE VISIBILITY */
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  display: block !important;
+}
+
+.simple-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  /* FORCE VISIBILITY */
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Make sure Leaflet elements are visible */
+#leaflet-map {
+  background: #e0e0e0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  background: #e0e0e0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.leaflet-tile-pane {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.leaflet-tile {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Loading overlay */
+.map-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #dc2626;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.map-loading-overlay p {
+  color: #374151;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .simple-map-wrapper {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .simple-map-wrapper {
+    height: 450px;
+  }
+}

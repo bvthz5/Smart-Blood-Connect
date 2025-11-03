@@ -303,47 +303,34 @@
   letter-spacing: 0.5px;
 }
 
-/* Map Section */
+/* Map Section - FIXED: No hover effects at all */
 .map-section {
   background: linear-gradient(to bottom, #FFFFFF 0%, #FAFAFA 100%);
   border-radius: 1.5rem;
   padding: 1.75rem;
   box-shadow: 0 10px 25px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
   border: 1px solid #E5E7EB;
-  transition: box-shadow 0.3s ease;
-  min-height: 500px; /* Reduced from 700px to 500px */
-}
-
-/* Prevent map from being affected by parent transitions */
-.map-section > div {
-  transition: none;
-}
-
-/* Prevent any hover effects that might hide the map */
-.map-section:hover .leaflet-tile,
-.map-section:hover .leaflet-tile-container,
-.map-section:hover .leaflet-layer {
-  opacity: 1 !important;
-}
-
-/* Removed rigid height override for .map-section .leaflet-container
-   to let MapComponent control sizing (responsive via props/fullPage). */
-
-/* Conflicting Leaflet overrides removed to avoid tile visibility issues */
-/*
-.map-section .leaflet-tile-pane,
-.map-section .leaflet-tile,
-.map-section .leaflet-layer {
+  min-height: 700px; /* Increased from 500px to 700px */
+  position: relative;
+  z-index: 10 !important; /* Increased from 1 to 10 */
+  /* FORCE MAP VISIBILITY */
   opacity: 1 !important;
   visibility: visible !important;
+  pointer-events: auto !important;
 }
-*/
 
-/* Let Leaflet handle rendering naturally - no containment restrictions */
-
-.map-section:hover {
-  box-shadow: 0 15px 35px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+/* Prevent map from being affected by parent */
+.map-section > div {
+  position: relative;
+  z-index: 10 !important; /* Match parent */
+  /* FORCE MAP VISIBILITY */
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
+
+/* NO HOVER EFFECTS - Remove completely */
+/* .map-section:hover - DELETED */
 
 .section-header {
   display: flex;
@@ -606,6 +593,8 @@
   box-shadow: 0 10px 25px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
   border: 1px solid #E5E7EB;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1; /* Lower than map section */
 }
 
 .requests-section:hover {
