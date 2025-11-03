@@ -44,6 +44,7 @@ const NearbyRequests = () => {
         clearTimeout(distanceDebounceRef.current);
       }
     };
+  }, [maxDistance]);
 
   const handleContact = (request) => {
     const phone = request?.contact_phone;
@@ -55,7 +56,6 @@ const NearbyRequests = () => {
       alert('Contact number unavailable for this request.');
     }
   };
-  }, [maxDistance]);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -560,7 +560,7 @@ const NearbyRequests = () => {
             userLocation={location}
             requests={mapRequests}
             onMarkerClick={(request) => setSelectedRequest(request)}
-            height="450px"
+            height="400px"
             invalidateToken={`${debouncedMaxDistance}-${mapRequests.length}`}
           />
         </div>

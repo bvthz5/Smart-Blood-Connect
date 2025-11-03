@@ -1,10 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, FeatureGroup, useMap, useMapEvents, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, FeatureGroup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './InteractiveMap.css';
 import L from 'leaflet';
 
-// Fix default marker icons in bundlers
+// ============================================================================
+// MARKER ICON FIX - Required for bundlers (Vite/Webpack)
+// ============================================================================
+delete L.Icon.Default.prototype._getIconUrl;
+
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -15,18 +19,37 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// ============================================================================
+// HELPER COMPONENTS
+// ============================================================================
+
+/**
+ * FitBounds - Automatically adjusts map view to show all markers
+ * @param {Array} markers - Array of [lat, lng] coordinates
+ */
 function FitBounds({ markers }) {
   const map = useMap();
+  
   useMemo(() => {
     if (!map || !markers || markers.length === 0) return;
-    const bounds = L.latLngBounds(markers);
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+    
+    try {
+      const bounds = L.latLngBounds(markers);
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+      }
+    } catch (e) {
+      console.warn('[FitBounds] Error fitting bounds:', e);
     }
   }, [map, markers]);
+  
   return null;
 }
 
+/**
+ * MapClickHandler - Handles click events on the map
+ * @param {Function} onClick - Callback function for click events
+ */
 function MapClickHandler({ onClick }) {
   useMapEvents({
     click: (e) => {
@@ -36,117 +59,152 @@ function MapClickHandler({ onClick }) {
   return null;
 }
 
+/**
+ * MapSizeFix - Ensures map is always visible and properly sized
+ * Fixes common issues with map not displaying or disappearing
+ * @param {string} token - Token to trigger re-calculation when dependencies change
+ */
 function MapSizeFix({ token }) {
   const map = useMap();
-  useEffect(() => {
-    let raf = 0;
-    const debouncedFix = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => map.invalidateSize());
-    };
-
-    // Initial passes
-    const t1 = setTimeout(debouncedFix, 120);
-    const t2 = setTimeout(debouncedFix, 360);
-
-    // Window resize
-    window.addEventListener('resize', debouncedFix);
-
-    // Observe container size changes
-    const container = map.getContainer();
-    const ro = new ResizeObserver(debouncedFix);
-    ro.observe(container);
-
-    // Observe parent mutations that might affect layout
-    const mo = new MutationObserver(debouncedFix);
-    if (container.parentElement) {
-      mo.observe(container.parentElement, { attributes: true, attributeFilter: ['style', 'class'] });
-    }
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      window.removeEventListener('resize', debouncedFix);
-      ro.disconnect();
-      mo.disconnect();
-      cancelAnimationFrame(raf);
-    };
-  }, [map]);
-  // Invalidate size when token changes (e.g., filters/pagination affecting layout)
+  
   useEffect(() => {
     if (!map) return;
-    const t = setTimeout(() => map.invalidateSize(), 60);
-    return () => clearTimeout(t);
+    
+    let mounted = true;
+    
+    // Initial size fixes at different intervals to ensure proper rendering
+    const timers = [
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          map.invalidateSize(true);
+          const container = map.getContainer();
+          if (container) {
+            container.style.display = 'block';
+            container.style.opacity = '1';
+            container.style.visibility = 'visible';
+          }
+        } catch (e) {
+          // Silent error handling
+        }
+      }, 100),
+      
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          map.invalidateSize(true);
+          const tilePane = map.getPane('tilePane');
+          if (tilePane) {
+            tilePane.style.opacity = '1';
+            tilePane.style.visibility = 'visible';
+          }
+        } catch (e) {
+          // Silent error handling
+        }
+      }, 500),
+    ];
+
+    // Handle window resize events
+    const handleResize = () => {
+      if (!mounted) return;
+      try {
+        map.invalidateSize(true);
+      } catch (e) {
+        // Silent error handling
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+
+    // Periodic check to ensure map stays visible (every 3 seconds)
+    const interval = setInterval(() => {
+      if (!mounted) return;
+      try {
+        const container = map.getContainer();
+        if (container) {
+          container.style.opacity = '1';
+          container.style.visibility = 'visible';
+        }
+        const tilePane = map.getPane('tilePane');
+        if (tilePane) {
+          tilePane.style.opacity = '1';
+          tilePane.style.visibility = 'visible';
+        }
+      } catch (e) {
+        // Silent error handling
+      }
+    }, 3000);
+
+    // Cleanup function
+    return () => {
+      mounted = false;
+      timers.forEach(clearTimeout);
+      window.removeEventListener('resize', handleResize);
+      clearInterval(interval);
+    };
   }, [map, token]);
+  
   return null;
 }
 
-const TILE_PROVIDERS = {
-  osm: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-  },
-  cartoVoyager: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 19,
-  },
-  osmHot: {
-    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team hosted by OpenStreetMap France',
-    maxZoom: 20,
-  },
-};
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
-// Optional terrain provider using API keys
-const MAPTILER_KEY = import.meta?.env?.VITE_MAPTILER_KEY;
-const THUNDERFOREST_KEY = import.meta?.env?.VITE_THUNDERFOREST_KEY;
-
-const TERRAIN_PROVIDER = MAPTILER_KEY
-  ? {
-      name: 'Terrain',
-      url: `https://api.maptiler.com/maps/outdoor-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`,
-      attribution:
-        'Map tiles &copy; <a href="https://www.maptiler.com/" target="_blank" rel="noreferrer">MapTiler</a> | Data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
-      maxZoom: 20,
-    }
-  : THUNDERFOREST_KEY
-  ? {
-      name: 'Terrain',
-      url: `https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=${THUNDERFOREST_KEY}`,
-      attribution:
-        'Maps &copy; <a href="https://www.thunderforest.com/" target="_blank" rel="noreferrer">Thunderforest</a>, Data &copy; OpenStreetMap contributors',
-      maxZoom: 22,
-      subdomains: 'abc',
-    }
-  : null;
-
+/**
+ * MapComponent - Interactive map with markers, popups, and connections
+ * 
+ * Features:
+ * - Displays user location and blood request markers
+ * - Shows connections between user and requests
+ * - Auto-fits bounds to show all markers
+ * - Handles click events
+ * - Fully responsive with proper sizing
+ * - Always visible (no flickering or disappearing)
+ * 
+ * @param {Object} userLocation - User's current location {lat, lng} or {latitude, longitude}
+ * @param {Array} requests - Array of blood request objects with lat/lng
+ * @param {Function} onMarkerClick - Callback when a marker is clicked
+ * @param {string} height - Map height (default: 400px)
+ * @param {Array} centerFallback - Default center coordinates [lat, lng]
+ * @param {boolean} showConnections - Show lines connecting user to requests
+ * @param {boolean} fullPage - Display map in fullscreen mode
+ * @param {string} invalidateToken - Token to trigger map recalculation
+ */
 const MapComponent = ({
   userLocation,
   requests = [],
   onMarkerClick,
-  height = '450px',
-  centerFallback = [9.9312, 76.2673], // Kochi
-  tileProvider = 'osm',
-  tileUrl,
-  tileAttribution,
-  tileMaxZoom,
+  height = '400px',
+  centerFallback = [9.9312, 76.2673], // Kochi, India
   showConnections = false,
   fullPage = false,
   invalidateToken,
 }) => {
+  // ============================================================================
+  // STATE
+  // ============================================================================
   const [clickedPosition, setClickedPosition] = useState(null);
-  // Normalize user coordinates (support latitude/longitude or lat/lng)
+  
+  // ============================================================================
+  // LOCATION NORMALIZATION
+  // ============================================================================
+  // Support both {lat, lng} and {latitude, longitude} formats
   const userLat = userLocation?.lat ?? userLocation?.latitude ?? null;
   const userLng = userLocation?.lng ?? userLocation?.longitude ?? null;
   const hasUser = userLat != null && userLng != null;
 
+  // Determine map center and zoom level
   const center = hasUser ? [userLat, userLng] : centerFallback;
   const zoom = hasUser ? 13 : 10;
 
+  // ============================================================================
+  // MARKER PROCESSING
+  // ============================================================================
+  // Filter valid request markers (must have coordinates)
   const requestMarkers = requests.filter(r => r?.lat && r?.lng);
 
+  // Collect all markers for auto-fit bounds
   const allMarkersForBounds = useMemo(() => {
     const points = [];
     if (hasUser) points.push([userLat, userLng]);
@@ -154,167 +212,177 @@ const MapComponent = ({
     return points;
   }, [hasUser, userLat, userLng, requestMarkers]);
 
-  const provider = TILE_PROVIDERS[tileProvider] || TILE_PROVIDERS.osm;
-  const finalTileUrl = tileUrl || provider.url;
-  const finalAttribution = tileAttribution || provider.attribution;
-  const finalMaxZoom = tileMaxZoom || provider.maxZoom || 19;
-
-  const tileEventHandlers = {
-    tileerror: () => {
-      /* no-op: we keep other base layers available via LayersControl */
-    },
+  // ============================================================================
+  // STYLING
+  // ============================================================================
+  const wrapperStyle = fullPage
+    ? { 
+        height: '100vh', 
+        width: '100vw', 
+        margin: 0, 
+        padding: 0, 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        zIndex: 9999 
+      }
+    : { 
+        width: '100%', 
+        height: height || '400px', 
+        minHeight: '400px', 
+        display: 'block' 
+      };
+      
+  const mapBoxStyle = { 
+    height: height || '400px', 
+    width: '100%', 
+    minHeight: '400px', 
+    display: 'block' 
   };
 
-  const wrapperStyle = fullPage
-    ? { height: '100vh', width: '100%', margin: 0, padding: 0 }
-    : { width: '100%', height };
-  const mapBoxStyle = { height: '100%', width: '100%' };
-
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
-    <div className={`${fullPage ? 'map-fullpage ' : ''}interactive-map-component`} style={wrapperStyle}>
+    <div 
+      className={`${fullPage ? 'map-fullpage ' : ''}interactive-map-component`} 
+      style={wrapperStyle}
+    >
       <div style={mapBoxStyle}>
         <MapContainer
           center={center}
           zoom={zoom}
-          style={{ height: '100%', width: '100%' }}
+          style={{ height: height || '400px', width: '100%' }}
           className="leaflet-map-container"
+          scrollWheelZoom={true}
           fadeAnimation={false}
-          zoomAnimation={true}
-          updateWhenIdle={true}
+          zoomAnimation={false}
+          markerZoomAnimation={false}
+          trackResize={true}
+          doubleClickZoom={true}
+          dragging={true}
+          zoomControl={true}
+          attributionControl={true}
           preferCanvas={false}
-          scrollWheelZoom
         >
-        <MapSizeFix token={JSON.stringify({ invalidateToken, reqs: requestMarkers.length, hasUser })} />
-        <LayersControl position="topright">
-          {/* Street (default) */}
-          <LayersControl.BaseLayer name="Street" checked>
-            <TileLayer
-              attribution={TILE_PROVIDERS.cartoVoyager.attribution}
-              url={TILE_PROVIDERS.cartoVoyager.url}
-              maxZoom={TILE_PROVIDERS.cartoVoyager.maxZoom}
-              crossOrigin="anonymous"
-              keepBuffer={2}
-              errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-              eventHandlers={tileEventHandlers}
-            />
-          </LayersControl.BaseLayer>
+          {/* Map size fix component */}
+          <MapSizeFix 
+            token={JSON.stringify({ 
+              invalidateToken, 
+              reqs: requestMarkers.length, 
+              hasUser 
+            })} 
+          />
+        
+          {/* Tile layer - OpenStreetMap */}
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            subdomains={['a', 'b', 'c']}
+            maxZoom={19}
+            minZoom={3}
+            opacity={1}
+            className="map-tiles"
+            keepBuffer={2}
+            maxNativeZoom={19}
+            tileSize={256}
+            updateWhenIdle={false}
+            updateWhenZooming={false}
+            errorTileUrl="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Crect width='256' height='256' fill='%23e5e7eb'/%3E%3C/svg%3E"
+          />
 
-          {/* Satellite (Esri World Imagery) */}
-          <LayersControl.BaseLayer name="Satellite">
-            <TileLayer
-              attribution='Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
-              url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              maxZoom={19}
-              crossOrigin="anonymous"
-              keepBuffer={2}
-              errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-              eventHandlers={tileEventHandlers}
-            />
-          </LayersControl.BaseLayer>
+          {/* Click handler */}
+          <MapClickHandler onClick={setClickedPosition} />
 
-          {/* Optional Terrain layer (enabled only if API key is set) */}
-          {TERRAIN_PROVIDER && (
-            <LayersControl.BaseLayer name="Terrain">
-              <TileLayer
-                attribution={TERRAIN_PROVIDER.attribution}
-                url={TERRAIN_PROVIDER.url}
-                maxZoom={TERRAIN_PROVIDER.maxZoom}
-                subdomains={TERRAIN_PROVIDER.subdomains}
-                crossOrigin="anonymous"
-                keepBuffer={2}
-                errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-                eventHandlers={tileEventHandlers}
-              />
-            </LayersControl.BaseLayer>
+          {/* User location marker */}
+          {hasUser && (
+            <Marker position={[userLat, userLng]}>
+              <Popup>
+                <div>
+                  <strong>📍 Your Location</strong>
+                  <div>Latitude: {userLat.toFixed(6)}</div>
+                  <div>Longitude: {userLng.toFixed(6)}</div>
+                </div>
+              </Popup>
+            </Marker>
           )}
 
-          {/* OpenStreetMap Classic */}
-          <LayersControl.BaseLayer name="OSM">
-            <TileLayer
-              attribution={TILE_PROVIDERS.osm.attribution}
-              url={TILE_PROVIDERS.osm.url}
-              maxZoom={TILE_PROVIDERS.osm.maxZoom}
-              crossOrigin="anonymous"
-              keepBuffer={2}
-              errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-              eventHandlers={tileEventHandlers}
-            />
-          </LayersControl.BaseLayer>
-        </LayersControl>
+          {/* Blood request markers */}
+          {requestMarkers.map((req, idx) => (
+            <Marker
+              key={req.id ?? idx}
+              position={[req.lat, req.lng]}
+              eventHandlers={onMarkerClick ? { click: () => onMarkerClick(req) } : undefined}
+            >
+              <Popup>
+                <div>
+                  <strong>🏥 {req.hospital_name || 'Medical Facility'}</strong>
+                  {req.urgency && (
+                    <div style={{ marginTop: 4 }}>
+                      Urgency: <b style={{ 
+                        color: req.urgency === 'high' ? '#DC2626' : 
+                               req.urgency === 'medium' ? '#F59E0B' : '#10B981' 
+                      }}>
+                        {String(req.urgency).toUpperCase()}
+                      </b>
+                    </div>
+                  )}
+                  {req.blood_group && <div>🩸 Blood Group: {req.blood_group}</div>}
+                  {req.units_required && <div>💉 Units: {req.units_required}</div>}
+                  {req.address && <div>📍 {req.address}</div>}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
 
-        <MapClickHandler onClick={setClickedPosition} />
+          {/* Clicked position marker */}
+          {clickedPosition && (
+            <Marker position={clickedPosition}>
+              <Popup>
+                <div>
+                  <strong>📌 Clicked Location</strong>
+                  <div>Latitude: {clickedPosition.lat.toFixed(6)}</div>
+                  <div>Longitude: {clickedPosition.lng.toFixed(6)}</div>
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
-        {hasUser && (
-          <Marker position={[userLat, userLng]}>
-            <Popup>
-              <div>
-                <strong>Your Location</strong>
-                <div>Lat: {userLat.toFixed(6)}</div>
-                <div>Lng: {userLng.toFixed(6)}</div>
-              </div>
-            </Popup>
-          </Marker>
-        )}
+          {/* Connection lines between user and requests */}
+          {hasUser && requestMarkers.length > 0 && showConnections && (
+            <FeatureGroup>
+              {requestMarkers.map((req, idx) => (
+                <Polyline
+                  key={`line-${req.id ?? idx}`}
+                  positions={[[userLat, userLng], [req.lat, req.lng]]}
+                  pathOptions={{
+                    color: req.urgency === 'high' ? '#DC2626' : 
+                           req.urgency === 'medium' ? '#F59E0B' : '#10B981',
+                    weight: 2,
+                    opacity: 0.6,
+                    dashArray: req.urgency === 'high' ? undefined : '5,8',
+                  }}
+                />
+              ))}
+            </FeatureGroup>
+          )}
 
-        {requestMarkers.map((req, idx) => (
-          <Marker
-            key={req.id ?? idx}
-            position={[req.lat, req.lng]}
-            eventHandlers={onMarkerClick ? { click: () => onMarkerClick(req) } : undefined}
-          >
-            <Popup>
-              <div>
-                <strong>{req.hospital_name || 'Medical Facility'}</strong>
-                {req.urgency && (
-                  <div style={{ marginTop: 4 }}>
-                    Urgency: <b>{String(req.urgency).toUpperCase()}</b>
-                  </div>
-                )}
-                {req.blood_group && <div>Blood Group: {req.blood_group}</div>}
-                {req.units_required && <div>Units: {req.units_required}</div>}
-                {req.address && <div>Address: {req.address}</div>}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-
-        {clickedPosition && (
-          <Marker position={clickedPosition}>
-            <Popup>
-              <div>
-                <strong>Clicked here</strong>
-                <div>Lat: {clickedPosition.lat.toFixed(6)}</div>
-                <div>Lng: {clickedPosition.lng.toFixed(6)}</div>
-              </div>
-            </Popup>
-          </Marker>
-        )}
-
-        {hasUser && requestMarkers.length > 0 && showConnections && (
-          <FeatureGroup>
-            {requestMarkers.map((req, idx) => (
-              <Polyline
-                key={`line-${req.id ?? idx}`}
-                positions={[[userLat, userLng], [req.lat, req.lng]]}
-                pathOptions={{
-                  color: req.urgency === 'high' ? '#DC2626' : req.urgency === 'medium' ? '#F59E0B' : '#10B981',
-                  weight: 2,
-                  opacity: 0.6,
-                  dashArray: req.urgency === 'high' ? undefined : '5,8',
-                }}
-              />
-            ))}
-          </FeatureGroup>
-        )}
-
-        {allMarkersForBounds.length > 0 && (
-          <FitBounds markers={allMarkersForBounds} />
-        )}
+          {/* Auto-fit bounds to show all markers */}
+          {allMarkersForBounds.length > 0 && (
+            <FitBounds markers={allMarkersForBounds} />
+          )}
         </MapContainer>
       </div>
 
+      {/* Display clicked position info */}
       {clickedPosition && !fullPage && (
-        <div style={{ marginTop: '10px', padding: '10px', background: '#f5f5f5', borderRadius: 8 }}>
+        <div style={{ 
+          marginTop: '10px', 
+          padding: '10px', 
+          background: '#f5f5f5', 
+          borderRadius: 8,
+          fontSize: '14px'
+        }}>
           <strong>Last clicked position:</strong>
           <div>Latitude: {clickedPosition.lat.toFixed(6)}</div>
           <div>Longitude: {clickedPosition.lng.toFixed(6)}</div>

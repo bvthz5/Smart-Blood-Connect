@@ -20,16 +20,91 @@ export const useGeolocation = (options = {}) => {
     timestamp: null,
   });
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed from true to false
   const [permissionStatus, setPermissionStatus] = useState('prompt');
+  const [watchId, setWatchId] = useState(null);
 
   // Default geolocation options
-  // Longer timeout for initial fix (GPS can take 20-30s indoors)
   const defaultOptions = {
     enableHighAccuracy: true,
-    timeout: 30000, // 30 seconds - allows time for GPS fix
-    maximumAge: 60000, // Accept 1-minute-old position to reduce timeout errors
+    timeout: 30000,
+    maximumAge: 60000,
     ...options,
+  };
+
+  // Success callback
+  const handleSuccess = (position) => {
+    setLocation({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+      altitude: position.coords.altitude,
+      altitudeAccuracy: position.coords.altitudeAccuracy,
+      heading: position.coords.heading,
+      speed: position.coords.speed,
+      timestamp: position.timestamp,
+    });
+    setError(null);
+    setLoading(false);
+    setPermissionStatus('granted');
+    
+    // Only log once when accuracy improves significantly or first time
+    if (!location.latitude || Math.abs(location.accuracy - position.coords.accuracy) > 1000) {
+      console.log('[Geolocation] Location acquired:', {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: `${position.coords.accuracy}m`,
+      });
+    }
+  };
+
+  // Error callback
+  const handleError = (err) => {
+    let errorMessage = 'Unable to retrieve your location';
+    let shouldStopLoading = true;
+    
+    switch (err.code) {
+      case err.PERMISSION_DENIED:
+        errorMessage = 'Location access denied. Please enable location permissions.';
+        setPermissionStatus('denied');
+        break;
+      case err.POSITION_UNAVAILABLE:
+        errorMessage = 'Location information unavailable. Please check your GPS.';
+        break;
+      case err.TIMEOUT:
+        errorMessage = 'Getting precise location... (This may take up to 30 seconds)';
+        shouldStopLoading = false;
+        console.warn('[Geolocation] Timeout on attempt, retrying...');
+        return;
+      default:
+        errorMessage = 'An unknown error occurred while getting location.';
+    }
+
+    setError({
+      code: err.code,
+      message: errorMessage,
+    });
+    
+    if (shouldStopLoading) {
+      setLoading(false);
+    }
+    
+    console.error('[Geolocation] Error:', err.code, errorMessage);
+  };
+
+  // Internal function to start watching location
+  const requestLocationInternal = () => {
+    if (!navigator.geolocation) return;
+    
+    setLoading(true);
+    
+    const id = navigator.geolocation.watchPosition(
+      handleSuccess,
+      handleError,
+      defaultOptions
+    );
+    
+    setWatchId(id);
   };
 
   useEffect(() => {
@@ -43,166 +118,75 @@ export const useGeolocation = (options = {}) => {
       return;
     }
 
-    // Check permission status (if supported)
+    let mounted = true;
+    let currentWatchId = null;
+
+    // Check permission status WITHOUT starting watchPosition
     const checkPermission = async () => {
       if (navigator.permissions && navigator.permissions.query) {
         try {
           const result = await navigator.permissions.query({ name: 'geolocation' });
+          if (!mounted) return;
+          
           setPermissionStatus(result.state);
           
           // Listen for permission changes
-          result.addEventListener('change', () => {
-            setPermissionStatus(result.state);
-          });
+          const handleChange = () => {
+            if (mounted) {
+              setPermissionStatus(result.state);
+            }
+          };
+          result.addEventListener('change', handleChange);
+          
+          // DON'T auto-start watchPosition - wait for user interaction
+          // This fixes the "Only request geolocation in response to a user gesture" violation
+          
+          return () => {
+            result.removeEventListener('change', handleChange);
+          };
         } catch (err) {
-          console.warn('Permission query not supported:', err);
+          // Permission API not supported, that's okay
         }
       }
     };
 
     checkPermission();
 
-    // Success callback
-    const handleSuccess = (position) => {
-      setLocation({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        altitude: position.coords.altitude,
-        altitudeAccuracy: position.coords.altitudeAccuracy,
-        heading: position.coords.heading,
-        speed: position.coords.speed,
-        timestamp: position.timestamp,
-      });
-      setError(null);
-      setLoading(false);
-      setPermissionStatus('granted');
-      
-      console.log('[Geolocation] Location acquired:', {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: `${position.coords.accuracy}m`,
-      });
-    };
-
-    // Error callback
-    const handleError = (err) => {
-      let errorMessage = 'Unable to retrieve your location';
-      let shouldStopLoading = true;
-      
-      switch (err.code) {
-        case err.PERMISSION_DENIED:
-          errorMessage = 'Location access denied. Please enable location permissions.';
-          setPermissionStatus('denied');
-          break;
-        case err.POSITION_UNAVAILABLE:
-          errorMessage = 'Location information unavailable. Please check your GPS.';
-          break;
-        case err.TIMEOUT:
-          // Timeout errors are often transient - watchPosition will retry
-          errorMessage = 'Getting precise location... (This may take up to 30 seconds)';
-          shouldStopLoading = false; // Keep loading, watchPosition will retry
-          console.warn('[Geolocation] Timeout on attempt, retrying...');
-          // Don't set error state for timeout - let it keep trying
-          return;
-        default:
-          errorMessage = 'An unknown error occurred while getting location.';
+    // Cleanup
+    return () => {
+      mounted = false;
+      if (currentWatchId) {
+        navigator.geolocation.clearWatch(currentWatchId);
       }
+    };
+  }, []); // Empty dependency array - run only once
 
-      // Only set error for non-timeout errors
+  // Function to manually request location
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
       setError({
-        code: err.code,
-        message: errorMessage,
+        code: 0,
+        message: 'Geolocation is not supported',
       });
-      
-      if (shouldStopLoading) {
-        setLoading(false);
-      }
-      
-      console.error('[Geolocation] Error:', err.code, errorMessage);
-    };
+      return;
+    }
 
-    // Get current position
-    const watchId = navigator.geolocation.watchPosition(
+    setLoading(true);
+    setError(null);
+
+    // Clear existing watch if any
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+
+    // Start new watch
+    const newWatchId = navigator.geolocation.watchPosition(
       handleSuccess,
       handleError,
       defaultOptions
     );
-
-    // Cleanup
-    return () => {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    };
-  }, []);
-
-  // Function to manually request location
-  const requestLocation = () => {
-    setLoading(true);
-    setError(null);
-
-    // Use same improved options for manual requests
-    const manualOptions = {
-      enableHighAccuracy: true,
-      timeout: 30000,
-      maximumAge: 60000,
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          altitude: position.coords.altitude,
-          altitudeAccuracy: position.coords.altitudeAccuracy,
-          heading: position.coords.heading,
-          speed: position.coords.speed,
-          timestamp: position.timestamp,
-        });
-        setLoading(false);
-        setPermissionStatus('granted');
-        setError(null);
-        
-        console.log('[Geolocation] Manual location acquired:', {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: `${position.coords.accuracy}m`,
-        });
-      },
-      (err) => {
-        let errorMessage = 'Unable to get location';
-        
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            errorMessage = 'Location access denied. Please enable location permissions.';
-            setPermissionStatus('denied');
-            setLoading(false);
-            break;
-          case err.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable. Please check your GPS.';
-            setLoading(false);
-            break;
-          case err.TIMEOUT:
-            errorMessage = 'Location request timed out. Still trying in background...';
-            // Don't stop loading on timeout, keep trying
-            console.warn('[Geolocation] Manual request timeout, keeping background watch active');
-            return; // Don't set error or stop loading
-          default:
-            errorMessage = 'Failed to get location. Please try again.';
-            setLoading(false);
-        }
-        
-        setError({
-          code: err.code,
-          message: errorMessage,
-        });
-        
-        console.error('[Geolocation] Manual request error:', err.code, errorMessage);
-      },
-      manualOptions
-    );
+    
+    setWatchId(newWatchId);
   };
 
   return {

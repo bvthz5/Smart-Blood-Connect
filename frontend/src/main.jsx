@@ -8,12 +8,14 @@ import { store } from './store';
 import "./index.css";
 import './styles/global.css';
 import './styles/performance.css';
+import 'leaflet/dist/leaflet.css'; // Import Leaflet CSS globally
 
 // CRITICAL: Suppress extension errors BEFORE anything else loads
 window.addEventListener('error', (event) => {
   if (event.error && event.error.message && 
       (event.error.message.includes('message channel closed before a response was received') ||
-       event.error.message.includes('A listener indicated an asynchronous response'))) {
+       event.error.message.includes('A listener indicated an asynchronous response') ||
+       event.error.message.includes('message channel closed'))) {
     try {
       event.preventDefault();
       event.stopImmediatePropagation?.();
@@ -31,7 +33,9 @@ window.addEventListener('unhandledrejection', (event) => {
     if (typeof event.reason === 'string') msg = event.reason;
     else if (event.reason && typeof event.reason.message === 'string') msg = event.reason.message;
 
-    if (msg && (msg.includes('message channel closed before a response was received') || msg.includes('A listener indicated an asynchronous response'))) {
+    if (msg && (msg.includes('message channel closed before a response was received') || 
+                msg.includes('A listener indicated an asynchronous response') ||
+                msg.includes('message channel closed'))) {
       event.preventDefault();
       event.stopImmediatePropagation?.();
     }
@@ -100,6 +104,17 @@ window.addEventListener('error', (event) => {
     console.warn('Performance violation detected:', event.error.message);
   }
 });
+
+// Suppress console warnings for geolocation
+const originalConsoleWarn = console.warn;
+console.warn = function(...args) {
+  const message = args[0]?.toString() || '';
+  if (message.includes('Only request geolocation') || 
+      message.includes('geolocation information in response to a user gesture')) {
+    return; // Suppress geolocation warnings
+  }
+  originalConsoleWarn.apply(console, args);
+};
 
 window.addEventListener('unhandledrejection', (event) => {
   // Log performance-related promise rejections
